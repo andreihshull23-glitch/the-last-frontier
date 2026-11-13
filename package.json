@@ -6,5 +6,8 @@
   "scripts": {
     "test": "node --test tests/game.test.js",
     "smoke": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "fbx-parser": "^2.1.3"
   }
 }

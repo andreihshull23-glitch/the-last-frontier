@@ -9,11 +9,12 @@
 // Geometry is stored quantised: positions int16, normals int8, colours uint8.
 // Texture atlases are baked into vertex colours, so the game needs no textures
 // and can recolour anything per instance.
-import { readdirSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { readdirSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readGlb, primitives, worldMatrices, accessor, xformPoint, xformDir } from './glb.mjs';
 import { readPng, sample } from './png.mjs';
+import { readFbxMeshes } from './fbx.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const packsDir = resolve(process.argv[2] || '');
@@ -48,6 +49,12 @@ const PACKS = [
   { id: 'arena', dir: 'kenney_mini-arena', scale: 2.4, pick: [/^(?!character-)/], parts: { 'wall-gate': ['gate'] } },
   { id: 'forest', dir: 'kenney_mini-forest_1.0', scale: 2.4, pick: [/^(?!character-)/] },
   { id: 'shop', dir: 'kenney_mini-shop_2.1', scale: 2.4, pick: [/^(?!character-)/], parts: { 'wall-door-rotate': ['door-left', 'door-right'], 'fence-door-rotate': ['door-left', 'door-right'], 'wall-window': ['(%ignore)'] } },
+  // sci-fi and industrial interiors for the lower floors of the Descent
+  { id: 'station', dir: 'kenney_space-station-kit', scale: 3, pick: [/./] },
+  { id: 'factory', dir: 'kenney_factory-kit', scale: 2.4, pick: [/^(?!arrow|indicator|button)/] },
+  { id: 'spacemod', dir: 'kenney_modular-space-kit', scale: 1, pick: [/^(gate|cables|template-(wall|floor|corner|detail))/] },
+  // the frontier itself: a flat-coloured western kit (FBX). Building pieces are stretched upward so a 1.8 m person fits a doorway.
+  { id: 'west', fbx: 'wild-west', scale: 1, tall: { match: /^(Modular)\//, y: 1.3 } },
   { id: 'gun', dir: 'kenney_blaster-kit_2.1', scale: 1, pick: [/^blaster-[a-r]$/, /^crate-/, /^grenade-/, /^clip-/, /^bullet-foam$/, /^target-(large|small)$/], parts: { 'crate-*': ['lid'] } },
 ];
 
@@ -215,6 +222,78 @@ function footprint(m) {
   return [gx0 * FOOT, gz0 * FOOT, w, h, Array.from(filled).join('')];
 }
 
+// The western kit's sixteen flat colours, warmed and weathered a little (linear rgb in, sRGB bytes out).
+const WEST_COLORS = [
+  [[0.50, 0.30, 0.16], '#a8763f'], [[0.09, 0.03, 0.02], '#5a3a26'], [[0.30, 0.18, 0.11], '#7d5534'], [[0.09, 0.09, 0.09], '#4a463f'],
+  [[0.40, 0.80, 0.02], '#7f9c4b'], [[0.10, 0.01, 0.01], '#6e2c22'], [[0.01, 0.01, 0.01], '#1f1c1a'], [[0.55, 0.54, 0.54], '#bcb6aa'],
+  [[0.06, 0.00, 0.00], '#4a1c16'], [[0.28, 0.34, 0.44], '#8fa1b5'], [[0.35, 0.05, 0.08], '#a8473c'], [[0.80, 0.80, 0.80], '#e6dfcf'],
+  [[0.03, 0.06, 0.00], '#3f4f2c'], [[0.35, 0.34, 0.34], '#8f8a80'], [[0.80, 0.38, 0.03], '#d99a3a'], [[0.02, 0.07, 0.11], '#33485c'],
+];
+function westColor(r, g, b) {
+  let best = null, bd = 1e9;
+  for (const [c, h] of WEST_COLORS) { const d = (c[0] - r) ** 2 + (c[1] - g) ** 2 + (c[2] - b) ** 2; if (d < bd) { bd = d; best = h; } }
+  return bd < 0.01 ? hex(best) : [lin2srgb(r), lin2srgb(g), lin2srgb(b)];
+}
+const slug = (n) => n.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+function fbxSources(dir) {
+  const out = [];
+  const walk = (d, rel) => {
+    for (const f of readdirSync(d).sort()) {
+      const full = join(d, f);
+      if (statSync(full).isDirectory()) walk(full, rel ? rel + '/' + f : f);
+      else if (f.toLowerCase().endsWith('.fbx')) out.push([full, slug(f.slice(0, -4)), rel]);
+    }
+  };
+  walk(dir, '');
+  return out;
+}
+function extractFbx(file, pack, name, rel) {
+  const g = { pos: [], nrm: [], col: [], idx: [], bone: [], flat: [] };
+  const modular = Boolean(pack.tall && pack.tall.match.test(rel + '/'));
+  const sy = modular ? pack.tall.y : 1;
+  const seen = new Map(); // identical corners are stored once
+  for (const m of readFbxMeshes(file)) {
+    const n = m.positions.length / 3;
+    const remap = new Array(n);
+    for (let i = 0; i < n; i++) {
+      // the kit lies along z with its face to +x; the game's kits face +z, so turn it a quarter
+      const x = m.positions[i * 3], y = m.positions[i * 3 + 1], z = m.positions[i * 3 + 2];
+      const P = [z * pack.scale, y * pack.scale * sy, -x * pack.scale];
+      const Nn = [m.normals[i * 3 + 2], m.normals[i * 3 + 1], -m.normals[i * 3]];
+      const c = westColor(m.colors[i * 3], m.colors[i * 3 + 1], m.colors[i * 3 + 2]);
+      const key = P.map((v) => Math.round(v * 2000)).join(',') + '|' + Nn.map((v) => Math.round(v * 20)).join(',') + '|' + c.join(',');
+      let at = seen.get(key);
+      if (at === undefined) {
+        at = g.pos.length / 3;
+        seen.set(key, at);
+        g.pos.push(P[0], P[1], P[2]);
+        g.nrm.push(Nn[0], Nn[1], Nn[2]);
+        g.col.push(c[0], c[1], c[2]);
+        g.flat.push(1);
+        g.bone.push(0);
+      }
+      remap[i] = at;
+    }
+    for (const i of m.indices) g.idx.push(remap[i]);
+  }
+  // loose props stand on the ground; building pieces keep their own origin so they stack
+  if (!modular && g.pos.length) {
+    let lo = Infinity;
+    for (let i = 1; i < g.pos.length; i += 3) lo = Math.min(lo, g.pos[i]);
+    if (lo < -0.02 && !/sign/.test(name)) for (let i = 1; i < g.pos.length; i += 3) g.pos[i] -= lo;
+  }
+  // the same soft gradient the other flat-coloured kits get
+  let y0 = Infinity, y1 = -Infinity;
+  for (let i = 1; i < g.pos.length; i += 3) { y0 = Math.min(y0, g.pos[i]); y1 = Math.max(y1, g.pos[i]); }
+  const span = Math.max(0.4, y1 - y0);
+  for (let i = 0; i < g.flat.length; i++) {
+    const t = (g.pos[i * 3 + 1] - y0) / span;
+    const f = 0.84 + 0.16 * Math.min(1, t * 1.4) + 0.06 * g.nrm[i * 3 + 1];
+    for (let k = 0; k < 3; k++) g.col[i * 3 + k] = Math.max(0, Math.min(255, Math.round(g.col[i * 3 + k] * f)));
+  }
+  return { models: g.idx.length ? [{ name, ...g }] : [], glb: null };
+}
+
 function rigAndClips(glb, scale) {
   const { json } = glb;
   const nodeBone = json.nodes.map((n) => BONES.indexOf(n.name));
@@ -248,17 +327,21 @@ function rigAndClips(glb, scale) {
 }
 
 function pack(packDef) {
-  const sub = packDef.sub || 'GLB format';
-  const dir = join(packsDir, packDef.dir, 'Models', sub);
-  const files = readdirSync(dir).filter((f) => f.endsWith('.glb')).map((f) => f.slice(0, -4)).filter((n) => matches(n, packDef.pick)).sort();
-  const sources = files.map((n) => [join(dir, n + '.glb'), packDef.rename ? packDef.rename(n) : n]);
-  for (const [d, n, as] of packDef.extra || []) sources.push([join(packsDir, d, 'Models', 'GLB format', n + '.glb'), as]);
+  let sources;
+  if (packDef.fbx) sources = fbxSources(join(packsDir, packDef.fbx));
+  else {
+    const sub = packDef.sub || 'GLB format';
+    const dir = join(packsDir, packDef.dir, 'Models', sub);
+    const files = readdirSync(dir).filter((f) => f.endsWith('.glb')).map((f) => f.slice(0, -4)).filter((n) => matches(n, packDef.pick)).sort();
+    sources = files.map((n) => [join(dir, n + '.glb'), packDef.rename ? packDef.rename(n) : n]);
+    for (const [d, n, as] of packDef.extra || []) sources.push([join(packsDir, d, 'Models', 'GLB format', n + '.glb'), as]);
+  }
 
   const index = {};
   const pos = [], idx = [], nrm = [], col = [];
   let rig = null;
-  for (const [file, name] of sources) {
-    const { models, glb } = extract(file, packDef, name);
+  for (const [file, name, rel] of sources) {
+    const { models, glb } = packDef.fbx ? extractFbx(file, packDef, name, rel) : extract(file, packDef, name);
     if (packDef.characters && !rig && name === 'male-a') rig = rigAndClips(glb, packDef.scale);
     for (const m of models) {
       const n = m.pos.length / 3;
