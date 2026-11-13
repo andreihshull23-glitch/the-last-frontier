@@ -4,7 +4,7 @@
 
 import * as R from './rules.js';
 import { PAD_ACTIONS } from './gamepad.js';
-import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, CHAPTERS, AMMO, PROLOGUE } from './content.js';
+import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, CHAPTERS, AMMO, PROLOGUE, HERO } from './content.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -113,18 +113,17 @@ export function createUI(root, panelEl, api) {
       const last = camp.fallen[camp.fallen.length - 1];
       const first = camp.fallen.length === 0;
       return `<section class="result hire">
-        <p class="eyebrow">${first ? 'The Dry Fork Saloon, Mercy' : 'Boot Hill has a new marker'}</p>
-        <h1 class="h-screen">${first ? 'Who rides for Mercy?' : 'Mercy needs another gun'}</h1>
+        <p class="eyebrow">Mercy Deck, level 12</p>
+        <h1 class="h-screen">Choose your first plug-in</h1>
         ${first
-    ? '<p class="lede">The marshal is hiring. Three drifters are at the bar. Each has one thing they are good at, and it dies with them. Pick one.</p>'
+    ? `<p class="lede">You are ${esc(HERO.name)}. ${esc(HERO.bio)} The rig shop fits every new runner with one plug-in on the house. You can buy the others later and swap between runs.</p>`
     : `<div class="memory"><p><strong>${esc(last.name)}</strong> was killed by ${esc(last.killedBy)}.</p>
        <p class="muted">Kept: $${camp.cash} in the bank, ${camp.armory.guns.length ? camp.armory.guns.map((g) => GUNS[g].name.toLowerCase()).join(' and ') + ', ' : ''}the town and the story so far. Lost: their kit and everything they carried.${camp.bounty ? ` ${esc(camp.bounty.name)} is wearing that kit now. There is a bounty on the board.` : ''}</p></div>`}
         <div class="candidates">${(camp.candidates ?? []).map((k, i) => `<article class="candidate">
-          <p class="eyebrow">${esc(TRAITS[k.trait].name)}</p>
-          <h3>${esc(k.name)}</h3>
+          <p class="eyebrow">Plug-in</p>
+          <h3>${esc(TRAITS[k.trait].name)}</h3>
           <p class="trait-desc">${esc(TRAITS[k.trait].desc)}</p>
-          <p class="bio">${esc(k.bio)}</p>
-          <button class="btn" data-act="hire" data-i="${i}">Hire ${esc(k.name.split(' ')[0])}</button>
+          <button class="btn" data-act="hire" data-i="${i}">Fit this one</button>
         </article>`).join('')}</div>
         ${first ? `<div class="prologue"><p class="eyebrow">The story so far</p>${PROLOGUE.map((p) => `<p><strong>${esc(p.title)}.</strong> ${esc(p.text)}</p>`).join('')}</div>` : ''}
       </section>`;
@@ -133,7 +132,7 @@ export function createUI(root, panelEl, api) {
       const s = data.summary;
       const camp = c();
       const died = s.outcome === 'died';
-      const head = died ? `${esc(s.drifter.split(' ')[0])} did not come back` : s.outcome === 'missing' ? 'Stumbled home' : s.outcome === 'fled' ? 'Turned back' : s.done ? 'Job done' : 'Home alive';
+      const head = died ? 'Flatlined. Briefly.' : s.outcome === 'missing' ? 'Stumbled home' : s.outcome === 'fled' ? 'Turned back' : s.done ? 'Job done' : 'Home alive';
       const d = s.delta || { cash: 0, prosperity: 0, rep: { meridian: 0, riders: 0 } };
       const deltas = [];
       if (d.cash) deltas.push(`<span class="${d.cash > 0 ? 'good' : 'bad'}">Cash ${signed(d.cash)}</span>`);
@@ -145,6 +144,7 @@ export function createUI(root, panelEl, api) {
         ${s.lines.length ? `<table class="ledger">${s.lines.map((l) => `<tr class="${l.tone || ''}"><th>${esc(l.label)}</th><td>${esc(l.value)}</td></tr>`).join('')}</table>` : ''}
         ${deltas.length ? `<div class="deltas">${deltas.join('')}</div>` : ''}
         ${s.lost?.length ? `<p class="lost">Lost: ${esc(s.lost.join(', '))}.</p>` : ''}
+        ${s.down ? `<div class="memory"><p><strong>You went down.</strong> Killed by ${esc(s.down.killedBy)}. The clinic's recovery team dragged you back to the deck${s.down.times > 1 ? `, for the ${s.down.times}${['th','st','nd','rd'][s.down.times % 10 > 3 || (s.down.times % 100 > 10 && s.down.times % 100 < 14) ? 0 : s.down.times % 10]} time` : ''}.</p><p class="muted">Gone: everything the run turned up${s.down.lostKit.length ? `, and the kit you wore (${esc(s.down.lostKit.join(', '))})` : ''}. Kept: banked creds, plug-ins, unlocked guns, the deck and the story.</p></div>` : ''}
         ${s.obituary ? `<div class="memory"><p><strong>${esc(s.obituary.name)}</strong>, ${esc(TRAITS[s.obituary.trait]?.name.toLowerCase() ?? '')}. ${plural(s.obituary.expeditions, 'ride')}, ${plural(s.obituary.kills, 'kill')}. Killed by ${esc(s.obituary.killedBy)}.</p>
           ${s.bounty ? `<p class="wanted"><strong>Wanted: ${esc(s.bounty.name)}.</strong> They took ${s.bounty.gear.length ? esc(s.bounty.gear.map((g) => GEAR[g]?.name.toLowerCase()).join(', ')) : 'what was carried'}. Kill them and bring the effects home.</p>` : ''}
           <p class="muted">Your guns, your cash and the town are still here.</p></div>` : ''}
@@ -271,7 +271,15 @@ export function createUI(root, panelEl, api) {
     },
     outfitter() {
       const camp = c(), ch = camp.character;
-      return `${head(SHOPS.outfitter.keeper, 'Outfitter')}
+      const owned = R.ownedPlugins(camp);
+      const plugs = Object.entries(TRAITS).map(([id, t]) => (owned.includes(id)
+        ? `<div class="item built"><div><h3>${esc(t.name)}</h3><p>${esc(t.desc)}</p></div>${ch.trait === id ? '<span class="have">Fitted</span>' : `<button class="btn" data-p="plugfit" data-id="${id}">Fit<span class="btn-sub">owned</span></button>`}</div>`
+        : buyRow(t.name, t.desc, '', R.canBuyPlugin(camp, id), 'Buy', `data-p="plugbuy" data-id="${id}"`))).join('');
+      return `${head(SHOPS.outfitter.keeper, 'Rig shop')}
+        <h3 class="section">Plug-ins</h3>
+        <p class="muted">One plug-in is fitted at a time. Swap whenever you are on the deck. They stay with you when a run goes wrong.</p>
+        <div class="items">${plugs}</div>
+        <h3 class="section">Kit</h3>
         <p class="muted">Kit is worn by the drifter. If they die, whoever killed them wears it next.</p>
         <div class="items">${Object.entries(GEAR).map(([id, g]) => (ch.gear.includes(id)
     ? `<div class="item built"><div><h3>${esc(g.name)}</h3><p>${esc(g.desc)}</p></div><span class="have">Worn</span></div>`
@@ -445,11 +453,13 @@ export function createUI(root, panelEl, api) {
     api.audio.unlock();
     const act = btn.dataset.p, id = btn.dataset.id;
     const camp = c();
-    if (act !== 'buy' && act !== 'gun' && act !== 'upgrade' && act !== 'invest') api.audio.play('ui');
+    if (act !== 'buy' && act !== 'gun' && act !== 'upgrade' && act !== 'invest' && act !== 'plugbuy') api.audio.play('ui');
     if (act === 'close') closePanel();
     else if (act === 'buy') done(R.buy(camp, id));
     else if (act === 'gun') done(R.buyGun(camp, id));
     else if (act === 'upgrade') done(R.buyUpgrade(camp, id));
+    else if (act === 'plugbuy') done(R.buyPlugin(camp, id));
+    else if (act === 'plugfit') done(R.fitPlugin(camp, id), 'ui');
     else if (act === 'invest') done(R.invest(camp, id));
     else if (act === 'treat') done(R.treat(camp), 'heal');
     else if (act === 'ledger') { const r = R.chooseLedger(camp, id); done(r, 'chapter'); if (r.ok) { panel = 'talk'; renderPanel(); } }

@@ -11,7 +11,7 @@
 
 import {
   CHAPTERS, JOBS, GEAR, SUPPLIES, INVESTMENTS, TRAITS, PERKS, CLINIC_PRICE, GUNS, UPGRADES, AMMO, CARRY, ITEMS, SHOPS, TELEGRAMS,
-  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER,
+  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER, HERO,
 } from './content.js';
 import { makeRng, mixSeed } from './rng.js';
 
@@ -36,7 +36,7 @@ function shell() {
   return {
     seed: 1, rolls: 0, createdAt: Date.now(), cash: 0, prosperity: 0, rep: { meridian: 0, riders: 0 },
     investments: [], armory: { guns: [], upgrades: [] }, chapter: 0,
-    character: null, candidates: null, fallen: [], bounty: null,
+    character: null, candidates: null, fallen: [], bounty: null, plugins: [], deaths: 0,
     ledger: [], ledgerSeq: 0, pendingChoice: null, activeExpedition: null, expeditionCount: 0, jobsDone: 0,
   };
 }
@@ -105,8 +105,10 @@ export function hireDrifter(c, index) {
   const pick = c.candidates?.[index];
   if (!pick) return fail('That drifter is no longer looking for work.');
   const first = c.fallen.length === 0;
+  // One runner for the whole campaign. The pick is their first plug-in.
+  c.plugins = [...new Set([...(c.plugins || []), pick.trait])];
   c.character = {
-    name: pick.name, trait: pick.trait, bio: pick.bio, look: pick.look ?? 0, alive: true, hp: 0, gear: [],
+    name: HERO.name, trait: pick.trait, bio: HERO.bio, look: 0, alive: true, hp: 0, gear: [],
     cartridges: first ? AMMO.cartridges.start : 60,
     shells: c.armory.guns.includes('shotgun') ? 12 : 0,
     bandages: first ? 2 : 1,
@@ -302,6 +304,36 @@ export function buyGun(c, id) {
   c.armory.guns.push(id);
   return { ok: true };
 }
+/** Plug-ins the runner owns; one is fitted at a time. */
+export const ownedPlugins = (c) => [...(c.plugins || [])];
+export function canBuyPlugin(c, id) {
+  const open = shopOpen(c);
+  if (!open.ok) return open;
+  const t = TRAITS[id];
+  if (!t) return fail('No such plug-in');
+  if ((c.plugins || []).includes(id)) return fail('Owned');
+  if (c.cash < t.cost) return short(c, t.cost);
+  return { ok: true, price: t.cost };
+}
+export function buyPlugin(c, id) {
+  const check = canBuyPlugin(c, id);
+  if (!check.ok) return check;
+  c.cash -= check.price;
+  c.plugins = [...(c.plugins || []), id];
+  return { ok: true };
+}
+/** Fit a plug-in the runner owns. Health is kept in proportion when plating goes in or out. */
+export function fitPlugin(c, id) {
+  const ch = c.character;
+  if (!ch?.alive) return fail('No runner');
+  if (!(c.plugins || []).includes(id)) return fail('Not owned');
+  if (ch.trait === id) return fail('Fitted');
+  const before = maxHp(ch);
+  ch.trait = id;
+  ch.hp = clamp(Math.round(ch.hp * (maxHp(ch) / before)), 1, maxHp(ch));
+  return { ok: true };
+}
+
 export function canBuyUpgrade(c, id) {
   const open = shopOpen(c);
   if (!open.ok) return open;
@@ -572,12 +604,10 @@ export function resolveExpedition(c, report) {
       c.bounty = null;
     }
     summary.lost = [...loot.map((l) => `${l.name} ($${l.value})`), ...ch.gear.map((g) => GEAR[g]?.name ?? g)];
-    const fallen = {
-      name: ch.name, trait: ch.trait, bio: ch.bio, look: ch.look ?? 0, expeditions: ch.expeditions, kills: ch.kills + (report.kills ?? 0),
-      diedOn: c.expeditionCount, killedBy: label, contract: summary.title, gear: [...ch.gear],
-    };
-    c.fallen.push(fallen);
-    summary.obituary = fallen;
+    // The runner does not die for good: the clinic's recovery team drags them back to the deck.
+    // What the run turned up is gone, and so is the kit they wore.
+    c.deaths = (c.deaths || 0) + 1;
+    summary.down = { killedBy: label, times: c.deaths, lostKit: ch.gear.map((g) => GEAR[g]?.name ?? g) };
     record(c, 'DRIFTER_DIED', { name: ch.name, killer: label });
     if (killer && HUMAN_KILLERS.has(killer.kind) && killer.kind !== 'foreman') {
       if (c.bounty) {
@@ -592,11 +622,11 @@ export function resolveExpedition(c, report) {
       }
       summary.bounty = { ...c.bounty };
     } else if (report.hollow) record(c, 'LOST_TO_HOLLOW', { name: ch.name });
-    ch.alive = false;
-    ch.hp = 0;
+    ch.hp = maxHp({ ...ch, gear: [] });
     ch.gear = [];
-    ch.cartridges = 0; ch.shells = 0; ch.bandages = 0; ch.dynamite = 0;
-    rollCandidates(c);
+    ch.cartridges = 60; ch.shells = 0; ch.bandages = 1; ch.dynamite = 0;
+    ch.kills += report.kills ?? 0;
+    ch.expeditions += 1;
   } else {
     // 'missing': the page closed mid-ride with no snapshot to resume from. The drifter
     // limps home: loot and the supplies they carried are gone, kit and life are kept.
@@ -656,6 +686,8 @@ export function fromSavePayload(payload) {
   c.expeditionCount = Math.max(0, Math.round(num(raw.expeditionCount, 0)));
   c.jobsDone = Math.max(0, Math.round(num(raw.jobsDone, 0)));
   c.descentBest = Math.max(0, Math.round(num(raw.descentBest, 0)));
+  c.deaths = Math.max(0, Math.round(num(raw.deaths, 0)));
+  c.plugins = Array.isArray(raw.plugins) ? [...new Set(raw.plugins.filter((t) => TRAITS[t]))] : [];
   c.fallen = Array.isArray(raw.fallen) ? raw.fallen.filter((f) => f && typeof f.name === 'string').map((f) => ({ ...f, killedBy: String(f.killedBy ?? 'the Red Country'), expeditions: num(f.expeditions, 0) })) : [];
   c.armory = {
     guns: Array.isArray(raw.armory?.guns) ? [...new Set(raw.armory.guns.filter((g) => GUNS[g] && g !== 'revolver'))] : [],
@@ -713,6 +745,7 @@ export function fromSavePayload(payload) {
     c.activeExpedition = { id: ax.id, missionId: ax.missionId, seed: num(ax.seed, 0) >>> 0, startedAt: num(ax.startedAt, Date.now()) };
   }
   if (needsSuccessor(c) && !c.candidates) rollCandidates(c);
+  if (c.character?.alive && c.character.trait && !c.plugins.includes(c.character.trait)) c.plugins.push(c.character.trait);
   return { ok: true, campaign: c, savedAt: num(payload.savedAt, 0), migrated: old };
 }
 

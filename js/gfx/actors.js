@@ -81,7 +81,7 @@ export const LOOKS = {
   towns3: { fam: 'man', model: 'Farmer' },
 };
 const DRIFTER_BODIES = [
-  ['man', 'Adventurer', null, 'a'], ['woman', 'Adventurer', null, 'b'], ['man', 'Adventurer', 'cloth_blue', 'b'], ['woman', 'Soldier', null, 'a'],
+  ['man', 'Swat', null, null], ['woman', 'Adventurer', null, 'b'], ['man', 'Adventurer', 'cloth_blue', 'b'], ['woman', 'Soldier', null, 'a'],
   ['man', 'Farmer', null, null], ['woman', 'SciFi', 'cloth_rust', 'b'], ['man', 'Adventurer', 'cloth_red', 'c'], ['woman', 'Adventurer', 'cloth_rust', 'a'],
   ['man', 'Farmer', 'cloth_green', null], ['woman', 'Soldier', 'cloth_blue', 'b'], ['man', 'Swat', 'cloth_rust', 'a'], ['woman', 'Adventurer', 'cloth_blue', 'c'],
 ];

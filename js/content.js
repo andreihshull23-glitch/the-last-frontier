@@ -426,15 +426,22 @@ export const SUPPLIES = {
 
 export const CLINIC_PRICE = 20;
 
+/** The one runner the whole campaign follows. */
+export const HERO = { name: 'Rook', bio: 'Deleted from the registry four years ago. Still here.' };
+
+/**
+ * Plug-ins: modules for the runner's rig. One is fitted at a time; the first is free, the rest are bought
+ * at the rig shop and can be swapped on the deck between runs. (Kept under the old name TRAITS in code.)
+ */
 export const TRAITS = {
-  steady: { name: 'Steady hand', desc: 'Aimed shots deal 20% more damage.' },
-  fleet: { name: 'Fleet-footed', desc: 'Dodging and sprinting cost less stamina.' },
-  leather: { name: 'Boot leather', desc: '+25 maximum health.' },
-  scavenger: { name: 'Scavenger', desc: 'Loot is worth 30% more.' },
-  loader: { name: 'Quick loader', desc: 'Reload 35% faster.' },
-  nighteyes: { name: 'Night eyes', desc: 'See farther in the dark.' },
-  coolhead: { name: 'Cool head', desc: 'Fanned and scattered shots spread 35% less.' },
-  powder: { name: 'Powder monkey', desc: 'Dynamite hits 30% harder and you start each ride with one stick.' },
+  steady: { name: 'Targeting assist', cost: 160, desc: 'Aimed shots deal 20% more damage.' },
+  fleet: { name: 'Servo boost', cost: 140, desc: 'Dodging and sprinting cost less stamina.' },
+  leather: { name: 'Subdermal plating', cost: 180, desc: '+25 maximum health.' },
+  scavenger: { name: 'Salvage scanner', cost: 150, desc: 'Loot is worth 30% more.' },
+  loader: { name: 'Reflex loader', cost: 170, desc: 'Reload 35% faster.' },
+  nighteyes: { name: 'Low-light optics', cost: 120, desc: 'See farther in the dark.' },
+  coolhead: { name: 'Recoil damper', cost: 150, desc: 'Fanned and scattered shots spread 35% less.' },
+  powder: { name: 'Demolition suite', cost: 160, desc: 'Explosives hit 30% harder and you start each run with one charge.' },
 };
 
 export const FIRST_NAMES = [

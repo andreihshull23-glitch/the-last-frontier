@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as R from '../js/rules.js';
-import { CHAPTERS, JOBS, INVESTMENTS, GUNS, GUN_ORDER, ENEMIES, TALK, RELICS, DESCENT, START_GUN } from '../js/content.js';
+import { CHAPTERS, JOBS, INVESTMENTS, GUNS, GUN_ORDER, ENEMIES, TALK, RELICS, DESCENT, START_GUN, TRAITS } from '../js/content.js';
 import { generateLevel } from '../js/gen/index.js';
 import { validateLevel } from '../js/level.js';
 import { createSim, update, snapshot, restoreSim, abandon, giveGun, giveRelic, runMods } from '../js/sim.js';
@@ -51,27 +51,51 @@ test('the sim is deterministic and resumes from a snapshot', () => {
   assert.equal(JSON.stringify(snapshot(a)), JSON.stringify(snapshot(c)));
 });
 
-test('an expedition settles exactly once, and death keeps the town but loses the kit', () => {
+test('an expedition settles exactly once; going down costs the kit, not the runner', () => {
   const c = campaign();
   c.cash = 500;
   assert.ok(R.buy(c, 'bandage').ok !== false);
+  assert.ok(R.buy(c, 'duster').ok !== false);
   const invested = R.invest(c, 'deputy');
   assert.ok(invested.ok !== false, invested.reason);
   const cashBefore = c.cash;
+  const name = c.character.name, plugin = c.character.trait;
   const { sim } = ride(c, R.availableMissions(c)[0].id);
-  assert.ok(sim.state.buddy, 'Deputy Tin rides along once rebuilt');
+  assert.ok(sim.state.buddy, 'the rebuilt unit comes along');
   sim.state.player.hp = 0;
   run(sim, 4);
   assert.equal(sim.state.report.outcome, 'died');
   const s1 = R.resolveExpedition(c, sim.state.report);
-  assert.ok(s1);
-  assert.equal(c.cash, cashBefore, 'secured cash survives');
+  assert.ok(s1.down, 'the summary says the runner went down');
+  assert.equal(c.cash, cashBefore, 'banked creds survive');
   assert.ok(c.investments.includes('deputy'));
-  assert.equal(c.fallen.length, 1);
-  assert.ok(R.needsSuccessor(c));
+  assert.ok(c.character.alive, 'the same runner carries on');
+  assert.equal(c.character.name, name);
+  assert.equal(c.character.trait, plugin, 'the fitted plug-in stays');
+  assert.deepEqual(c.character.gear, [], 'the kit they wore is gone');
+  assert.equal(c.deaths, 1);
+  assert.equal(R.needsSuccessor(c), false);
   const again = R.resolveExpedition(c, sim.state.report);
-  assert.ok(!again || again.ok === false || c.fallen.length === 1, 'second settlement does nothing');
-  assert.equal(c.fallen.length, 1);
+  assert.equal(again.ok, false, 'second settlement does nothing');
+  assert.equal(c.deaths, 1);
+});
+
+test('plug-ins are bought once and fitted one at a time', () => {
+  const c = campaign();
+  const first = c.character.trait;
+  assert.deepEqual(R.ownedPlugins(c), [first]);
+  const other = Object.keys(TRAITS).find((t) => t !== first && t !== 'leather');
+  assert.equal(R.canBuyPlugin(c, other).ok, false, 'costs creds');
+  c.cash = 1000;
+  assert.ok(R.buyPlugin(c, other).ok);
+  assert.equal(R.buyPlugin(c, other).ok, false, 'already owned');
+  assert.equal(c.character.trait, first, 'buying does not fit it');
+  assert.ok(R.fitPlugin(c, other).ok);
+  assert.equal(c.character.trait, other);
+  assert.equal(R.fitPlugin(c, 'nope').ok, false);
+  // a save keeps them
+  const back = R.fromSavePayload(JSON.parse(JSON.stringify(R.toSavePayload(c))));
+  assert.deepEqual(back.campaign.plugins.sort(), [first, other].sort());
 });
 
 test('giving up brings the drifter home alive', () => {
