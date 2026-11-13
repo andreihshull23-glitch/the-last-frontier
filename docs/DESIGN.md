@@ -4,7 +4,7 @@ A sci-fi Western extraction roguelike. You hire a drifter in the town of Mercy, 
 
 ## Setting
 
-The frontier is a canyon territory that the Meridian Company is surveying with machines. Outlaws are people. The company fields robots: sentry units, scouts on two legs, and the Foreman, a boiler-plated boss. The Hollow, under the mine, keeps its dead walking. Mercy has taken in a few rebuilt machines of its own: Unit E-7 runs the telegraph, and Deputy Tin can be rebuilt at the Town Hall.
+Forty years ago a ship fell out of the sky and buried itself in the Red Country. The Meridian Company sank the Calloway mine onto it and builds machines from the wreck: sentry units, scout walkers, enforcers, crushers. The machines do not think; they take orders from signal relays that listen to the ship. The miners the company sealed in are still walking down there (the Hollow). Outlaws are people. Mercy is the last free town, and has rebuilt a few machines of its own: Unit E-7 runs the telegraph and Deputy Tin can be rebuilt at the Town Hall.
 
 ## The loop
 
@@ -16,7 +16,18 @@ The frontier is a canyon territory that the Meridian Company is surveying with m
 
 ## Story
 
-Six chapters, played in order, each with its own level spec: the missing shipment, the courier, Site 9 (with a choice about the ledger), the Calloway mine, the Hollow, and the Foreman. Jobs from the saloon board repeat between chapters for cash.
+A prologue on the hiring screen sets the premise. Eight chapters are played in order, each with its own level spec:
+
+1. The Missing Shipment: a strongbox that holds a machine core.
+2. The Courier's Road: a map to Site 9, and the first machines.
+3. Fences in the Desert: the Site 9 ledger, and a choice about who reads it.
+4. Cut the Strings: overload three signal relays. Unlocks energy weapons.
+5. The Calloway Mine: the bore key.
+6. What They Dug Up: the engine shard from the ship's heart.
+7. The Foundry: destroy the Overseer.
+8. The Foreman.
+
+Every chapter has a one-line `goal` shown in town and a `recap` for the journal (J), which always says what has happened and what to do next. Jobs from the saloon board repeat between chapters for cash.
 
 ## Death and what persists
 
@@ -28,7 +39,23 @@ One camera: third person, over the right shoulder, rising over walls when squeez
 
 ## Guns
 
-Three player guns share two ammo pools: revolver (6 rounds, fan fire), repeater (12 rounds), coach gun (6 shells, double blast). Upgrades fit at the gunsmith once the workshop is funded.
+Each gun is meant to play differently, not just to have bigger numbers.
+
+| Gun | What makes it different |
+|---|---|
+| Revolver | Free sidearm. Six rounds loaded singly. Alternate fire fans the whole cylinder. |
+| Repeater | Accurate at long range, slow to cycle. |
+| Coach gun | Eight pellets, short range. Alternate fire is both barrels. |
+| Rattler | Thirty rounds, very fast, inaccurate. The whole magazine swaps at once. |
+| Long Tom | Four huge rounds that pierce three targets. Very slow. After chapter 2. |
+| Pulse carbine | No ammunition: the cell recharges when you stop firing. +60% to machines. Alternate fire spends half the cell on one piercing bolt. After chapter 4. |
+| Arc caster | Lightning that jumps to two more enemies and locks machines up. After chapter 6. |
+
+Number keys pick the nth gun you own. Upgrades fit at the gunsmith once the workshop is funded.
+
+## Machines
+
+Enemies flagged `robot` take extra damage from energy weapons and are stunned by the arc caster and by a relay overloading nearby. Bosses cannot be stunned. Only people become bounties that carry off a dead drifter's kit.
 
 ## Deputy Tin
 
@@ -36,11 +63,11 @@ A town investment, so it survives the drifter. It heels at the drifter's left, a
 
 ## Art
 
-Everything is vertex-coloured low-poly with no textures. The world is Kenney kits. Characters are Quaternius packs on their own skeletons with their packaged animations. Two styles of people are mixed: realistic proportions for most, and a big-headed cartoon pack for the cowboys, the doctor and the zombies, because that pack has the only cowboy models. The cartoon pack draws skin as a black silhouette; the bake gives it a skin tone so it sits with the others.
+Everything is vertex-coloured low-poly with no textures. The world is Kenney kits. Characters are Quaternius packs on their own skeletons with their packaged animations. Only models that suit the setting are baked: adventurers, farmers, a trooper, a space suit, a soldier, robots, and from the cartoon pack the cowboys, old-west townsfolk, the doctor and the zombies. Clothing is recoloured in code for variety. The cartoon pack draws skin as a black silhouette; the bake gives it a skin tone so it sits with the others.
 
 ## Known limits
 
-- Guns are fitted to the hand in the aiming pose only, so in other poses a gun can point up or sideways.
+- While a gun is drawn the arms are held in the aiming pose and only the legs and body animate, so the gun always points forward. Recoil is a short kick of the gun itself.
 - Hats on the realistic models are generated shapes on the head bone, not modelled hats.
 - The scout robot has no arms, so it shows no gun.
 - The asset download is about 14 MB.

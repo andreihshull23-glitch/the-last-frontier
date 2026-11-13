@@ -16,7 +16,8 @@ Then open `http://localhost:8000/`. The only dependency is three.js r128, loaded
 
 - WASD to move, mouse to look, Shift to sprint, Space to dodge.
 - Click to fire, right-click or F for the alternate fire, R to reload.
-- 1, 2, 3 or the mouse wheel to change guns, G for dynamite, Q for a bandage.
+- 1 to 7 or the mouse wheel to change guns, G for dynamite, Q for a bandage.
+- J for the journal: the story so far and what to do next.
 - E to use or talk, M for the map, Esc for the menu.
 
 ## Layout

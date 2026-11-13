@@ -116,6 +116,11 @@ export function createControls(stage, hooks) {
       case 'Digit1': slot = 1; break;
       case 'Digit2': slot = 2; break;
       case 'Digit3': slot = 3; break;
+      case 'Digit4': slot = 4; break;
+      case 'Digit5': slot = 5; break;
+      case 'Digit6': slot = 6; break;
+      case 'Digit7': slot = 7; break;
+      case 'KeyJ': hooks.onJournal?.(); break;
       case 'KeyX': swap = 1; break;
       case 'KeyM': case 'Tab': hooks.onMap?.(); break;
       case 'Escape': case 'KeyP': hooks.onPause?.(); break;

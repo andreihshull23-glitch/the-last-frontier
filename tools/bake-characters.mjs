@@ -14,10 +14,10 @@ const FPS = 15;
 const FINGER = /Index|Middle|Ring|Pinky|Thumb|Palm/;
 
 const FAMILIES = [
-  { id: 'man', dir: dMen, height: 1.8, files: ['Adventurer', 'Farmer', 'Worker', 'Suit', 'Punk', 'Casual_2', 'Casual_Hoodie', 'Swat', 'Spacesuit'] },
-  { id: 'woman', dir: dWomen, height: 1.7, files: ['Adventurer', 'Worker', 'Suit', 'Punk', 'Casual', 'SciFi', 'Soldier', 'Formal'] },
+  { id: 'man', dir: dMen, height: 1.8, files: ['Adventurer', 'Farmer', 'Swat', 'Spacesuit'] },
+  { id: 'woman', dir: dWomen, height: 1.7, files: ['Adventurer', 'SciFi', 'Soldier'] },
   { id: 'robot', dir: dRobots, height: 1.95, files: ['Mike', 'George', 'Leela', 'Stan'] },
-  { id: 'toon', dir: dPack, height: 1.78, files: ['Cowboy_Male', 'Cowboy_Female', 'Zombie_Male', 'Zombie_Female', 'Doctor_Male_Old', 'OldClassy_Male', 'OldClassy_Female', 'Worker_Male', 'BlueSoldier_Male'] },
+  { id: 'toon', dir: dPack, height: 1.78, files: ['Cowboy_Male', 'Cowboy_Female', 'Zombie_Male', 'Zombie_Female', 'Doctor_Male_Old', 'OldClassy_Male', 'OldClassy_Female'] },
 ];
 
 function readGltf(path) {

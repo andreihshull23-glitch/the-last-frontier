@@ -227,13 +227,16 @@ if (want('levels')) {
   const { ctx, page } = await open();
   await startCampaign(page);
   const tour = [
-    ['story:mine', 3, '40-mine', 'near'],
-    ['story:hollow', 4, '41-hollow', 'near'],
-    ['story:foreman', 5, '42-foreman', 'boss'],
+    ['story:relays', 3, '44-relays', 'near'],
+    ['story:mine', 4, '40-mine', 'near'],
+    ['story:hollow', 5, '41-hollow', 'near'],
+    ['story:foundry', 6, '45-foundry', 'boss'],
+    ['story:foreman', 7, '42-foreman', 'boss'],
     ['story:site9', 2, '43-site9', 'objective'],
   ];
+
   for (const [id, chapter, name, where] of tour) {
-    await D(page, (n) => { const L = window.LF_DEBUG; L.chapter(n); L.app.campaign.armory.guns = ['rifle', 'shotgun']; if (!L.app.campaign.investments.includes('deputy')) L.app.campaign.investments.push('deputy'); L.app.campaign.character.shells = 24; L.app.campaign.character.gear = ['lantern']; L.app.campaign.character.dynamite = 3; }, chapter);
+    await D(page, (n) => { const L = window.LF_DEBUG; L.chapter(n); L.app.campaign.armory.guns = ['rifle', 'shotgun', 'smg', 'longrifle', 'pulse', 'arc']; if (!L.app.campaign.investments.includes('deputy')) L.app.campaign.investments.push('deputy'); L.app.campaign.character.shells = 24; L.app.campaign.character.gear = ['lantern']; L.app.campaign.character.dynamite = 3; }, chapter);
     const ok = await D(page, (m) => window.LF_DEBUG.ride(m), id);
     check(ok, `started ${id}`);
     await waitMode(page, 'ride');
@@ -243,7 +246,7 @@ if (want('levels')) {
     await D(page, (w) => {
       const L = window.LF_DEBUG, s = L.state(), p = s.player; p.maxHp = p.hp = 99999; // staged fights must not end the ride
       let t;
-      if (w === 'boss') t = s.enemies.find((e) => e.kind === 'foreman');
+      if (w === 'boss') t = s.enemies.find((e) => e.kind === 'foreman' || e.kind === 'overseer');
       else if (w === 'objective') t = s.interactables.find((i) => i.kind === 'objective');
       else t = s.enemies.slice().sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
       const sim = L.sim();

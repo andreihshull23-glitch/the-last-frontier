@@ -3,6 +3,7 @@
 // Mercy and the rides are the same sim and the same third-person renderer.
 
 import * as R from './rules.js';
+import { CHAPTERS } from './content.js';
 import { generateLevel } from './gen/index.js';
 import { createSim, update, snapshot, restoreSim, nightFactor, haunted, focusPrompt, objectiveList, abandon } from './sim.js';
 import { createAssets } from './gfx/assets.js';
@@ -49,6 +50,7 @@ const audio = createAudio();
 const saves = createSaveManager();
 const controls = createControls(stage, {
   onPause: () => togglePause(),
+  onJournal: () => { if (playing() && app.campaign?.character && !ui.panel) { controls.releaseLock?.(); ui.openPanel('journal'); } },
   onMap: () => { if (renderer && playing() && !ui.panel) renderer.mapOpen = !renderer.mapOpen; },
   onLockLost: () => { if (app.mode === 'ride' && !ui.panel && app.sim?.state.phase === 'playing') ui.openPanel('pause'); },
 });
@@ -159,7 +161,7 @@ function townUI() {
   if (c.pendingChoice) { hint = 'The ledger is in your saddlebag. Talk to the marshal on the Town Hall porch.'; giver = 'marshal'; }
   else if (ch) {
     const name = ch.giver === 'rider' ? 'Nell Dunmore, outside the saloon' : 'the marshal, outside the Town Hall';
-    hint = `Chapter ${c.chapter + 1}: ${ch.title}. Talk to ${name}, or ride out by the trail.`;
+    hint = `Chapter ${c.chapter + 1} of ${CHAPTERS.length}: ${ch.goal} Talk to ${name}. Press J for the story so far.`;
     giver = ch.giver;
   } else hint = 'The story is finished. There is always work on the job board.';
   return { cash: c.cash, who, hint, giver, flag, canRide: R.availableMissions(c).length > 0 };
@@ -343,7 +345,7 @@ function townInteract(e) {
   else if (e.kind === 'grave') toast(renderer, e.text || 'A wooden marker.', 'info', true);
 }
 
-const SHOT_SOUND = { revolver: 'precise', fan: 'fan', rifle: 'rifleShot', shotgun: 'shotgunShot' };
+const SHOT_SOUND = { revolver: 'precise', fan: 'fan', rifle: 'rifleShot', shotgun: 'shotgunShot', smg: 'smgShot', longrifle: 'longShot', pulse: 'pulseShot', arc: 'arcShot', overcharge: 'overcharge' };
 
 function dispatch(events) {
   const sim = app.sim;
@@ -353,7 +355,8 @@ function dispatch(events) {
     const vol = Number.isFinite(e.x) ? Math.max(0.12, 1 - Math.hypot(e.x - p.x, e.y - p.y) / 1100) : 1;
     switch (e.type) {
       case 'town_interact': townInteract(e); break;
-      case 'shot': audio.play(SHOT_SOUND[e.kind] || 'precise'); break;
+      case 'shot': audio.play(e.heavy ? 'overcharge' : SHOT_SOUND[e.kind] || 'precise'); break;
+      case 'arc': audio.play('zap', 0.7); break;
       case 'enemy_shot': audio.play(e.weapon, vol); break;
       case 'echo_shot': audio.play('echoShot'); break;
       case 'buddy_shot': audio.play('e_pistol', 0.5); break;

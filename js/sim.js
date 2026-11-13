@@ -39,7 +39,7 @@ export const PLAYER = {
 };
 
 /** Seconds of in-world clock. */
-export const CLOCK = { dusk: 300, night: 420, waveEvery: 35, maxWalkers: 10 };
+export const CLOCK = { dusk: 420, night: 560, waveEvery: 35, maxWalkers: 10 };
 export const ECHO = { delay: 2, shardDelay: 1.4, toPlayer: 12, toEnemy: 26, history: 3.5 };
 const VISION = { day: 1500, night: 310, lantern: 150, nighteyes: 110 };
 const TAU = Math.PI * 2;
@@ -93,7 +93,7 @@ export function createSim(config, level) {
       aim: level.start.a || 0,
       dodgeT: 0, dodgeX: 0, dodgeY: 0, iframes: 0, recoverT: 0,
       sprinting: false, sprintLock: 0, stepT: 0,
-      gun: 'revolver', mags,
+      gun: 'revolver', mags, rest: {},
       ammo: { cartridges: ch.cartridges ?? AMMO.cartridges.start, shells: ch.shells ?? 0 },
       dynamite: ch.dynamite ?? 0, bandages: ch.bandages ?? 0,
       fireCd: 0, fireBuffer: 0, fanQueue: 0, fanT: 0, reloading: false, reloadT: 0, swapT: 0, throwCd: 0,
@@ -686,19 +686,21 @@ export function currentGun(sim) {
 function reloadTime(sim) {
   const s = sim.state;
   const g = currentGun(sim);
-  return Math.max(0.08, g.reloadRound) * (s.config.character.trait === 'loader' ? 0.65 : 1) * (hasGear(s, 'bandolier') ? 0.8 : 1);
+  return Math.max(0.08, g.reloadRound || 0.3) * (s.config.character.trait === 'loader' ? 0.65 : 1) * (hasGear(s, 'bandolier') ? 0.8 : 1);
 }
 
 function reserveOf(sim) {
-  const s = sim.state;
-  return s.mode === 'town' ? 999 : s.player.ammo[currentGun(sim).ammo];
+  const s = sim.state, g = currentGun(sim);
+  if (!g.ammo) return 0; // energy cells refill by themselves
+  return s.mode === 'town' ? 999 : s.player.ammo[g.ammo];
 }
 
 function startReload(sim) {
   const p = sim.state.player, g = currentGun(sim);
+  if (g.recharge) return;
   if (p.reloading || reserveOf(sim) <= 0 || p.mags[p.gun] >= g.mag) return;
   p.reloading = true;
-  p.reloadT = reloadTime(sim);
+  p.reloadT = g.magReload ? g.magReload * (reloadTime(sim) / Math.max(0.08, g.reloadRound || 0.3)) : reloadTime(sim);
   emit(sim, 'reload_start', { gun: p.gun });
 }
 
@@ -717,14 +719,19 @@ function swapTo(sim, id) {
 function updateWeapon(sim, dt, input) {
   const s = sim.state, p = s.player, trait = s.config.character.trait;
   const owned = GUN_ORDER.filter((g) => p.mags[g] !== undefined);
-  if (input.slot) swapTo(sim, GUN_ORDER[input.slot - 1]);
+  if (input.slot) swapTo(sim, owned[input.slot - 1]);
   else if (input.swap) swapTo(sim, owned[(owned.indexOf(p.gun) + (input.swap > 0 ? 1 : owned.length - 1)) % owned.length]);
   const g = currentGun(sim);
 
   if (p.reloading) {
     p.reloadT -= dt;
     if (p.reloadT <= 0) {
-      if (p.mags[p.gun] < g.mag && reserveOf(sim) > 0) {
+      if (g.magReload) { // the whole magazine swaps at once
+        const n = Math.min(g.mag - p.mags[p.gun], reserveOf(sim));
+        p.mags[p.gun] += n;
+        if (s.mode !== 'town') p.ammo[g.ammo] -= n;
+        emit(sim, 'reload_round', { gun: p.gun });
+      } else if (p.mags[p.gun] < g.mag && reserveOf(sim) > 0) {
         p.mags[p.gun] += 1;
         if (s.mode !== 'town') p.ammo[g.ammo] -= 1;
         emit(sim, 'reload_round', { gun: p.gun });
@@ -734,6 +741,13 @@ function updateWeapon(sim, dt, input) {
         emit(sim, 'reload_done', { gun: p.gun });
       } else p.reloadT = reloadTime(sim);
     }
+  }
+  // energy cells refill on every gun that has one, drawn or holstered, once it has rested
+  for (const id of owned) {
+    const q = sim.cache.guns[id];
+    if (!q.recharge) continue;
+    p.rest[id] = (p.rest[id] ?? 9) + dt;
+    if (p.rest[id] >= q.recharge.delay && p.mags[id] < q.mag) p.mags[id] = Math.min(q.mag, p.mags[id] + q.recharge.rate * dt);
   }
   if (p.fanQueue > 0) {
     p.fanT -= dt;
@@ -756,7 +770,7 @@ function updateWeapon(sim, dt, input) {
   else if (input.fireHeld && p.fireCd <= 0) p.fireBuffer = Math.max(p.fireBuffer, 0.03);
   if (p.fireBuffer > 0 && !busy && p.fireCd <= 0) {
     p.fireBuffer = 0;
-    if (p.mags[p.gun] <= 0) {
+    if (p.mags[p.gun] < 1) {
       if (input.fire) emit(sim, 'dry_fire');
       startReload(sim);
     } else {
@@ -775,6 +789,17 @@ function updateWeapon(sim, dt, input) {
       p.fanQueue = p.mags[p.gun];
       p.fanT = 0;
       emit(sim, 'fan_start');
+    } else if (g.alt === 'overcharge') {
+      // half the cell (at least 6 charges) in one heavy bolt that goes through things
+      const n = Math.floor(Math.max(6, g.mag / 2));
+      if (p.mags[p.gun] < n) emit(sim, 'dry_fire');
+      else {
+        p.mags[p.gun] -= n;
+        p.rest[p.gun] = 0;
+        firePlayerShot(sim, { ...g, pierce: 3, speed: g.speed * 1.2, range: g.range * 1.3, noise: g.noise * 1.5 }, p.aim, Math.round(g.damage * n * 0.75), 'overcharge', true);
+        p.fireCd = 0.7;
+        p.sprintLock = 0.3;
+      }
     } else if (g.alt === 'double') {
       p.reloading = false;
       const shells = Math.min(2, p.mags[p.gun]);
@@ -812,19 +837,21 @@ function shoot(sim, g, shells) {
     firePlayerShot(sim, g, a, Math.round(g.damage * steady), i === 0 ? p.gun : null);
   }
   p.mags[p.gun] -= shells;
+  if (g.recharge) p.rest[p.gun] = 0;
   p.sprintLock = 0.3;
 }
 
-function firePlayerShot(sim, g, angle, damage, sound) {
+function firePlayerShot(sim, g, angle, damage, sound, heavy = false) {
   const s = sim.state, p = s.player;
   const mx = p.x + Math.cos(angle) * 16, my = p.y + Math.sin(angle) * 16;
   const ti = tileIdx(sim, mx, my);
   const blocked = ti < 0 || sim.cache.flags[ti] & BLOCKS_SHOT;
   const ox = blocked ? p.x : mx, oy = blocked ? p.y : my;
   const speed = g.speed * (g.pellets ? 0.9 + sim.rng.next() * 0.2 : 1);
-  spawnBullet(sim, { x: ox, y: oy, angle, speed, damage, owner: 'player', life: g.range / speed, kind: p.gun, stagger: sound !== 'fan' && !g.pellets });
+  spawnBullet(sim, { x: ox, y: oy, angle, speed, damage, owner: 'player', life: g.range / speed, kind: p.gun, stagger: sound !== 'fan' && !g.pellets,
+    pierce: g.pierce || 0, robotMul: g.robotMul || 1, chain: g.chain || 0, chainRange: g.chainRange || 0, stun: g.stun || 0, heavy });
   if (sound) {
-    emit(sim, 'shot', { x: mx, y: my, angle, kind: sound === 'fan' ? 'fan' : p.gun });
+    emit(sim, 'shot', { x: mx, y: my, angle, kind: sound === 'fan' ? 'fan' : p.gun, heavy });
     if (s.mode !== 'town') noise(sim, p.x, p.y, g.noise, 'player');
     s.echo.shots.push({ t: s.t, x: ox, y: oy, a: angle });
     p.shotT = s.t;
@@ -837,6 +864,7 @@ function spawnBullet(sim, b) {
     id: s.nextId++, x: b.x, y: b.y, px: b.x, py: b.y,
     vx: Math.cos(b.angle) * b.speed, vy: Math.sin(b.angle) * b.speed,
     damage: b.damage, owner: b.owner, life: b.life, kind: b.kind, stagger: Boolean(b.stagger), src: b.src ?? null, grazed: false,
+    pierce: b.pierce || 0, robotMul: b.robotMul || 1, chain: b.chain || 0, chainRange: b.chainRange || 0, stun: b.stun || 0, heavy: Boolean(b.heavy), hit: [],
   });
 }
 
@@ -929,11 +957,15 @@ function completeInteract(sim, it) {
   } else if (it.kind === 'objective') {
     const obj = s.config.objective || {};
     switch (it.item) {
-      case 'stake': {
+      case 'stake':
+      case 'relay': {
         s.burned += 1;
         s.lights.push({ x: it.x, y: it.y, kind: 'fire', r: 130, t: 12 });
-        noise(sim, it.x, it.y, 420, 'player');
-        toast(`Survey stake burning (${Math.min(s.burned, obj.count ?? 3)}/${obj.count ?? 3}). The smoke can be seen for miles.`);
+        noise(sim, it.x, it.y, it.item === 'relay' ? 700 : 420, 'player');
+        if (it.item === 'relay') {
+          toast(`Relay overloaded (${Math.min(s.burned, obj.count ?? 3)}/${obj.count ?? 3}). Machines nearby lock up, and the rest know where you are.`);
+          for (const e of s.enemies) if (!e.dead && ENEMIES[e.kind].robot && Math.hypot(e.x - it.x, e.y - it.y) < 520) e.stunT = Math.max(e.stunT || 0, 5);
+        } else toast(`Survey stake burning (${Math.min(s.burned, obj.count ?? 3)}/${obj.count ?? 3}). The smoke can be seen for miles.`);
         break;
       }
       case 'shard': {
@@ -974,7 +1006,7 @@ function completeInteract(sim, it) {
         s.carried.items.push(it.item);
         toast(`${ITEMS[it.item]?.label ?? 'Item'} recovered.`);
     }
-    if (objectiveDone(s) && it.item !== 'shard' && it.item !== 'borekey') toast('Job done. Reach an exit to get out with it.', 'good');
+    if (objectiveDone(s) && it.item !== 'shard' && it.item !== 'borekey') toast('Job done. Reach an exit: the horse where you rode in, or the coach stop.', 'good');
   }
   emit(sim, 'interact_done', { kind: it.kind, item: it.item, x: it.x, y: it.y, id: it.id });
 }
@@ -1105,7 +1137,7 @@ function alertEnemy(sim, e, x, y, shout = true) {
   } else if (calm) {
     e.state = 'engage';
     e.stateT = 0;
-    if (def.boss) emit(sim, 'toast', { text: 'Voss: "You should have sold it to me, drifter."', tone: 'bad', long: true });
+    if (def.boss && def.taunt) emit(sim, 'toast', { text: def.taunt, tone: 'bad', long: true });
   }
   if (calm) emit(sim, 'alert', { id: e.id, x: e.x, y: e.y });
   if (shout && calm) {
@@ -1188,6 +1220,12 @@ function updateEnemy(sim, e, dt) {
   const def = ENEMIES[e.kind];
   e.hitT = Math.max(0, e.hitT - dt);
   if (def.ai === 'none') return;
+  if (e.stunT > 0) { // a machine locked up by lightning or a dead relay
+    e.stunT -= dt;
+    e.vx *= 0.8; e.vy *= 0.8;
+    if (e.atk.phase === 'windup') { e.atk.phase = 'cooldown'; e.atk.t = 0.5; emit(sim, 'staggered', { id: e.id, x: e.x, y: e.y }); }
+    return;
+  }
   e.stateT += dt;
   e.pathAge += dt;
   e.perceiveT -= dt;
@@ -1427,11 +1465,11 @@ function engage(sim, e, def, dt) {
         for (let i = 0; i < 2; i++) {
           const spot = findSpawn(sim, 330, 600);
           if (!spot) continue;
-          alertEnemy(sim, addEnemy(sim, e.summons === 1 ? 'guard' : 'gunman', spot.x, spot.y), p.x, p.y, false);
+          alertEnemy(sim, addEnemy(sim, e.summons === 1 ? 'guard' : 'enforcer', spot.x, spot.y), p.x, p.y, false);
           n++;
         }
         emit(sim, 'boss_phase', { phase: e.summons, x: e.x, y: e.y });
-        emit(sim, 'toast', { text: n ? 'Voss bellows for his guns. More are coming.' : 'Voss is bleeding, and angrier for it.', tone: 'bad' });
+        emit(sim, 'toast', { text: e.kind === 'foreman' ? (n ? 'Voss bellows for his guns. More are coming.' : 'Voss is bleeding, and angrier for it.') : (n ? 'The Overseer calls units off the line. More are coming.' : 'The Overseer is sparking, and faster for it.'), tone: 'bad' });
       }
       if (!sees || d > 300) move = chase(sim, e);
       else if (d < 120) { move = strafe(sim, e, dx, dy, d, dt); speed = def.speed; }
@@ -1469,12 +1507,14 @@ function releaseAttack(sim, e, def, w) {
       for (let i = 0; i < w.pellets; i++) fireEnemyBullet(sim, e, w, atk.angle + (i / (w.pellets - 1) - 0.5) * 2 * w.spread + (sim.rng.next() - 0.5) * 0.05);
       break;
     case 'rifle':
+    case 'pulse':
       fireEnemyBullet(sim, e, w, atk.angle);
       break;
     case 'pistol':
       fireEnemyBullet(sim, e, w, atk.angle + (sim.rng.next() * 2 - 1) * w.spread);
       break;
     case 'revolver':
+    case 'smg':
       atk.phase = 'burst'; atk.shots = w.burst; atk.t = 0;
       return;
     case 'dynamite': {
@@ -1591,7 +1631,7 @@ function killEnemy(sim, e, ang) {
   }
   if (e.target) {
     s.targetKilled = true;
-    emit(sim, 'toast', { text: def.boss ? 'Voss is down. Get out before the depot burns.' : 'Target down. Reach an exit.', tone: 'good', long: true });
+    emit(sim, 'toast', { text: def.boss ? (def.down || 'Target down. Reach an exit.') : 'Target down. Reach an exit.', tone: 'good', long: true });
   }
   if (def.cash) {
     const jit = () => sim.rng.range(-9, 9);
@@ -1680,9 +1720,32 @@ function bulletHits(sim, b, x0, y0, x1, y1) {
   const s = sim.state;
   if (b.owner === 'player' || b.owner === 'echo') {
     for (const e of s.enemies) {
-      if (e.dead) continue;
+      if (e.dead || b.hit.includes(e.id)) continue;
       if (segCircle(x0, y0, x1, y1, e.x, e.y, e.r + 3)) {
-        damageEnemy(sim, e, b.owner === 'echo' ? ECHO.toEnemy : b.damage, Math.atan2(b.vy, b.vx), b.stagger);
+        const robot = ENEMIES[e.kind].robot;
+        const ang = Math.atan2(b.vy, b.vx);
+        damageEnemy(sim, e, b.owner === 'echo' ? ECHO.toEnemy : b.damage * (robot ? b.robotMul : 1), ang, b.stagger);
+        if (b.stun && robot && !e.dead && !ENEMIES[e.kind].boss) e.stunT = Math.max(e.stunT || 0, b.stun);
+        if (b.chain) { // lightning jumps to the nearest enemies in reach, at 60% strength
+          let from = e;
+          const done = [e.id];
+          for (let k = 0; k < b.chain; k++) {
+            let next = null, best = b.chainRange;
+            for (const o of s.enemies) {
+              if (o.dead || done.includes(o.id) || ENEMIES[o.kind].ai === 'none') continue;
+              const d = Math.hypot(o.x - from.x, o.y - from.y);
+              if (d < best && hasLOS(sim, from.x, from.y, o.x, o.y, BLOCKS_SHOT)) { best = d; next = o; }
+            }
+            if (!next) break;
+            emit(sim, 'arc', { x0: from.x, y0: from.y, x1: next.x, y1: next.y });
+            const r2 = ENEMIES[next.kind].robot;
+            damageEnemy(sim, next, b.damage * 0.6 * (r2 ? b.robotMul : 1), Math.atan2(next.y - from.y, next.x - from.x), false);
+            if (b.stun && r2 && !next.dead && !ENEMIES[next.kind].boss) next.stunT = Math.max(next.stunT || 0, b.stun);
+            done.push(next.id);
+            from = next;
+          }
+        }
+        if (b.pierce > 0) { b.pierce -= 1; b.hit.push(e.id); b.damage *= 0.8; continue; }
         return true;
       }
     }
@@ -2035,7 +2098,7 @@ export function objectiveList(sim) {
   else if (o.kind === 'collect') {
     const have = s.carried.items.filter((k) => k === o.item).length;
     list.push({ text: `${ITEMS[o.item].label}s ${Math.min(have, o.count)}/${o.count}`, done: have >= o.count });
-  } else if (o.kind === 'burn') list.push({ text: `Burn survey stakes ${Math.min(s.burned, o.count)}/${o.count}`, done: s.burned >= o.count });
+  } else if (o.kind === 'burn') list.push({ text: `${o.item === 'relay' ? 'Overload signal relays' : 'Burn survey stakes'} ${Math.min(s.burned, o.count)}/${o.count}`, done: s.burned >= o.count });
   else if (o.kind === 'kill') list.push({ text: `${o.label || 'Kill the target'}${where}`, done: s.targetKilled });
   list.push({ text: objectiveDone(s) ? 'Reach an exit' : 'Then reach an exit', done: false, dim: !objectiveDone(s) });
   const bounty = s.config.bounty;
@@ -2055,5 +2118,5 @@ export function bossState(sim) {
   if (!s.boss) return null;
   const e = s.enemies.find((q) => q.id === s.boss);
   if (!e || !HOT[e.state]) return null;
-  return { name: 'Foreman Harlan Voss', hp: e.hp, maxHp: e.maxHp };
+  return { name: ENEMIES[e.kind].title || 'Target', hp: e.hp, maxHp: e.maxHp };
 }

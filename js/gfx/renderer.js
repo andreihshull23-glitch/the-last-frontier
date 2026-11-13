@@ -1,10 +1,10 @@
 // The third-person view: an over-the-shoulder camera on the 2D sim. The sim's
 // plane is the ground (sim x -> world x, sim y -> world z, 32 units = 1 m).
 // This module reads the sim and never writes it.
-import { TILE as TS, PX, ENEMIES, WEAPONS, SOLID, OPAQUE, BLOCKS_SHOT, ITEMS } from '../content.js';
+import { TILE as TS, PX, ENEMIES, WEAPONS, GUNS, SOLID, OPAQUE, BLOCKS_SHOT, ITEMS } from '../content.js';
 import { castRay, isVisible, visionRadius, nightFactor, darkness, clockTime, CLOCK, PLAYER, haunted, focusPrompt } from '../sim.js';
 import { buildWorld } from './world.js';
-import { createActors, LOOKS, drifterLook, GUN_FOR } from './actors.js';
+import { createActors, LOOKS, drifterLook } from './actors.js';
 import { Merger } from './assets.js';
 import { registerTints } from './tints.js';
 import { drawHUD, toast } from '../hud.js';
@@ -269,6 +269,15 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
         g.add(procMesh((m) => { m.addBox(0, 0, 0, 0.6, 0.42, 0.44, 0.2, C('#ece6d8'), C('#c4bcaa')); m.addBox(0, 0.43, 0, 0.36, 0.01, 0.1, 0.2, C('#b5483a')); m.addBox(0, 0.43, 0, 0.1, 0.012, 0.36, 0.2, C('#b5483a')); }));
       } else if (k === 'stake') {
         g.add(procMesh((m) => { m.addBox(0, 0, 0, 0.1, 1.5, 0.1, 0, C('#a9794b'), C('#5c3e2a')); m.addBox(0.2, 1.1, 0, 0.36, 0.26, 0.03, 0, C('#b5483a'), C('#8e3428')); }));
+      } else if (k === 'relay') {
+        // a signal mast: tripod, pole, dish and a lit core
+        g.add(procMesh((m) => { m.addBox(0, 0, 0, 0.9, 0.3, 0.9, 0.4, C('#4a4f5a'), C('#2e323a')); m.addBox(0, 0.3, 0, 0.16, 3.4, 0.16, 0, C('#8a8f9a'), C('#5a5f6a')); m.addBox(0, 2.6, 0.22, 0.9, 0.6, 0.06, 0, C('#b9bec8'), C('#7a808c')); m.addBox(0, 3.7, 0, 0.5, 0.08, 0.5, 0.78, C('#5a5f6a')); m.addBox(0, 1.2, 0, 0.42, 0.5, 0.42, 0.78, C('#3a3f4a')); }));
+        const lamp = new THREE.Mesh(G.crystal, new THREE.MeshBasicMaterial({ color: col('#6fd6ff'), toneMapped: false }));
+        lamp.scale.set(0.5, 0.6, 0.5); lamp.position.y = 4.1; g.add(lamp); o.spin = lamp; o.lamp = lamp;
+      } else if (k === 'core') {
+        g.add(procMesh((m) => { m.addBox(0, 0, 0, 0.7, 0.18, 0.5, 0.3, C('#5a5f6a'), C('#3a3f4a')); m.addBox(0.1, 0.18, 0, 0.3, 0.22, 0.3, 0.3, C('#7a808c')); }));
+        const lamp = new THREE.Mesh(G.crystal, new THREE.MeshBasicMaterial({ color: col('#ffb45a'), toneMapped: false }));
+        lamp.scale.set(0.42, 0.42, 0.42); lamp.position.y = 0.75; g.add(lamp); o.spin = lamp;
       } else if (k === 'borekey') {
         const mesh = procMesh((m) => { m.addBox(0, 0, 0, 0.12, 0.5, 0.12, 0, C('#2e2e36')); m.addBox(0, 0.5, 0, 0.34, 0.12, 0.12, 0, C('#3a3a46')); for (const dx of [-0.11, 0, 0.11]) m.addBox(dx, 0.62, 0, 0.07, 0.2, 0.08, 0, C('#2e2e36')); }, { shadow: false });
         mesh.position.y = 0.95;
@@ -652,10 +661,12 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       const X = Number.isFinite(e.x) ? e.x * U : 0, Z = Number.isFinite(e.y) ? e.y * U : 0;
       switch (e.type) {
         case 'shot': {
-          const heavy = e.kind === 'shotgun' ? 1.8 : e.kind === 'rifle' ? 1.4 : 1;
-          r.kick = Math.min(1.6, heavy);
+          const bolt = GUNS[e.kind]?.bolt;
+          const heavy = e.heavy ? 2 : e.kind === 'longrifle' ? 2.4 : e.kind === 'shotgun' ? 1.8 : e.kind === 'rifle' ? 1.4 : e.kind === 'smg' ? 0.55 : e.kind === 'pulse' ? 0.45 : 1;
+          r.kick = Math.min(1.9, heavy);
           r.shake = Math.max(r.shake, 2.4 * heavy);
-          flashAt(X, GUN_Y, Z, 3.5 * heavy);
+          flashAt(X, GUN_Y, Z, 3.5 * heavy, bolt || undefined);
+          if (bolt) { emit(sparks, { x: X, y: GUN_Y, z: Z, life: 0.07, size: 0.5 * Math.max(1, heavy), color: bolt }); if (W.player) W.player.shootT = 0; break; }
           for (let i = 0; i < 8 * heavy; i++) {
             const a = e.angle + (Math.random() - 0.5) * (e.kind === 'shotgun' ? 1.1 : 0.7);
             const sp = 4 + Math.random() * 7;
@@ -672,6 +683,13 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           flashAt(X + Math.cos(e.angle) * 0.6, GUN_Y, Z + Math.sin(e.angle) * 0.6, 3, '#ffc27a');
           emit(sparks, { x: X + Math.cos(e.angle) * 0.6, y: GUN_Y, z: Z + Math.sin(e.angle) * 0.6, life: 0.06, size: e.weapon === 'shotgun' ? 0.8 : 0.5, color: '#ffd29a' });
           if (isVisible(sim, e.x, e.y)) r.shake = Math.max(r.shake, 1);
+          break;
+        }
+        case 'arc': {
+          // lightning between two enemies: a string of sparks along a jagged line
+          const ax = e.x0 * U, az = e.y0 * U, bx = e.x1 * U, bz = e.y1 * U;
+          for (let i = 0; i <= 10; i++) { const k = i / 10; emit(sparks, { x: ax + (bx - ax) * k + (Math.random() - 0.5) * 0.3, y: 1.1 + (Math.random() - 0.5) * 0.4, z: az + (bz - az) * k + (Math.random() - 0.5) * 0.3, life: 0.14 + Math.random() * 0.1, size: 0.22, color: '#d9c2ff' }); }
+          flashAt(bx, 1.1, bz, 2.5, '#c9a2ff');
           break;
         }
         case 'buddy_shot': { const a = r.world?.buddy; if (a) a.shootT = 0; break; }
@@ -837,7 +855,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
   function syncPlayer(sim, dt) {
     const s = sim.state, p = s.player;
     const a = ensurePlayer(sim);
-    actors.setGun(a, GUN_FOR[p.gun], false);
+    actors.setGun(a, GUNS[p.gun].gunModel, false);
     const speed = Math.hypot(p.vx, p.vy) * U;
     const town = s.mode === 'town';
     const armed = !a.dead && !p.sprinting && p.healT <= 0 && p.dodgeT <= 0 && (!town || s.t - p.shotT < 2.5);
@@ -877,6 +895,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
         W.actors.set(e.id, a);
       }
       const far = (e.x - p.x) ** 2 + (e.y - p.y) ** 2 > 2600 * 2600;
+      if (e.stunT > 0 && Math.random() < 0.35) emit(sparks, { x: e.x * U + (Math.random() - 0.5) * 0.6, y: 0.6 + Math.random() * 1.2, z: e.y * U + (Math.random() - 0.5) * 0.6, vx: (Math.random() - 0.5) * 3, vy: Math.random() * 2, vz: (Math.random() - 0.5) * 3, life: 0.18, size: 0.1, color: '#d9c2ff' });
       const hot = e.state === 'engage' || e.state === 'flare' || e.state === 'retreat' || e.state === 'dash';
       const want = e.atk.phase === 'windup' || e.state === 'dash' ? e.atk.angle : e.facing;
       a.face = turn(a.face, want, dt * 12);
@@ -912,7 +931,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     // the echo
     const E = s.echo;
     if (E.visible) {
-      if (!W.echo) { W.echo = actors.make(drifterLook(s.config.character.look ?? 0, []), { ghost: true }); actors.setGun(W.echo, 'Revolver_1'); W.group.add(W.echo.root); }
+      if (!W.echo) { W.echo = actors.make(drifterLook(s.config.character.look ?? 0, []), { ghost: true }); actors.setGun(W.echo, 'qg/Revolver_1'); W.group.add(W.echo.root); }
       W.echo.root.visible = true;
       actors.place(W.echo, E.x * U, E.y * U, E.a);
       actors.update(W.echo, dt, { speed: 2, armed: true });
@@ -948,7 +967,9 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       scl.set(len, 0.035, 0.035);
       m4.compose(pos, quat, scl);
       tracers.setMatrixAt(n, m4);
-      const c = b.owner === 'player' ? [1, 0.88, 0.55] : b.owner === 'echo' ? [0.45, 0.85, 1] : [1, 0.42, 0.22];
+      const energy = b.owner === 'player' ? GUNS[b.kind]?.bolt : null;
+      if (energy || b.kind === 'pulse') { scl.set(len * 0.8, b.heavy ? 0.16 : 0.07, b.heavy ? 0.16 : 0.07); m4.compose(pos, quat, scl); tracers.setMatrixAt(n, m4); }
+      const c = energy ? (b.kind === 'arc' ? [0.8, 0.62, 1] : [0.42, 0.85, 1]) : b.kind === 'pulse' ? [1, 0.3, 0.55] : b.owner === 'player' ? [1, 0.88, 0.55] : b.owner === 'echo' ? [0.45, 0.85, 1] : [1, 0.42, 0.22];
       colors[n * 3] = c[0]; colors[n * 3 + 1] = c[1]; colors[n * 3 + 2] = c[2];
       n++;
     }
@@ -1001,7 +1022,9 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
         const target = it.done ? 1 : 0;
         if (o.open !== target) { o.open += Math.sign(target - o.open) * Math.min(Math.abs(target - o.open), dt * 3); o.lid.rotation.z = o.open * 2.2; }
       } else if (it.kind === 'objective') {
-        if (it.item === 'stake') {
+        if (it.item === 'relay') {
+          if (it.done) { if (o.lamp) o.lamp.visible = false; if (Math.random() < 0.6) emit(sparks, { x: it.x * U + (Math.random() - 0.5) * 0.4, y: 1 + Math.random() * 3, z: it.y * U + (Math.random() - 0.5) * 0.4, vx: (Math.random() - 0.5) * 2, vy: Math.random() * 2, vz: (Math.random() - 0.5) * 2, life: 0.3, size: 0.12, color: '#9fe8ff' }); if (Math.random() < 0.12) emit(dust, { x: it.x * U, y: 3.6, z: it.y * U, vx: 0.4, vy: 1.6, vz: 0.1, life: 3, size: 0.8, grow: 3, a: 0.35, color: '#30343c', drag: 0.2 }); }
+        } else if (it.item === 'stake') {
           if (it.done && Math.random() < 0.5) emit(sparks, { x: it.x * U + (Math.random() - 0.5) * 0.2, y: 0.9 + Math.random() * 0.6, z: it.y * U + (Math.random() - 0.5) * 0.2, vx: (Math.random() - 0.5) * 0.4, vy: 1.2 + Math.random(), vz: (Math.random() - 0.5) * 0.4, life: 0.9, size: 0.12, color: '#ffb35c', drag: 0.5 });
           if (it.done && Math.random() < 0.15) emit(dust, { x: it.x * U, y: 1.6, z: it.y * U, vx: 0.4, vy: 1.6, vz: 0.1, life: 3, size: 0.8, grow: 3, a: 0.35, color: '#4a4038', drag: 0.2 });
         } else o.group.visible = !it.done;

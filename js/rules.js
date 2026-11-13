@@ -16,13 +16,14 @@ import {
 import { makeRng, mixSeed } from './rng.js';
 
 export const SAVE_FORMAT = 'last-frontier-save';
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const REP_MIN = -5;
 export const REP_MAX = 5;
 export const BOUNTY_REWARD = 60;
 export const TOWN_SEED = 20251;
 
-const HUMAN_KILLERS = new Set(['bandit', 'gunman', 'guard', 'scout', 'dynamiter', 'brute', 'bounty', 'foreman']);
+// Only people become outlaws who carry off a dead drifter's kit; machines do not loot.
+const HUMAN_KILLERS = new Set(['bandit', 'gunman', 'dynamiter', 'brute', 'bounty', 'trooper']);
 const PRUNABLE = new Set(['JOB_DONE', 'DRIFTER_ARRIVED', 'INVESTED', 'DRIFTER_FLED']);
 const LEDGER_CAP = 1200;
 
@@ -257,6 +258,7 @@ export function canBuyGun(c, id) {
   const g = GUNS[id];
   if (!g || !g.cost) return fail('Not for sale.');
   if (c.armory.guns.includes(id)) return fail('Owned');
+  if (g.after && c.chapter < g.after) return fail(`Not built yet: finish "${CHAPTERS[g.after - 1].title}"`);
   if (c.cash < g.cost) return fail('Not enough cash');
   return { ok: true, price: g.cost };
 }
@@ -382,7 +384,7 @@ export function beginExpedition(c, missionId, seed) {
   const open = def.level.gen === 'canyon' && def.level.theme !== 'hollow';
   const bounty = c.bounty ? { name: c.bounty.name, notoriety: c.bounty.notoriety, victims: [...c.bounty.victims] } : null;
   const objective = { ...def.level.objective };
-  if (objective.kind === 'kill') objective.label = objective.enemy === 'foreman' ? 'Kill Foreman Voss' : objective.enemy === 'bounty' ? `Kill ${bounty?.name ?? 'the outlaw'}` : 'Kill the rustler boss';
+  if (objective.kind === 'kill') objective.label = objective.enemy === 'foreman' ? 'Kill Foreman Voss' : objective.enemy === 'overseer' ? 'Destroy the Overseer' : objective.enemy === 'bounty' ? `Kill ${bounty?.name ?? 'the outlaw'}` : 'Kill the rustler boss';
   const config = {
     mode: 'ride', expeditionId: id, missionId, seed: seed >>> 0, title: offer.title,
     intro: def.hint || def.brief,
@@ -421,6 +423,7 @@ function killerLabel(killer) {
   if (killer.kind === 'walker' || killer.kind === 'husk') return 'something in the dark';
   if (killer.kind === 'dynamite') return 'their own dynamite';
   if (killer.kind === 'foreman') return 'Foreman Voss';
+  if (killer.kind === 'overseer') return 'the Overseer';
   const def = ENEMIES[killer.kind];
   return def ? `a ${def.name}` : 'the Red Country';
 }
@@ -610,11 +613,14 @@ export function fromSavePayload(payload) {
   if (old) {
     // The first build told the story through contracts. Map what was done onto chapters.
     const did = (t) => c.ledger.some((e) => e.type === t);
-    c.chapter = did('SHARD_DELIVERED') ? 5 : did('EVIDENCE_EXPOSED') || did('EVIDENCE_SOLD') ? 3 : did('EVIDENCE_SECURED') ? 3 : did('SHIPMENT_DELIVERED') ? 1 : 0;
+    c.chapter = did('SHARD_DELIVERED') ? 6 : did('EVIDENCE_EXPOSED') || did('EVIDENCE_SOLD') ? 3 : did('EVIDENCE_SECURED') ? 3 : did('SHIPMENT_DELIVERED') ? 1 : 0;
     c.pendingChoice = raw.pendingChoice === 'evidence' ? 'ledger' : null;
     if (raw.character?.gear?.includes?.('long_colt')) c.armory.upgrades.push('long_barrel');
   } else {
-    c.chapter = clamp(Math.round(num(raw.chapter, 0)), 0, CHAPTERS.length);
+    let ch = Math.round(num(raw.chapter, 0));
+    // Version 3 added two chapters: "Cut the Strings" after Site 9 and "The Foundry" after the Hollow.
+    if (payload.version < 3) ch += (ch >= 3 ? 1 : 0) + (ch >= 5 ? 1 : 0);
+    c.chapter = clamp(ch, 0, CHAPTERS.length);
     c.pendingChoice = raw.pendingChoice === 'ledger' ? 'ledger' : null;
   }
   if (raw.bounty && typeof raw.bounty.name === 'string') {

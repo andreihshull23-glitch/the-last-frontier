@@ -2,6 +2,7 @@
 // playing the animations that ship with each pack. Hats, masks and badges are
 // built in code and ride the head bone; guns ride the right hand.
 import { DRIFTER_LOOKS } from '../content.js';
+import { MODEL_BOX } from '../data/models.js';
 import { Merger, colorAttribute, remap, multiply, chain } from './assets.js';
 
 const T = () => window.THREE;
@@ -29,48 +30,57 @@ const FAMILY = {
 
 // ---- looks -----------------------------------------------------------------
 const cowboy = (c, band = '#2e241c') => ({ type: 'cowboy', c, band });
+// Only models that suit a sci-fi western are used: adventurers, farmers, cowboys, old-west townsfolk,
+// company troopers in armour and space suits, robots, and the Hollow's dead. Clothes are recoloured for variety.
 export const LOOKS = {
-  // outlaws are people; the Meridian Company fields machines; the Hollow keeps its dead
-  bandit: { fam: 'man', model: 'Punk', hat: cowboy('#2b2622', '#8e3428'), gun: 'Shotgun_SawedOff' },
-  gunman: { fam: 'toon', model: 'Cowboy_Male', tint: 'outlaw', gun: 'Revolver_3' },
-  guard: { fam: 'robot', model: 'George', gun: 'AssaultRifle_1' },
+  // outlaws are people
+  bandit: { fam: 'man', model: 'Adventurer', tint: 'cloth_black', hat: cowboy('#2b2622', '#8e3428'), gun: 'qg/Shotgun_SawedOff' },
+  gunman: { fam: 'toon', model: 'Cowboy_Male', tint: 'outlaw', gun: 'qg/Revolver_3' },
+  dynamiter: { fam: 'man', model: 'Farmer', tint: 'cloth_red', hat: cowboy('#3d342e') },
+  brute: { fam: 'man', model: 'Farmer', tint: 'cloth_black', hat: { type: 'bowler', c: '#2b2622' }, scale: 1.32 },
+  bounty: { fam: 'woman', model: 'Adventurer', tint: 'cloth_black', hat: cowboy('#1e1a18', '#b5483a'), gun: 'qg/Revolver_5', scale: 1.06 },
+  // the Meridian Company fields machines, and a few people in armour
+  guard: { fam: 'robot', model: 'George', gun: 'gun/blaster-e' },
   scout: { fam: 'robot', model: 'Leela', scale: 0.8 },
-  dynamiter: { fam: 'man', model: 'Worker' },
-  brute: { fam: 'man', model: 'Casual_Hoodie', tint: 'brute', scale: 1.3 },
+  enforcer: { fam: 'robot', model: 'Stan', gun: 'gun/blaster-h', scale: 0.95 },
+  crusher: { fam: 'robot', model: 'Mike', tint: 'crusher', scale: 1.12 },
+  trooper: { fam: 'man', model: 'Swat', gun: 'gun/blaster-d' },
+  overseer: { fam: 'robot', model: 'Stan', tint: 'overseer', gun: 'gun/blaster-a', scale: 1.45 },
+  foreman: { fam: 'robot', model: 'Mike', tint: 'iron', gun: 'qg/Shotgun_4', scale: 1.5 },
+  // the Hollow keeps its dead
   walker: { fam: 'toon', model: 'Zombie_Male', tint: 'hollowskin' },
   husk: { fam: 'toon', model: 'Zombie_Female', tint: 'husk', scale: 0.82 },
-  bounty: { fam: 'man', model: 'Suit', hat: cowboy('#1e1a18', '#b5483a'), gun: 'Revolver_5', scale: 1.06 },
-  foreman: { fam: 'robot', model: 'Mike', tint: 'iron', gun: 'Shotgun_4', scale: 1.5 },
-  deputy: { fam: 'robot', model: 'Stan', gun: 'Pistol_4', scale: 0.86, tint: 'deputy' },
-  keeper_store: { fam: 'woman', model: 'Casual' },
-  keeper_gunsmith: { fam: 'man', model: 'Worker' },
+  // Mercy
+  deputy: { fam: 'robot', model: 'Stan', gun: 'gun/blaster-n', scale: 0.86, tint: 'deputy' },
+  keeper_store: { fam: 'woman', model: 'Adventurer', tint: 'cloth_blue' },
+  keeper_gunsmith: { fam: 'woman', model: 'SciFi', tint: 'cloth_rust' },
   keeper_outfitter: { fam: 'woman', model: 'Adventurer', hat: cowboy('#c9b48a', '#8e3428') },
   keeper_clinic: { fam: 'toon', model: 'Doctor_Male_Old' },
   keeper_telegraph: { fam: 'robot', model: 'George', tint: 'brass', scale: 0.85 },
   keeper_saloon: { fam: 'toon', model: 'OldClassy_Female' },
-  keeper_stable: { fam: 'man', model: 'Casual_2', hat: cowboy('#8a623c') },
-  clerk: { fam: 'woman', model: 'Formal' },
+  keeper_stable: { fam: 'man', model: 'Farmer', hat: cowboy('#8a623c') },
+  clerk: { fam: 'toon', model: 'OldClassy_Male' },
   marshal: { fam: 'toon', model: 'Cowboy_Female' },
   rider: { fam: 'woman', model: 'Soldier', hat: cowboy('#5c4631', '#5b7f4b') },
-  agent: { fam: 'woman', model: 'SciFi' },
-  undertaker: { fam: 'man', model: 'Suit', hat: { type: 'top', c: '#1e1a18' } },
-  townsman: { fam: 'man', model: 'Casual_2', hat: cowboy('#6f5136') },
-  townswoman: { fam: 'woman', model: 'Punk' },
-  towns2: { fam: 'toon', model: 'Worker_Male' },
+  agent: { fam: 'man', model: 'Spacesuit' },
+  undertaker: { fam: 'toon', model: 'OldClassy_Male', tint: 'outlaw' },
+  townsman: { fam: 'man', model: 'Adventurer', tint: 'cloth_rust', hat: cowboy('#6f5136') },
+  townswoman: { fam: 'woman', model: 'Adventurer', tint: 'cloth_red' },
+  towns2: { fam: 'man', model: 'Farmer', tint: 'cloth_green', hat: cowboy('#c9b48a') },
   towns3: { fam: 'man', model: 'Farmer', hat: cowboy('#8a623c', '#b5483a') },
 };
 const DRIFTER_BODIES = [
-  ['man', 'Adventurer'], ['woman', 'Adventurer'], ['toon', 'Cowboy_Male'], ['toon', 'Cowboy_Female'], ['man', 'Casual_2'], ['woman', 'Casual'],
-  ['man', 'Worker'], ['woman', 'Worker'], ['man', 'Punk'], ['woman', 'Punk'], ['man', 'Swat'], ['woman', 'Soldier'],
+  ['man', 'Adventurer', null], ['woman', 'Adventurer', null], ['toon', 'Cowboy_Male', null], ['toon', 'Cowboy_Female', null],
+  ['man', 'Farmer', null], ['woman', 'Soldier', null], ['man', 'Adventurer', 'cloth_blue'], ['woman', 'Adventurer', 'cloth_rust'],
+  ['man', 'Farmer', 'cloth_green'], ['woman', 'SciFi', 'cloth_rust'], ['man', 'Adventurer', 'cloth_red'], ['woman', 'Soldier', 'cloth_blue'],
 ];
 export function drifterLook(index, gear = []) {
   const n = DRIFTER_BODIES.length;
   const i = ((index % n) + n) % n;
-  const [fam, model] = DRIFTER_BODIES[i];
+  const [fam, model, tint] = DRIFTER_BODIES[i];
   const d = DRIFTER_LOOKS[i % DRIFTER_LOOKS.length];
-  return { fam, model, hat: fam === 'toon' ? null : cowboy(d.hat, '#2e241c'), key: 'drifter' + i };
+  return { fam, model, tint, hat: fam === 'toon' ? null : cowboy(d.hat, '#2e241c'), key: 'drifter' + i };
 }
-export const GUN_FOR = { revolver: 'Revolver_1', rifle: 'SniperRifle_2', shotgun: 'Shotgun_1' };
 
 function registerCharacterTints(assets) {
   const R = (name, fn) => assets.registerTint(name, fn);
@@ -81,6 +91,15 @@ function registerCharacterTints(assets) {
   R('iron', chain(remap([{ sat: [0.3, 1], h: 0.02, s: 0.7, lMul: 0.8 }]), multiply(0.62, 0.6, 0.62)));
   R('deputy', remap([{ sat: [0.3, 1], hue: [0.9, 0.1], h: 0.11, s: 0.75, lMul: 1.05 }]));
   R('brass', remap([{ sat: [0.15, 1], hue: [0.25, 0.55], h: 0.1, s: 0.55, lMul: 0.95 }]));
+  // clothes only: greens and blues are cloth on these models, while skin, leather and hair sit in the oranges
+  const cloth = (h, sat, lMul = 1) => remap([{ hue: [0.125, 0.78], sat: [0.12, 1], h, s: sat, lMul }]);
+  R('cloth_black', remap([{ hue: [0.125, 0.78], sat: [0.12, 1], s: 0.06, lMul: 0.6 }]));
+  R('cloth_red', cloth(0.01, 0.55, 0.95));
+  R('cloth_blue', cloth(0.6, 0.4, 1.0));
+  R('cloth_green', cloth(0.3, 0.35, 0.95));
+  R('cloth_rust', cloth(0.06, 0.6, 1.0));
+  R('crusher', chain(remap([{ sat: [0.3, 1], h: 0.09, s: 0.8, lMul: 1.0 }]), multiply(0.85, 0.82, 0.8)));
+  R('overseer', chain(remap([{ sat: [0.3, 1], h: 0.78, s: 0.6, lMul: 0.75 }]), multiply(0.6, 0.6, 0.68)));
   R('ghost', chain(remap([{ sat: [0, 1], h: 0.54, s: 0.45, lMul: 1.2 }]), multiply(0.8, 1, 1.1)));
 }
 
@@ -91,7 +110,7 @@ export function createActors(assets) {
   const gunGeo = new Map();
   const restCache = new Map();
   registerCharacterTints(assets);
-  const m4 = new THREE.Matrix4(), v3 = new THREE.Vector3(), n3 = new THREE.Vector3();
+  const m4 = new THREE.Matrix4(), recoilT = new THREE.Matrix4(), v3 = new THREE.Vector3(), n3 = new THREE.Vector3();
 
   /** Rest-pose matrix (bone world x inverse bind) of every bone: bind space -> character space. */
   const rigOf = (look) => { const j = assets.people.get(look.fam).json; return j.rigs?.[look.model] || j.rig; };
@@ -268,9 +287,10 @@ export function createActors(assets) {
     const map = {};
     for (const [k, v] of Object.entries(FAMILY[look.fam])) if (k === 'hand' || clips[Array.isArray(v) ? v[0] : v]) map[k] = v;
     const handIdx = rig.findIndex((b) => b.name === map.hand);
+    const armIdx = rig.map((b, i) => (/Shoulder|UpperArm|LowerArm|Wrist|Palm|Fist|Hand/.test(b.name) ? i : -1)).filter((i) => i >= 0);
     const a = {
       root, inner, bones, mesh, material, look, scale: look.scale || 1, rig, rest, map, clips,
-      hand: handIdx >= 0 ? bones[handIdx] : null,
+      hand: handIdx >= 0 ? bones[handIdx] : null, armIdx, aimPose: null, gunBase: null,
       pose: new Float32Array(rest), from: new Float32Array(rest), target: new Float32Array(rest),
       part: 'idle', t: Math.random() * 2, fade: 1,
       gun: null, gunKind: null, speed: 0, shootT: 9, meleeT: 9, oneShot: null, oneT: 0,
@@ -287,7 +307,7 @@ export function createActors(assets) {
     a.gunKind = kind;
     if (!kind || !a.hand) return;
     let g = gunGeo.get(kind);
-    if (!g) { g = assets.geometry('qg/' + kind); gunGeo.set(kind, g); }
+    if (!g) { g = assets.geometry(kind); gunGeo.set(kind, g); }
     const mesh = new THREE.Mesh(g, assets.worldMaterial());
     mesh.castShadow = true;
     // pose the skeleton as if aiming, with the figure at the origin, and read where the hand ends up
@@ -300,9 +320,18 @@ export function createActors(assets) {
     const handW = a.hand.matrixWorld;
     const p = new THREE.Vector3().setFromMatrixPosition(handW);
     const s = a.scale;
-    const want = new THREE.Matrix4().compose(new THREE.Vector3(p.x, p.y + 0.02 * s, p.z + 0.07 * s), new THREE.Quaternion(), new THREE.Vector3(s, s, s));
+    const blaster = kind.startsWith('gun/');
+    const box = blaster ? MODEL_BOX[kind] : null;
+    const sz = blaster ? (a.look.fam === 'robot' ? 0.95 : 0.66) : (a.look.fam === 'robot' ? 1.25 : 1); // blasters are oversized for people; machines have big hands
+    const fwd = blaster ? (box[5] - box[2]) * 0.2 * sz : 0.07;
+    const want = new THREE.Matrix4().compose(
+      new THREE.Vector3(p.x, p.y + (blaster ? 0.05 : 0.02) * s, p.z + fwd * s),
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), blaster ? Math.PI : 0),
+      new THREE.Vector3(s * sz, s * sz, s * sz));
     mesh.matrixAutoUpdate = false;
     mesh.matrix.copy(handW).invert().multiply(want);
+    a.gunBase = mesh.matrix.clone();
+    a.aimPose = new Float32Array(a.target);
     a.hand.add(mesh);
     a.gun = mesh;
     applyPose(a, a.pose);
@@ -333,8 +362,7 @@ export function createActors(assets) {
           if (Math.abs(d) > 2.3) part = 'back'; else if (d > 0.9) part = 'right'; else if (d < -0.9) part = 'left';
         }
         rate = Math.max(0.5, a.speed / 4.6);
-      } else if (a.shootT < 0.28 && a.map.shoot) { part = 'shoot'; loop = false; time = a.shootT * 1.6; }
-      else part = st.reach && !a.gun ? 'idle' : 'aim';
+      } else part = st.reach && !a.gun ? 'idle' : 'aim';
     } else if (a.speed > 3.6) { part = 'run'; rate = Math.max(0.6, a.speed / 5.2); }
     else if (a.speed > 0.4) { part = 'walk'; rate = Math.max(0.6, a.speed / 1.7); }
     if (a.oneT > 0 && !a.oneShot) a.oneT = 0;
@@ -356,7 +384,21 @@ export function createActors(assets) {
         for (let i = 3; i < 7; i++) P[o + i] /= l;
       }
     } else a.pose.set(a.target);
+    const holding = a.gun && a.gun.visible && a.aimPose && !a.dead && part !== 'roll' && part !== 'punch' && part !== 'interact' && part !== 'hit' && part !== 'wave' && part !== 'sit';
+    if (holding) {
+      // Arms stay in the aiming pose whatever the legs are doing, so the gun always points where the figure faces.
+      const P = a.pose, A = a.aimPose;
+      for (const b of a.armIdx) { const o = b * 7 + 3; P[o] = A[o]; P[o + 1] = A[o + 1]; P[o + 2] = A[o + 2]; P[o + 3] = A[o + 3]; }
+    }
     applyPose(a, a.pose);
+    if (a.gun && a.gunBase) {
+      // recoil: the gun kicks back and up, then settles
+      const k = a.shootT < 0.16 ? Math.sin((a.shootT / 0.16) * Math.PI) * (1 - a.shootT / 0.16) : 0;
+      if (k > 0.001 || a.kicked) {
+        a.gun.matrix.copy(a.gunBase).multiply(m4.makeRotationX(-k * 0.28)).multiply(recoilT.makeTranslation(0, 0, -k * 0.06));
+        a.kicked = k > 0.001;
+      }
+    }
     if (a.flash > 0) {
       a.flash = Math.max(0, a.flash - dt * 7);
       a.material.emissive.setRGB(0.55 * a.flash, 0.16 * a.flash, 0.1 * a.flash);

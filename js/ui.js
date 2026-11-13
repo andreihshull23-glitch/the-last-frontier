@@ -3,7 +3,7 @@
 // Full screens render into #ui; panels render into #panel above the town.
 
 import * as R from './rules.js';
-import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, CHAPTERS, AMMO } from './content.js';
+import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, CHAPTERS, AMMO, PROLOGUE } from './content.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -50,7 +50,7 @@ export function createUI(root, panelEl, api) {
     loading() {
       const pct = Math.round((data.progress ?? 0) * 100);
       return `<section class="title-copy">
-        <p class="eyebrow">A Western extraction roguelike</p>
+        <p class="eyebrow">A sci-fi Western roguelike</p>
         <h1 class="title">The Last<br>Frontier</h1>
         <p class="lede">${data.error ? esc(data.error) : 'Loading the Red Country…'}</p>
         <div class="loadbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>
@@ -69,7 +69,7 @@ export function createUI(root, panelEl, api) {
       return `<section class="title-copy">
         <p class="eyebrow">A Western extraction roguelike</p>
         <h1 class="title">The Last<br>Frontier</h1>
-        <p class="lede">Ride out from Mercy. Do the job, take what you can carry, and get back before dark. Spend what you earn in town, then ride again.</p>
+        <p class="lede">Something fell from the sky and the Meridian Company is building machines out of it. Ride out from Mercy, do the job, get back before dark, and spend what you earn in town.</p>
         <div class="actions">
           ${cont}
           <button class="btn ${camp ? 'ghost' : ''}" data-act="new">${camp ? 'New campaign' : 'Ride into Mercy'}${camp ? '' : '<span class="btn-sub">Start a new campaign</span>'}</button>
@@ -91,13 +91,15 @@ export function createUI(root, panelEl, api) {
           <div><h3>Sundown</h3><p>The clock at the top is the sun. After dark you see less, and Hollow walkers hunt in growing packs.</p></div>
           <div><h3>Dying</h3><p>A dead drifter stays dead. You lose what they carried and the kit they wore. Guns, upgrades, banked cash, the town and the story are kept. A human killer keeps the kit and becomes a bounty.</p></div>
           <div><h3>Fighting</h3><p>Every enemy shows where its attack will land before it lands: a cone, a line or a circle on the ground. Step out, or roll through with Space. An aimed shot staggers most enemies out of a wind-up.</p></div>
+          <div><h3>Machines</h3><p>Meridian's robots take more punishment than people. Energy weapons from the gunsmith hit them much harder, and the arc caster locks them up for a moment.</p></div>
           <div><h3>Quiet</h3><p>Enemies see in a cone and hear gunfire, sprinting and dynamite. A ring over a head is suspicion filling. Scouts fire flares: kill them first.</p></div>
         </div>
         <table class="keys"><caption class="muted">Keyboard and mouse. On a phone the buttons are on screen.</caption>
           <tr><th>Move</th><td>W A S D</td><th>Look</th><td>Mouse (click once to take the mouse, Esc lets go)</td></tr>
           <tr><th>Sprint</th><td>Shift</td><th>Dodge roll</th><td>Space</td></tr>
           <tr><th>Fire</th><td>Left click (hold to keep firing)</td><th>Alt fire</th><td>Right click or F: fan the hammer, or both barrels</td></tr>
-          <tr><th>Guns</th><td>1 2 3, mouse wheel or X</td><th>Reload</th><td>R</td></tr>
+          <tr><th>Guns</th><td>1 to 7, mouse wheel or X</td><th>Reload</th><td>R</td></tr>
+          <tr><th>Journal</th><td>J: the story so far and what to do next</td><th></th><td></td></tr>
           <tr><th>Dynamite</th><td>G (lands where you aim)</td><th>Bandage</th><td>Q</td></tr>
           <tr><th>Use / talk</th><td>E (hold for caches)</td><th>Map</th><td>M or Tab</td></tr>
           <tr><th>Menu</th><td>Esc or P</td><th></th><td></td></tr>
@@ -113,7 +115,7 @@ export function createUI(root, panelEl, api) {
         <p class="eyebrow">${first ? 'The Dry Fork Saloon, Mercy' : 'Boot Hill has a new marker'}</p>
         <h1 class="h-screen">${first ? 'Who rides for Mercy?' : 'Mercy needs another gun'}</h1>
         ${first
-    ? '<p class="lede">The marshal is hiring. Three drifters are at the bar. Each has one thing they are good at, and it dies with them.</p>'
+    ? `<div class="prologue">${PROLOGUE.map((p) => `<p><strong>${esc(p.title)}.</strong> ${esc(p.text)}</p>`).join('')}</div><p class="lede">The marshal is hiring. Three drifters are at the bar. Each has one thing they are good at, and it dies with them.</p>`
     : `<div class="memory"><p><strong>${esc(last.name)}</strong> was killed by ${esc(last.killedBy)}.</p>
        <p class="muted">Kept: $${camp.cash} in the bank, ${camp.armory.guns.length ? camp.armory.guns.map((g) => GUNS[g].name.toLowerCase()).join(' and ') + ', ' : ''}the town and the story so far. Lost: their kit and everything they carried.${camp.bounty ? ` ${esc(camp.bounty.name)} is wearing that kit now. There is a bounty on the board.` : ''}</p></div>`}
         <div class="candidates">${(camp.candidates ?? []).map((k, i) => `<article class="candidate">
@@ -237,13 +239,22 @@ export function createUI(root, panelEl, api) {
     gunsmith() {
       const camp = c();
       const ups = camp.armory.upgrades;
-      const stat = (g) => { const s = gunStats(g, ups); return `${s.pellets ? `${s.pellets} × ${s.damage}` : s.damage} damage · ${s.mag} rounds · ${Math.round(s.range / 32)} m`; };
+      const stat = (g) => {
+        const s = gunStats(g, ups);
+        const bits = [`${s.pellets ? `${s.pellets} × ${s.damage}` : s.damage} damage`, `${(1 / s.cooldown).toFixed(1)} shots a second`, `${s.mag} ${s.ammo ? 'rounds' : 'charges'}`, `${Math.round(s.range / 32)} m`];
+        bits.push(s.recharge ? 'recharges, no ammunition' : s.magReload ? `swaps the magazine in ${s.magReload} s` : `loads one round every ${s.reloadRound} s`);
+        if (s.ammo) bits.push(`uses ${s.ammo}`);
+        if (s.pierce) bits.push(`pierces ${s.pierce + 1} targets`);
+        if (s.chain) bits.push(`jumps to ${s.chain} more`);
+        if (s.robotMul > 1) bits.push(`+${Math.round((s.robotMul - 1) * 100)}% to machines`);
+        return bits.join(' · ');
+      };
       const guns = GUN_ORDER.map((g) => {
         const owned = g === 'revolver' || camp.armory.guns.includes(g);
         const def = GUNS[g];
         return owned
-          ? `<div class="item built"><div><h3>${esc(def.name)}</h3><p>${esc(def.desc)}</p><p class="have">${esc(stat(g))}</p></div><span class="have">In your armory</span></div>`
-          : buyRow(def.name, def.desc, stat(g), R.canBuyGun(camp, g), 'Buy', `data-p="gun" data-id="${g}"`);
+          ? `<div class="item built"><div><h3>${esc(def.name)} <span class="muted">· ${esc(def.role)}</span></h3><p>${esc(def.desc)}</p><p class="have">${esc(stat(g))}</p></div><span class="have">In your armory</span></div>`
+          : buyRow(`${def.name} · ${def.role}`, def.desc, stat(g), R.canBuyGun(camp, g), 'Buy', `data-p="gun" data-id="${g}"`);
       }).join('');
       const work = Object.entries(UPGRADES).map(([id, u]) => (ups.includes(id)
         ? `<div class="item built"><div><h3>${esc(u.name)}</h3><p>${esc(u.desc)}</p></div><span class="have">Fitted</span></div>`
@@ -336,6 +347,22 @@ export function createUI(root, panelEl, api) {
       }
       return `${head(role === 'townsfolk' ? 'Mercy' : 'Mercy', pdata.name || 'Townsfolk')}${body}${foot('Walk on')}`;
     },
+    journal() {
+      const camp = c();
+      const done = CHAPTERS.slice(0, camp.chapter);
+      const now = R.currentChapter(camp);
+      const who = (g) => (g === 'rider' ? 'Nell Dunmore, the Free Rider outside the saloon' : 'Marshal Ada Quill, outside the Town Hall');
+      const next = camp.pendingChoice
+        ? '<div class="decision"><h3>Now: decide who reads the ledger</h3><p>Talk to the marshal outside the Town Hall.</p></div>'
+        : now
+          ? `<div class="decision"><h3>Now: chapter ${camp.chapter + 1} of ${CHAPTERS.length}, ${esc(now.title)}</h3><p><strong>${esc(now.goal)}</strong></p><p>${esc(now.brief)}</p><p class="muted">To start it, talk to ${esc(who(now.giver))} (the gold marker in town), or ride out by the trail at the west end of the street.</p></div>`
+          : '<div class="decision"><h3>The story is finished</h3><p>Mercy stands. There is always more work on the job board at the saloon.</p></div>';
+      const past = done.length
+        ? `<h3 class="section">The story so far</h3><ol class="journal">${done.map((ch) => `<li><strong>${esc(ch.title)}.</strong> ${esc(ch.recap)}</li>`).join('')}</ol>`
+        : `<h3 class="section">How it began</h3><ol class="journal">${PROLOGUE.map((p) => `<li><strong>${esc(p.title)}.</strong> ${esc(p.text)}</li>`).join('')}</ol>`;
+      const ahead = now ? `<p class="muted">Still ahead: ${CHAPTERS.slice(camp.chapter + 1).map((ch) => esc(ch.title)).join(' · ') || 'nothing after this one'}.</p>` : '';
+      return `<div class="bar"><div><p class="eyebrow">Journal</p><h2 id="panel-title">What is going on</h2></div></div>${next}${past}${ahead}${foot('Close')}`;
+    },
     pause() {
       const ride = api.inRide();
       const s = api.settings();
@@ -343,6 +370,7 @@ export function createUI(root, panelEl, api) {
         ${ride ? `<ul class="objectives">${api.objectives().map((o) => `<li class="${o.done ? 'done' : ''}">${esc(o.text)}</li>`).join('')}</ul>` : ''}
         <div class="row">
           <button class="btn" data-p="close">Resume</button>
+          <button class="btn ghost" data-p="open" data-id="journal">Journal</button>
           <button class="btn ghost" data-p="open" data-id="settings">Settings</button>
           <button class="btn ghost" data-p="open" data-id="keys">Controls</button>
           <button class="btn ghost" data-p="mute">${s.mute ? 'Sound is off' : 'Sound is on'}</button>

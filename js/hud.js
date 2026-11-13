@@ -8,7 +8,7 @@ export const FONT_MONO = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
 const U = 1 / PX;
 const TAU = Math.PI * 2;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const SHORT = { revolver: 'REV', rifle: 'RIF', shotgun: 'SHG' };
+const SHORT = { revolver: 'REV', rifle: 'RIF', shotgun: 'SHG', smg: 'SMG', longrifle: 'LNG', pulse: 'PLS', arc: 'ARC' };
 const TONE = { story: '#e8a33d', good: '#a9c98f', bad: '#e2735c', warn: '#e8a33d', info: '#ece1cb' };
 const INK = '#ece1cb', DUST = '#a89a84', LAMP = '#e8a33d', BLOOD = '#e2735c', SAGE = '#a9c98f', HOLLOW = '#b9a8ff';
 
@@ -333,7 +333,8 @@ function drawWeapons(r, ctx, sim, right, bottom, compact) {
   const g = currentGun(sim);
   const owned = GUN_ORDER.filter((k) => p.mags[k] !== undefined);
   const town = s.mode === 'town';
-  const W = compact ? 188 : 250, H = owned.length > 1 || p.dynamite > 0 ? 66 : 46;
+  const energy = !g.ammo;
+  const W = Math.max(compact ? 188 : 250, 74 + owned.length * (compact ? 40 : 46)), H = owned.length > 1 || p.dynamite > 0 ? 66 : 46;
   const x = right - W, y = bottom - H;
   panel(ctx, x, y, W, H);
   ctx.textAlign = 'left';
@@ -341,27 +342,27 @@ function drawWeapons(r, ctx, sim, right, bottom, compact) {
   ctx.font = `800 ${compact ? 14 : 16}px ${FONT_DISPLAY}`;
   ctx.fillText(g.name.toUpperCase(), x + 10, y + 19);
   // rounds in the gun
-  const mag = p.mags[p.gun];
+  const mag = Math.floor(p.mags[p.gun]);
   const n = g.mag, pipW = Math.min(9, (W - 20 - (compact ? 40 : 52)) / n);
   for (let i = 0; i < n; i++) {
-    ctx.fillStyle = i < mag ? (g.ammo === 'shells' ? '#d0573f' : '#d6a84a') : 'rgba(236,225,203,0.14)';
-    ctx.fillRect(x + 10 + i * pipW, y + 27, pipW - 2, 9);
+    ctx.fillStyle = i < mag ? (energy ? (g.bolt || '#6fd6ff') : g.ammo === 'shells' ? '#d0573f' : '#d6a84a') : 'rgba(236,225,203,0.14)';
+    ctx.fillRect(x + 10 + i * pipW, y + 27, Math.max(1, pipW - (pipW > 4 ? 2 : 1)), 9);
   }
-  const reserve = town ? '∞' : `+${p.ammo[g.ammo]}`;
+  const reserve = energy ? 'CELL' : town ? '∞' : `+${p.ammo[g.ammo]}`;
   ctx.textAlign = 'right';
   ctx.font = `600 ${compact ? 11 : 12}px ${FONT_MONO}`;
-  ctx.fillStyle = !town && p.ammo[g.ammo] === 0 ? BLOOD : INK;
+  ctx.fillStyle = energy ? (g.bolt || INK) : !town && p.ammo[g.ammo] === 0 ? BLOOD : INK;
   ctx.fillText(reserve, x + W - 10, y + 36);
   ctx.fillStyle = DUST;
   ctx.font = `500 10px ${FONT_MONO}`;
-  ctx.fillText(p.reloading ? 'loading' : mag === 0 ? 'EMPTY' : !r.touch && r.keyHints ? '[R]' : '', x + W - 10, y + 19);
+  ctx.fillText(energy ? (mag < g.mag ? 'recharging' : 'charged') : p.reloading ? 'loading' : mag === 0 ? 'EMPTY' : !r.touch && r.keyHints ? '[R]' : '', x + W - 10, y + 19);
   if (H > 46) {
     let sx = x + 10;
     ctx.textAlign = 'left';
     ctx.font = `600 10px ${FONT_MONO}`;
     for (const k of owned) {
       const cur = k === p.gun;
-      const text = `${GUN_ORDER.indexOf(k) + 1} ${SHORT[k]} ${p.mags[k]}`;
+      const text = `${owned.indexOf(k) + 1} ${SHORT[k] || k.slice(0, 3).toUpperCase()}${owned.length <= 3 ? ' ' + Math.floor(p.mags[k]) : ''}`;
       const tw = ctx.measureText(text).width + 10;
       ctx.fillStyle = cur ? 'rgba(232,163,61,0.22)' : 'rgba(236,225,203,0.06)';
       ctx.fillRect(sx, y + H - 21, tw, 15);
@@ -611,8 +612,8 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
   if (!r.touch && r.keyHints && s.t < 22 && w >= 1000 && !r.mapOpen) {
     ctx.globalAlpha = clamp((22 - s.t) / 3, 0, 1) * 0.85;
     const hint = town
-      ? 'WASD walk · Mouse look · Shift sprint · E talk and trade · M map · Esc menu'
-      : 'WASD move · Shift sprint · Space dodge · Click fire · Right-click alt fire · 1 2 3 guns · G dynamite · R reload · Q bandage · E use';
+      ? 'WASD walk · Mouse look · Shift sprint · E talk and trade · J journal · M map · Esc menu'
+      : 'WASD move · Shift sprint · Space dodge · Click fire · Right-click alt fire · 1-7 guns · G dynamite · R reload · Q bandage · E use';
     label(ctx, hint, w / 2, bottom - (town ? 6 : 4), INK, `500 11px ${FONT_MONO}`);
     ctx.globalAlpha = 1;
   }

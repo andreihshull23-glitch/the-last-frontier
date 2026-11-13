@@ -153,6 +153,14 @@ export function createAudio() {
       burst({ freq: 2700, q: 1.2, dur: 0.18, gain: 0.7 * v, echo: 0.9 * v });
       tone({ freq: 180, to: 60, dur: 0.1, gain: 0.3 * v });
     },
+    smg: (v) => burst({ freq: 1700, q: 0.9, dur: 0.07, gain: 0.42 * v, echo: 0.25 * v }),
+    smgShot: (v) => { burst({ freq: 1500, q: 0.8, dur: 0.06, gain: 0.5 * v, echo: 0.2 * v }); tone({ freq: 150, to: 70, dur: 0.05, gain: 0.2 * v }); },
+    longShot: (v) => { burst({ freq: 900, q: 0.7, dur: 0.4, gain: 0.95 * v, echo: 1.2 * v }); tone({ freq: 110, to: 35, dur: 0.3, gain: 0.6 * v }); },
+    pulse: (v) => tone({ type: 'sawtooth', freq: 1250, to: 380, dur: 0.11, gain: 0.13 * v }),
+    pulseShot: (v) => { tone({ type: 'sawtooth', freq: 1500, to: 420, dur: 0.1, gain: 0.12 * v }); tone({ type: 'triangle', freq: 2400, to: 900, dur: 0.07, gain: 0.07 * v }); },
+    overcharge: (v) => { tone({ type: 'sawtooth', freq: 300, to: 1800, dur: 0.12, gain: 0.14 * v }); tone({ type: 'sawtooth', freq: 1600, to: 120, dur: 0.45, gain: 0.2 * v }); burst({ freq: 700, q: 0.8, dur: 0.3, gain: 0.5 * v, echo: 0.8 * v }); },
+    arcShot: (v) => { burst({ freq: 4200, q: 2.5, dur: 0.22, gain: 0.4 * v }); tone({ type: 'square', freq: 95, to: 60, dur: 0.25, gain: 0.1 * v }); },
+    zap: (v) => burst({ freq: 5200, q: 3, dur: 0.1, gain: 0.22 * v }),
     pistol: (v) => burst({ freq: 2000, q: 1, dur: 0.12, gain: 0.45 * v, echo: 0.4 * v }),
     revolver: (v) => {
       burst({ freq: 1300, q: 0.8, dur: 0.18, gain: 0.6 * v, echo: 0.6 * v });
