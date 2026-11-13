@@ -4,21 +4,22 @@
 // The sim talks to the outside world only by pushing events onto `sim.events`.
 
 import {
-  TILE as TS, PX, MACRO, ENEMIES, WEAPONS, GUNS, GUN_ORDER, gunStats, AMMO, CARRY, DYNAMITE, ITEMS, SOLID, OPAQUE, BLOCKS_SHOT,
+  TILE as TS, PX, MACRO, ENEMIES, WEAPONS, GUNS, GUN_ORDER, gunStats, AMMO, CARRY, DYNAMITE, ITEMS, SOLID, OPAQUE, BLOCKS_SHOT, ROCK,
+  RELICS, PULSE, JUMP, START_GUN,
 } from './content.js';
 import { makeRng } from './rng.js';
 import { buildNav, nearestNav } from './level.js';
 
-export const SNAPSHOT_VERSION = 2;
+export const SNAPSHOT_VERSION = 3;
 
 export const PLAYER = {
   radius: 11,
-  speed: 152,
+  speed: 176,
   sprintMul: 1.46,
   sprintDrain: 11,
   sprintNoise: 170,
   accel: 14,
-  dodgeSpeed: 430,
+  dodgeSpeed: 470,
   dodgeTime: 0.24,
   dodgeIframes: 0.22,
   dodgeCost: 30,
@@ -70,10 +71,15 @@ function segCircle(x0, y0, x1, y1, cx, cy, r) {
 export function createSim(config, level) {
   const ch = config.character;
   const town = config.mode === 'town';
-  const owned = GUN_ORDER.filter((g) => g === 'revolver' || (config.armory?.guns || []).includes(g));
+  // A ride starts with the sidearm; everything else is found. In town you may try every gun you have unlocked.
+  const carry = config.carry || null;
+  const pool = config.pool || [];
+  const owned = carry ? Object.keys(carry.mags) : town ? GUN_ORDER.filter((g) => g === START_GUN || pool.includes(g)) : [START_GUN];
   const upgrades = config.armory?.upgrades || [];
+  const relics = carry ? [...carry.relics] : [];
+  const mods0 = runMods(relics);
   const mags = {};
-  for (const g of owned) mags[g] = gunStats(g, upgrades).mag;
+  for (const g of owned) mags[g] = carry ? carry.mags[g] : Math.round(gunStats(g, upgrades).mag * mods0.mag);
   const clockStart = level.clock?.start || 'day';
   const state = {
     v: SNAPSHOT_VERSION,
@@ -88,14 +94,15 @@ export function createSim(config, level) {
     nextId: 1,
     player: {
       x: level.start.x, y: level.start.y, vx: 0, vy: 0, r: PLAYER.radius,
-      hp: ch.hp, maxHp: ch.maxHp,
+      hp: carry ? carry.hp : ch.hp, maxHp: ch.maxHp,
       stamina: PLAYER.stamina, staminaDelay: 0,
       aim: level.start.a || 0,
       dodgeT: 0, dodgeX: 0, dodgeY: 0, iframes: 0, recoverT: 0,
       sprinting: false, sprintLock: 0, stepT: 0,
-      gun: 'revolver', mags, rest: {},
-      ammo: { cartridges: ch.cartridges ?? AMMO.cartridges.start, shells: ch.shells ?? 0 },
-      dynamite: ch.dynamite ?? 0, bandages: ch.bandages ?? 0,
+      gun: carry?.gun && mags[carry.gun] !== undefined ? carry.gun : START_GUN, mags, rest: {},
+      relics, pulses: carry ? carry.pulses + mods0.pulses : PULSE.start, jumpT: 0, jumpCd: 0, jumpX: level.start.x, jumpY: level.start.y, shotCount: 0, reviveUsed: false,
+      ammo: carry ? { ...carry.ammo } : { cartridges: ch.cartridges ?? AMMO.cartridges.start, shells: ch.shells ?? 0 },
+      dynamite: carry ? carry.dynamite : ch.dynamite ?? 0, bandages: carry ? carry.bandages : ch.bandages ?? 0,
       fireCd: 0, fireBuffer: 0, fanQueue: 0, fanT: 0, reloading: false, reloadT: 0, swapT: 0, throwCd: 0,
       healT: 0, hurtT: 0, lastHitBy: null, charmUsed: false, shotT: -9,
     },
@@ -114,7 +121,10 @@ export function createSim(config, level) {
     buddy: config.companion ? { x: level.start.x + 26, y: level.start.y + 26, vx: 0, vy: 0, r: 11, facing: 0, cool: 1, downT: 0, hp: BUDDY.hp, path: null, pathGoal: -1, pathAge: 0, pathI: 0, moving: false } : null,
     warned: { dusk: clockStart !== 'day', night: false },
     sightT: 0,
-    kills: 0,
+    kills: carry ? carry.kills : 0,
+    coin: carry ? carry.coin : 0,
+    rooms: level.rooms ? level.rooms.map((r) => ({ id: r.id, state: r.waves.length ? 'idle' : 'cleared', wave: 0 })) : null,
+    floor: config.floor || 0,
     boss: null,
     report: null,
   };
@@ -135,7 +145,8 @@ export function createSim(config, level) {
     const base = { id: state.nextId++, kind: it.kind, x: it.x, y: it.y, done: false, seen: false, known: false };
     if (it.kind === 'cache') Object.assign(base, { tier: it.tier, a: it.a, loot: it.loot, cartridges: it.cartridges, shells: it.shells, bandage: it.bandage, dynamite: it.dynamite, duration: 0.7 });
     else if (it.kind === 'objective') Object.assign(base, { item: it.item, role: it.role, zone: it.zone || '', duration: ITEMS[it.item].duration, known: true });
-    else if (it.kind === 'exit') Object.assign(base, { variant: it.variant, duration: 0, seen: true, known: true });
+    else if (it.kind === 'exit') Object.assign(base, { variant: it.variant, duration: 0, seen: true, known: true, needsClear: Boolean(it.needsClear) });
+    else if (it.kind === 'ware' || it.kind === 'gun' || it.kind === 'relic') Object.assign(base, { gun: it.gun || null, relic: it.relic || null, heal: it.heal || 0, price: it.price || 0, duration: 0, r: 54, seen: true, known: true });
     else Object.assign(base, { shop: it.shop || null, r: it.r || 60, text: it.text || '', duration: 0, seen: true, known: true });
     state.interactables.push(base);
   }
@@ -164,14 +175,16 @@ export function createSim(config, level) {
 function wrap(state, level) {
   const sim = { state, level, events: [], rng: makeRng(0), cache: buildCache(level) };
   sim.rng.state = state.rngState;
-  const upgrades = state.config.armory?.upgrades || [];
-  sim.cache.guns = {};
-  for (const g of GUN_ORDER) sim.cache.guns[g] = gunStats(g, upgrades);
+  state.player.relics ||= [];
+  rebuildGuns(sim);
+  if (state.rooms) for (const st of state.rooms) if (st.state === 'active') seal(sim, level.rooms[st.id], true);
   return sim;
 }
 
 function buildCache(level) {
-  return { w: level.w, h: level.h, flags: level.flags, nav: buildNav(level), flow: null, flowFrom: -1, flowAge: 99 };
+  const nav = buildNav(level);
+  // Sealed rooms change what is solid, so those levels get their own copy to write on.
+  return { w: level.w, h: level.h, flags: level.rooms ? level.flags.slice() : level.flags, hgt: level.hgt, nav, navBase: level.rooms ? nav.slice() : nav, flow: null, flowFrom: -1, flowAge: 99 };
 }
 
 export function snapshot(sim) {
@@ -184,6 +197,170 @@ export function restoreSim(data, level) {
   const state = typeof data === 'string' ? JSON.parse(data) : data;
   if (!state || state.v !== SNAPSHOT_VERSION || !state.player || !state.config) throw new Error('Unsupported snapshot');
   return wrap(state, level);
+}
+
+// ------------------------------------------------------------------ the run: relics, guns, drops
+
+const BASE_MODS = { damage: 1, rate: 1, mag: 1, reload: 1, speed: 1, dodge: 1, armour: 1, coin: 1, luck: 1, robot: 1, berserk: 1, magnet: 0, lifesteal: 0, pierce: 0, bounce: 0, static: 0, pulses: 0, extra: 0, revive: 0 };
+const MULTIPLY = new Set(['damage', 'rate', 'mag', 'reload', 'speed', 'dodge', 'armour', 'coin', 'luck', 'robot', 'berserk']);
+/** What the relics carried add up to. */
+export function runMods(relics) {
+  const m = { ...BASE_MODS };
+  for (const id of relics || []) {
+    const r = RELICS[id];
+    if (!r) continue;
+    for (const [k, v] of Object.entries(r.mod)) { if (MULTIPLY.has(k)) m[k] *= v; else m[k] += v; }
+  }
+  return m;
+}
+/** Gun stats with gunsmith upgrades and this run's relics applied. */
+function rebuildGuns(sim) {
+  const s = sim.state;
+  const upgrades = s.config.armory?.upgrades || [];
+  const m = sim.cache.mods = runMods(s.player.relics);
+  sim.cache.guns = {};
+  for (const id of GUN_ORDER) {
+    const g = gunStats(id, upgrades);
+    g.mag = Math.max(1, Math.round(g.mag * m.mag));
+    g.cooldown /= m.rate;
+    if (g.reloadRound) g.reloadRound /= m.reload;
+    if (g.magReload) g.magReload /= m.reload;
+    if (g.recharge) g.recharge = { rate: g.recharge.rate * m.reload, delay: g.recharge.delay / m.reload };
+    g.pierce = (g.pierce || 0) + m.pierce;
+    g.bounce = (g.bounce || 0) + m.bounce;
+    sim.cache.guns[id] = g;
+  }
+}
+/** Put a gun in the drifter's hands (or top it up if they already have one). */
+export function giveGun(sim, id, quiet = false) {
+  const s = sim.state, p = s.player, g = sim.cache.guns[id];
+  if (!g) return false;
+  const had = p.mags[id] !== undefined;
+  p.mags[id] = g.mag;
+  if (g.ammo) addAmmo(sim, g.ammo, g.ammo === 'shells' ? 12 : 30);
+  if (!had) swapTo(sim, id);
+  if (!quiet) emit(sim, 'toast', { text: had ? `${g.name}: reloaded and topped up.` : `${g.name}. ${g.desc}`, tone: 'good', long: !had });
+  return true;
+}
+export function giveRelic(sim, id, quiet = false) {
+  const s = sim.state, p = s.player, r = RELICS[id];
+  if (!r || p.relics.includes(id)) return false;
+  p.relics.push(id);
+  rebuildGuns(sim);
+  if (r.mod.pulses) p.pulses += r.mod.pulses;
+  if (!quiet) emit(sim, 'toast', { text: `${r.name}. ${r.desc}`, tone: 'good', long: true });
+  return true;
+}
+function weighted(sim, list, weight) {
+  let total = 0;
+  for (const x of list) total += weight(x);
+  if (total <= 0) return null;
+  let roll = sim.rng.next() * total;
+  for (const x of list) { roll -= weight(x); if (roll <= 0) return x; }
+  return list[list.length - 1];
+}
+/** A gun the drifter does not have, from the ones this campaign can find. Higher tiers are rarer. */
+function rollGun(sim, luck = 1) {
+  const s = sim.state, p = s.player;
+  const pool = (s.config.pool || []).filter((g) => GUNS[g] && p.mags[g] === undefined);
+  return weighted(sim, pool, (g) => [0, 6, 3 * luck, 1.2 * luck][GUNS[g].tier || 1]);
+}
+function rollRelic(sim, luck = 1) {
+  const p = sim.state.player;
+  const pool = Object.keys(RELICS).filter((r) => !p.relics.includes(r));
+  return weighted(sim, pool, (r) => [0, 6, 3 * luck, 1.2 * luck][RELICS[r].tier || 1]);
+}
+/** Leave a gun or a relic on the ground to be picked up with the use key. `price` makes it a shop ware. */
+function dropItem(sim, x, y, what, price = 0) {
+  const s = sim.state;
+  const it = { id: s.nextId++, kind: price ? 'ware' : what.gun ? 'gun' : 'relic', x, y, done: false, seen: true, known: true, duration: 0, r: 54, gun: what.gun || null, relic: what.relic || null, heal: what.heal || 0, price };
+  s.interactables.push(it);
+  emit(sim, 'drop', { x, y, id: it.id });
+  return it;
+}
+function rollDrop(sim, luck = 1) {
+  const gun = sim.rng.chance(0.5) ? rollGun(sim, luck) : null;
+  if (gun) return { gun };
+  const relic = rollRelic(sim, luck);
+  if (relic) return { relic };
+  const g2 = rollGun(sim, luck);
+  return g2 ? { gun: g2 } : null;
+}
+function takeItem(sim, it) {
+  const s = sim.state, p = s.player;
+  if (it.price > 0) {
+    if (s.coin < it.price) { emit(sim, 'toast', { text: `That costs ${it.price} coin. You have ${s.coin}.`, tone: 'bad' }); return; }
+    s.coin -= it.price;
+  }
+  if (it.gun) giveGun(sim, it.gun);
+  else if (it.relic) giveRelic(sim, it.relic);
+  else if (it.heal) { p.hp = Math.min(p.maxHp, p.hp + it.heal); emit(sim, 'healed', { amount: it.heal, x: p.x, y: p.y }); }
+  it.done = true;
+  emit(sim, 'item_taken', { x: it.x, y: it.y, id: it.id, bought: it.price > 0 });
+}
+const itemName = (it) => (it.gun ? GUNS[it.gun].name : it.relic ? RELICS[it.relic].name : 'Field dressing');
+const itemBlurb = (it) => (it.gun ? GUNS[it.gun].role : it.relic ? RELICS[it.relic].desc : `Heals ${it.heal} health.`);
+
+// ------------------------------------------------------------------ sealed rooms (the Descent)
+
+function seal(sim, room, on) {
+  const { w, flags, nav, navBase } = sim.cache, base = sim.level.flags;
+  for (const [x0, y0, x1, y1] of room.seal) {
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+      const i = ty * w + tx;
+      if (on) { flags[i] |= SOLID | BLOCKS_SHOT; nav[i] = 0; } else { flags[i] = base[i]; nav[i] = navBase[i]; }
+    }
+  }
+  sim.cache.flowAge = 99;
+}
+function spawnWave(sim, room, st) {
+  const s = sim.state, p = s.player;
+  for (const sp of room.waves[st.wave]) {
+    const e = addEnemy(sim, sp.kind, sp.x, sp.y, { target: Boolean(sp.target), facing: Math.atan2(p.y - sp.y, p.x - sp.x) });
+    e.room = room.id;
+    e.spawnT = 0.7 + sim.rng.next() * 0.25;
+    if (sp.target) e.known = true;
+    emit(sim, 'beam_in', { x: e.x, y: e.y, id: e.id });
+  }
+}
+function updateRooms(sim) {
+  const s = sim.state, p = s.player;
+  if (!s.rooms) return;
+  const L = sim.level, m = 44;
+  for (const st of s.rooms) {
+    const r = L.rooms[st.id];
+    if (st.state === 'idle') {
+      if (p.x > r.x0 + m && p.x < r.x1 - m && p.y > r.y0 + m && p.y < r.y1 - m) {
+        st.state = 'active';
+        st.wave = 0;
+        seal(sim, r, true);
+        spawnWave(sim, r, st);
+        emit(sim, 'room_sealed', { id: r.id, boss: r.role === 'boss' });
+        emit(sim, 'toast', { text: r.role === 'boss' ? 'The doors slam. Something big is coming up through the floor.' : 'The doors seal. Clear the room.', tone: 'bad' });
+      }
+    } else if (st.state === 'active') {
+      if (s.enemies.some((e) => !e.dead && e.room === r.id)) continue;
+      st.wave += 1;
+      if (st.wave < r.waves.length) { spawnWave(sim, r, st); emit(sim, 'toast', { text: 'More of them.', tone: 'bad' }); continue; }
+      st.state = 'cleared';
+      seal(sim, r, false);
+      emit(sim, 'room_cleared', { id: r.id, boss: r.role === 'boss' });
+      const cx = (r.x0 + r.x1) / 2, cy = (r.y0 + r.y1) / 2;
+      const luck = sim.cache.mods.luck;
+      if (r.role === 'boss') {
+        const a = rollRelic(sim, 3), b = rollGun(sim, 3);
+        if (a) dropItem(sim, cx - 46, cy, { relic: a });
+        if (b) dropItem(sim, cx + 46, cy, { gun: b });
+        p.pulses += 1;
+        emit(sim, 'toast', { text: 'Floor cleared. Take what it dropped, then ride the lift down.', tone: 'good', long: true });
+      } else {
+        for (let k = 0; k < 3; k++) s.pickups.push({ id: s.nextId++, kind: 'cash', x: cx + sim.rng.range(-30, 30), y: cy + sim.rng.range(-30, 30), amount: sim.rng.int(4, 9) });
+        if (sim.rng.chance(Math.min(0.6, 0.22 * luck))) s.pickups.push({ id: s.nextId++, kind: 'heart', x: cx, y: cy + 24, amount: 20 });
+        if (sim.rng.chance(Math.min(0.5, 0.12 * luck))) { const d = rollDrop(sim, luck); if (d) dropItem(sim, cx, cy - 30, d); }
+        emit(sim, 'toast', { text: 'Room clear.', tone: 'good' });
+      }
+    }
+  }
 }
 
 function emit(sim, type, data = {}) {
@@ -252,10 +429,14 @@ export function haunted(sim) {
 const hasGear = (s, id) => s.config.character.gear.includes(id);
 const isHeavy = (s) => s.carried.items.some((k) => ITEMS[k]?.heavy);
 
-function solidAt(sim, tx, ty) {
-  const { w, h, flags } = sim.cache;
+function solidAt(sim, tx, ty, air = false) {
+  const { w, h, flags, hgt } = sim.cache;
   if (tx < 0 || ty < 0 || tx >= w || ty >= h) return true;
-  return (flags[ty * w + tx] & SOLID) !== 0;
+  const f = flags[ty * w + tx];
+  if (!(f & SOLID)) return false;
+  // in the air, anything low enough (a crate, a fence, a trough) can be cleared; rock and walls cannot
+  if (air && !(f & (ROCK | OPAQUE)) && hgt[ty * w + tx] > 0 && hgt[ty * w + tx] <= JUMP.low) return false;
+  return true;
 }
 const solidPx = (sim, x, y) => solidAt(sim, Math.floor(x / TS), Math.floor(y / TS));
 
@@ -329,7 +510,7 @@ function collide(sim, e) {
   const y0 = Math.floor((e.y - r) / TS), y1 = Math.floor((e.y + r) / TS);
   for (let ty = y0; ty <= y1; ty++) {
     for (let tx = x0; tx <= x1; tx++) {
-      if (!solidAt(sim, tx, ty)) continue;
+      if (!solidAt(sim, tx, ty, e.air === true)) continue;
       const left = tx * TS, top = ty * TS;
       const cx = clamp(e.x, left, left + TS), cy = clamp(e.y, top, top + TS);
       const ddx = e.x - cx, ddy = e.y - cy;
@@ -570,6 +751,7 @@ export function update(sim, dt, input = {}) {
     updateZone(sim);
     return;
   }
+  updateRooms(sim);
   updateEcho(sim);
   updateEnemies(sim, dt);
   updateBullets(sim, dt);
@@ -631,14 +813,16 @@ function updatePlayer(sim, dt, input) {
   }
 
   if (input.dodge && p.dodgeT <= 0 && p.healT <= 0) {
-    const cost = PLAYER.dodgeCost * (trait === 'fleet' ? 0.75 : 1);
+    const md = sim.cache.mods;
+    const cost = PLAYER.dodgeCost * (trait === 'fleet' ? 0.75 : 1) / (md.dodge > 1 ? 1.4 : 1);
     if (p.stamina >= cost) {
       let dx = mx, dy = my;
       if (Math.hypot(dx, dy) < 0.2) { dx = Math.cos(p.aim); dy = Math.sin(p.aim); }
       const dl = Math.hypot(dx, dy) || 1;
       p.dodgeX = dx / dl; p.dodgeY = dy / dl;
       p.dodgeT = PLAYER.dodgeTime;
-      p.iframes = PLAYER.dodgeIframes;
+      p.iframes = PLAYER.dodgeIframes * md.dodge;
+      p.jumpT = 0;
       p.stamina -= cost;
       p.staminaDelay = PLAYER.staminaDelay;
       emit(sim, 'dodge', { x: p.x, y: p.y, angle: Math.atan2(p.dodgeY, p.dodgeX) });
@@ -651,7 +835,7 @@ function updatePlayer(sim, dt, input) {
     p.vy = p.dodgeY * PLAYER.dodgeSpeed;
     if (p.dodgeT <= 0) { p.recoverT = PLAYER.dodgeRecover; p.vx *= 0.35; p.vy *= 0.35; }
   } else {
-    let speed = PLAYER.speed * (hasGear(s, 'boots') ? 1.06 : 1);
+    let speed = PLAYER.speed * (hasGear(s, 'boots') ? 1.06 : 1) * sim.cache.mods.speed;
     if (p.sprinting) speed *= PLAYER.sprintMul;
     if (isHeavy(s)) speed *= PLAYER.heavySlow;
     if (p.healT > 0) speed *= 0.5;
@@ -660,7 +844,47 @@ function updatePlayer(sim, dt, input) {
     p.vx += (mx * speed - p.vx) * k;
     p.vy += (my * speed - p.vy) * k;
   }
+  // jump: a short hop that clears low cover and anything that travels along the ground
+  p.jumpCd = Math.max(0, p.jumpCd - dt);
+  if (input.jump && p.jumpT <= 0 && p.jumpCd <= 0 && p.dodgeT <= 0 && p.healT <= 0 && !isHeavy(s)) {
+    p.jumpT = JUMP.time; p.jumpX = p.x; p.jumpY = p.y;
+    emit(sim, 'jump', { x: p.x, y: p.y });
+  }
+  p.air = p.jumpT > 0;
   moveBody(sim, p, p.vx * dt, p.vy * dt);
+  if (p.jumpT > 0) {
+    p.jumpT -= dt;
+    if (p.jumpT <= 0) {
+      p.jumpT = 0; p.air = false; p.jumpCd = JUMP.cooldown;
+      // come down on clear ground: slide off whatever is underfoot, or go back to where the jump began
+      for (let k = 0; k < 4 && solidPx(sim, p.x, p.y); k++) collide(sim, p);
+      collide(sim, p);
+      if (solidPx(sim, p.x, p.y)) { p.x = p.jumpX; p.y = p.jumpY; }
+      emit(sim, 'land', { x: p.x, y: p.y });
+    }
+  }
+
+  // the pulse: wipes enemy fire off the screen, shoves what is close and locks machines up
+  if (input.pulse && s.mode !== 'town') {
+    if (p.pulses <= 0) emit(sim, 'toast', { text: 'No pulse charges.', tone: 'bad' });
+    else {
+      p.pulses -= 1;
+      const R = PULSE.radius;
+      s.bullets = s.bullets.filter((b) => b.owner === 'player' || Math.hypot(b.x - p.x, b.y - p.y) > R);
+      s.bombs = s.bombs.filter((b) => b.owner === 'player' || Math.hypot(b.x - p.x, b.y - p.y) > R);
+      for (const e of s.enemies) {
+        if (e.dead) continue;
+        const d = Math.hypot(e.x - p.x, e.y - p.y);
+        if (d > R * 0.6) continue;
+        const def = ENEMIES[e.kind];
+        if (e.atk.phase === 'windup' && !def.boss) { e.atk.phase = 'cooldown'; e.atk.t = 0.8; }
+        if (def.robot && !def.boss) e.stunT = Math.max(e.stunT || 0, PULSE.stun);
+        if (!def.boss && !def.rooted) { e.vx += ((e.x - p.x) / (d || 1)) * PULSE.knock; e.vy += ((e.y - p.y) / (d || 1)) * PULSE.knock; }
+      }
+      p.iframes = Math.max(p.iframes, 0.4);
+      emit(sim, 'pulse', { x: p.x, y: p.y, r: R });
+    }
+  }
 
   updateWeapon(sim, dt, input);
 
@@ -829,11 +1053,15 @@ function updateWeapon(sim, dt, input) {
 /** Fire `shells` rounds from the current gun at once (2 for the coach gun's double blast). */
 function shoot(sim, g, shells) {
   const s = sim.state, p = s.player, trait = s.config.character.trait;
-  const pellets = (g.pellets || 1) * shells;
+  const md = sim.cache.mods;
+  const pellets = (g.pellets || 1) * shells + md.extra;
+  p.shotCount += 1;
+  // every fifth shot throws lightning, with the static field
+  if (md.static && p.shotCount % 5 === 0 && !g.chain) g = { ...g, chain: 1, chainRange: 230 };
   const steady = trait === 'steady' && !g.pellets ? 1.2 : 1;
   const spread = g.spread * (shells > 1 ? 1.35 : 1) * (g.pellets && trait === 'coolhead' ? 0.65 : 1) * (p.sprinting ? 2.2 : 1);
   for (let i = 0; i < pellets; i++) {
-    const a = p.aim + (g.pellets ? (sim.rng.next() + sim.rng.next() - 1) * spread : (sim.rng.next() * 2 - 1) * spread);
+    const a = p.aim + (g.pellets ? (sim.rng.next() + sim.rng.next() - 1) * spread : (sim.rng.next() * 2 - 1) * spread + (i > 0 ? (i % 2 ? 0.07 : -0.07) * Math.ceil(i / 2) : 0));
     firePlayerShot(sim, g, a, Math.round(g.damage * steady), i === 0 ? p.gun : null);
   }
   p.mags[p.gun] -= shells;
@@ -849,7 +1077,8 @@ function firePlayerShot(sim, g, angle, damage, sound, heavy = false) {
   const ox = blocked ? p.x : mx, oy = blocked ? p.y : my;
   const speed = g.speed * (g.pellets ? 0.9 + sim.rng.next() * 0.2 : 1);
   spawnBullet(sim, { x: ox, y: oy, angle, speed, damage, owner: 'player', life: g.range / speed, kind: p.gun, stagger: sound !== 'fan' && !g.pellets,
-    pierce: g.pierce || 0, robotMul: g.robotMul || 1, chain: g.chain || 0, chainRange: g.chainRange || 0, stun: g.stun || 0, heavy });
+    pierce: g.pierce || 0, robotMul: g.robotMul || 1, chain: g.chain || 0, chainRange: g.chainRange || 0, stun: g.stun || 0, heavy,
+    bounce: g.bounce || 0, explode: g.explode || null });
   if (sound) {
     emit(sim, 'shot', { x: mx, y: my, angle, kind: sound === 'fan' ? 'fan' : p.gun, heavy });
     if (s.mode !== 'town') noise(sim, p.x, p.y, g.noise, 'player');
@@ -865,6 +1094,7 @@ function spawnBullet(sim, b) {
     vx: Math.cos(b.angle) * b.speed, vy: Math.sin(b.angle) * b.speed,
     damage: b.damage, owner: b.owner, life: b.life, kind: b.kind, stagger: Boolean(b.stagger), src: b.src ?? null, grazed: false,
     pierce: b.pierce || 0, robotMul: b.robotMul || 1, chain: b.chain || 0, chainRange: b.chainRange || 0, stun: b.stun || 0, heavy: Boolean(b.heavy), hit: [],
+    bounce: b.bounce || 0, explode: b.explode || null, big: Boolean(b.big), ground: Boolean(b.ground),
   });
 }
 
@@ -876,7 +1106,8 @@ function damagePlayer(sim, dmg, src, fromAngle = null) {
     emit(sim, 'dodged', { x: p.x, y: p.y });
     return;
   }
-  const amount = Math.max(1, Math.round(dmg * (hasGear(s, 'duster') ? 0.8 : 1)));
+  const md = sim.cache.mods;
+  const amount = Math.max(1, Math.round(dmg * (hasGear(s, 'duster') ? 0.8 : 1) * md.armour));
   p.hp = Math.max(0, p.hp - amount);
   p.hurtT = 0.3;
   p.lastHitBy = src ? { kind: src.kind, name: src.name ?? null } : null;
@@ -885,6 +1116,12 @@ function damagePlayer(sim, dmg, src, fromAngle = null) {
     p.hp = 1;
     p.iframes = 1.2;
     emit(sim, 'toast', { text: "The rabbit's foot crumbles. You are still standing.", tone: 'warn', long: true });
+  }
+  if (p.hp <= 0 && md.revive && !p.reviveUsed) {
+    p.reviveUsed = true;
+    p.hp = Math.min(p.maxHp, 30);
+    p.iframes = 1.5;
+    emit(sim, 'toast', { text: 'Second wind. You are still standing.', tone: 'warn', long: true });
   }
   emit(sim, 'player_hit', { amount, x: p.x, y: p.y, fromAngle });
 }
@@ -910,7 +1147,10 @@ function updateInteract(sim, dt, input) {
   if (it && it.duration === 0) {
     // press once: exits, shop counters, people, graves
     if (input.interactPressed) {
-      if (it.kind === 'exit') { if (!s.extract.active) startExtraction(sim, it); }
+      if (it.kind === 'exit') {
+        if (it.needsClear && !objectiveDone(s)) emit(sim, 'toast', { text: 'The lift is locked down until the floor boss is dealt with.', tone: 'bad' });
+        else if (!s.extract.active) startExtraction(sim, it);
+      } else if (it.kind === 'gun' || it.kind === 'relic' || it.kind === 'ware') takeItem(sim, it);
       else emit(sim, 'town_interact', { kind: it.kind, shop: it.shop, role: it.role, name: it.name, text: it.text, id: it.id });
     }
     s.interact.id = 0;
@@ -946,8 +1186,13 @@ function completeInteract(sim, it) {
     s.carried.loot.push(...found);
     const bits = found.map((l) => `${l.name} ($${l.value})`);
     if (it.cartridges) { const n = addAmmo(sim, 'cartridges', it.cartridges); if (n) bits.push(`${n} cartridges`); }
-    if (it.shells && p.mags.shotgun !== undefined) { const n = addAmmo(sim, 'shells', it.shells); if (n) bits.push(`${n} shells`); }
+    if (it.shells) { const n = addAmmo(sim, 'shells', it.shells); if (n) bits.push(`${n} shells`); }
     if (it.bandage && p.bandages < CARRY.bandages) { p.bandages += 1; bits.push('a bandage'); }
+    // the better the cache, the better the odds of a gun or a relic beside it
+    if (it.tier >= 2 || (it.tier === 1 && sim.rng.chance(0.5)) || (it.tier === 0 && sim.rng.chance(0.12))) {
+      const d = rollDrop(sim, sim.cache.mods.luck * (1 + it.tier * 0.5));
+      if (d) { const a = Math.atan2(p.y - it.y, p.x - it.x); dropItem(sim, it.x + Math.cos(a) * 30, it.y + Math.sin(a) * 30, d); bits.push(d.gun ? `a ${GUNS[d.gun].name.toLowerCase()}` : RELICS[d.relic].name.toLowerCase()); }
+    }
     if (it.dynamite) {
       const cap = hasGear(s, 'bandolier') ? CARRY.dynamiteBandolier : CARRY.dynamite;
       const n = Math.min(it.dynamite, cap - p.dynamite);
@@ -1061,7 +1306,7 @@ function updateExtraction(sim, dt, input) {
 function updatePickups(sim) {
   const s = sim.state, p = s.player;
   s.pickups = s.pickups.filter((k) => {
-    if (Math.hypot(k.x - p.x, k.y - p.y) > PLAYER.pickupRange) return true;
+    if (Math.hypot(k.x - p.x, k.y - p.y) > (sim.cache.mods.magnet ? 230 : PLAYER.pickupRange)) return true;
     if (k.kind === 'ammo') {
       const n = addAmmo(sim, k.ammo, k.amount);
       if (n <= 0) return true;
@@ -1069,8 +1314,20 @@ function updatePickups(sim) {
       return false;
     }
     if (k.kind === 'cash') {
-      s.carried.loot.push({ name: 'Loose coin', value: k.amount });
-      emit(sim, 'pickup', { x: k.x, y: k.y, text: `+$${k.amount}`, what: 'cash' });
+      const n = Math.round(k.amount * sim.cache.mods.coin);
+      s.coin += n;
+      emit(sim, 'pickup', { x: k.x, y: k.y, text: `+${n} coin`, what: 'cash' });
+      return false;
+    }
+    if (k.kind === 'heart') {
+      if (p.hp >= p.maxHp) return true;
+      p.hp = Math.min(p.maxHp, p.hp + k.amount);
+      emit(sim, 'pickup', { x: k.x, y: k.y, text: `+${k.amount} health`, what: 'heart' });
+      return false;
+    }
+    if (k.kind === 'pulse') {
+      p.pulses += 1;
+      emit(sim, 'pickup', { x: k.x, y: k.y, text: '+1 pulse', what: 'pulse' });
       return false;
     }
     if (k.kind === 'effects') {
@@ -1220,6 +1477,7 @@ function updateEnemy(sim, e, dt) {
   const def = ENEMIES[e.kind];
   e.hitT = Math.max(0, e.hitT - dt);
   if (def.ai === 'none') return;
+  if (e.spawnT > 0) { e.spawnT -= dt; return; } // still arriving
   if (e.stunT > 0) { // a machine locked up by lightning or a dead relay
     e.stunT -= dt;
     e.vx *= 0.8; e.vy *= 0.8;
@@ -1477,8 +1735,8 @@ function engage(sim, e, def, dt) {
       if (ready && sees) {
         const roll = sim.rng.next();
         const clear = bodyLineClear(sim, e.x, e.y, p.x, p.y, e.r);
-        if (d > 330) beginWindup(sim, e, bossWeapon(roll < 0.75 ? 'dynamite' : 'charge'), toP);
-        else if (d > 130) beginWindup(sim, e, bossWeapon(roll < 0.5 ? 'shotgun' : roll < 0.78 && clear ? 'charge' : 'dynamite'), toP);
+        if (d > 330) beginWindup(sim, e, bossWeapon(roll < 0.35 ? 'dynamite' : roll < 0.6 ? 'fan' : roll < 0.8 ? 'ring' : 'charge'), toP);
+        else if (d > 130) beginWindup(sim, e, bossWeapon(roll < 0.3 ? 'shotgun' : roll < 0.5 ? 'fan' : roll < 0.68 ? 'ring' : roll < 0.84 && clear ? 'charge' : 'dynamite'), toP);
         else beginWindup(sim, e, bossWeapon(roll < 0.6 || !clear ? 'shotgun' : 'charge'), toP);
       }
       break;
@@ -1493,6 +1751,8 @@ const BOSS_WEAPONS = {
   shotgun: { kind: 'shotgun', range: 300, windup: 0.62, cooldown: 1.25, pellets: 7, spread: 0.3, damage: 9, speed: 720, life: 0.42, noise: 500, burst: 2, burstGap: 0.42 },
   dynamite: { kind: 'dynamite', range: 520, windup: 0.7, cooldown: 2.0, flight: 0.9, fuse: 0.6, radius: 96, damage: 32, noise: 700, count: 3 },
   charge: { kind: 'charge', range: 420, windup: 0.8, cooldown: 1.9, dash: 0.7, dashSpeed: 430, damage: 30, reach: 34 },
+  ring: { kind: 'ring', range: 700, windup: 0.7, cooldown: 1.5, count: 18, damage: 11, speed: 340, life: 2.2, noise: 500, big: true },
+  fan: { kind: 'fan', range: 700, windup: 0.6, cooldown: 1.3, count: 9, arc: 1.3, damage: 11, speed: 420, life: 1.9, noise: 500, big: true },
 };
 function bossWeapon(kind) { return BOSS_WEAPONS[kind] || BOSS_WEAPONS.shotgun; }
 
@@ -1509,6 +1769,12 @@ function releaseAttack(sim, e, def, w) {
     case 'rifle':
     case 'pulse':
       fireEnemyBullet(sim, e, w, atk.angle);
+      break;
+    case 'fan':
+      for (let i = 0; i < w.count; i++) fireEnemyBullet(sim, e, w, atk.angle + (i / (w.count - 1) - 0.5) * w.arc);
+      break;
+    case 'ring':
+      for (let i = 0; i < w.count; i++) fireEnemyBullet(sim, e, w, atk.angle + (i / w.count) * TAU);
       break;
     case 'pistol':
       fireEnemyBullet(sim, e, w, atk.angle + (sim.rng.next() * 2 - 1) * w.spread);
@@ -1558,7 +1824,7 @@ function releaseAttack(sim, e, def, w) {
 function fireEnemyBullet(sim, e, w, angle) {
   spawnBullet(sim, {
     x: e.x + Math.cos(angle) * (e.r + 3), y: e.y + Math.sin(angle) * (e.r + 3), angle,
-    speed: w.speed, damage: w.damage, owner: 'enemy', life: w.life ?? w.range / w.speed, kind: w.kind,
+    speed: w.speed, damage: w.damage, owner: 'enemy', life: w.life ?? w.range / w.speed, kind: w.kind, big: w.big, ground: w.kind === 'ring',
     src: { kind: e.kind, name: e.name },
   });
 }
@@ -1598,7 +1864,7 @@ function damageEnemy(sim, e, dmg, ang, stagger = false) {
   emit(sim, 'enemy_hit', { x: e.x, y: e.y, angle: ang, kind: e.kind, amount: Math.round(dmg), id: e.id });
   if (e.hp <= 0) { killEnemy(sim, e, ang); return; }
   if (e.state === 'dormant') wake(sim, e);
-  if (!def.boss && def.ai !== 'charger') { e.vx += Math.cos(ang) * 70; e.vy += Math.sin(ang) * 70; }
+  if (!def.boss && def.ai !== 'charger' && !def.rooted) { e.vx += Math.cos(ang) * 70; e.vy += Math.sin(ang) * 70; }
   if (stagger && !def.boss && e.kind !== 'bounty' && def.ai !== 'charger' && e.atk.phase === 'windup') {
     e.atk.phase = 'cooldown';
     e.atk.t = 0.45;
@@ -1636,8 +1902,13 @@ function killEnemy(sim, e, ang) {
   if (def.cash) {
     const jit = () => sim.rng.range(-9, 9);
     s.pickups.push({ id: s.nextId++, kind: 'cash', x: e.x + jit(), y: e.y + jit(), amount: sim.rng.int(def.cash[0], def.cash[1]) });
-    if (sim.rng.chance(0.62)) {
-      const shells = p.mags.shotgun !== undefined && sim.rng.chance(0.4);
+    const md = sim.cache.mods;
+    if (md.lifesteal && p.hp > 0) p.hp = Math.min(p.maxHp, p.hp + md.lifesteal);
+    if (p.hp < p.maxHp && sim.rng.chance(Math.min(0.3, 0.05 * md.luck))) s.pickups.push({ id: s.nextId++, kind: 'heart', x: e.x + jit(), y: e.y + jit(), amount: 15 });
+    if (sim.rng.chance(Math.min(0.1, 0.015 * md.luck))) s.pickups.push({ id: s.nextId++, kind: 'pulse', x: e.x + jit(), y: e.y + jit() });
+    if (def.boss && !e.room) { const d = rollDrop(sim, 3); if (d) dropItem(sim, e.x, e.y + 34, d); }
+    if (sim.rng.chance(Math.min(0.9, 0.62 * md.luck))) {
+      const shells = Object.keys(p.mags).some((g) => GUNS[g].ammo === 'shells') && sim.rng.chance(0.4);
       s.pickups.push({ id: s.nextId++, kind: 'ammo', ammo: shells ? 'shells' : 'cartridges', x: e.x + jit(), y: e.y + jit(), amount: shells ? sim.rng.int(3, 5) : sim.rng.int(6, 11) });
     }
   }
@@ -1704,6 +1975,19 @@ function updateBullets(sim, dt) {
       const ti = tileIdx(sim, nx, ny);
       if (ti < 0 || sim.cache.flags[ti] & BLOCKS_SHOT) {
         emit(sim, 'impact', { x: nx, y: ny, angle: Math.atan2(b.vy, b.vx), owner: b.owner });
+        if (b.explode) burst(sim, b);
+        else if (b.bounce > 0 && ti >= 0) {
+          // work out which face was hit by trying each axis on its own
+          const hx = tileIdx(sim, nx, b.y), hy = tileIdx(sim, b.x, ny);
+          const bx = hx < 0 || (sim.cache.flags[hx] & BLOCKS_SHOT), by = hy < 0 || (sim.cache.flags[hy] & BLOCKS_SHOT);
+          if (bx || !by) b.vx = -b.vx;
+          if (by || !bx) b.vy = -b.vy;
+          b.bounce -= 1;
+          b.damage *= 1.2;
+          b.life = Math.max(b.life, 0.5);
+          b.hit = [];
+          continue;
+        }
         alive = false;
         break;
       }
@@ -1716,15 +2000,25 @@ function updateBullets(sim, dt) {
   s.bullets = keep;
 }
 
+/** A shell bursts: reuse the dynamite blast, with no fuse. */
+function burst(sim, b) {
+  const s = sim.state;
+  s.bombs.push({ id: s.nextId++, owner: 'player', x0: b.x, y0: b.y, x: b.x, y: b.y, t: 1, flight: 0, fuse: 0, r: b.explode.r, damage: b.explode.damage, landed: true });
+}
+
 function bulletHits(sim, b, x0, y0, x1, y1) {
   const s = sim.state;
+  const md = sim.cache.mods;
+  const boost = md.damage * (s.player.hp < s.player.maxHp / 2 ? md.berserk : 1);
   if (b.owner === 'player' || b.owner === 'echo') {
     for (const e of s.enemies) {
       if (e.dead || b.hit.includes(e.id)) continue;
       if (segCircle(x0, y0, x1, y1, e.x, e.y, e.r + 3)) {
         const robot = ENEMIES[e.kind].robot;
         const ang = Math.atan2(b.vy, b.vx);
-        damageEnemy(sim, e, b.owner === 'echo' ? ECHO.toEnemy : b.damage * (robot ? b.robotMul : 1), ang, b.stagger);
+        if (e.spawnT > 0) continue;
+        if (b.explode) { burst(sim, b); return true; }
+        damageEnemy(sim, e, b.owner === 'echo' ? ECHO.toEnemy : b.damage * boost * (robot ? b.robotMul * md.robot : 1), ang, b.stagger);
         if (b.stun && robot && !e.dead && !ENEMIES[e.kind].boss) e.stunT = Math.max(e.stunT || 0, b.stun);
         if (b.chain) { // lightning jumps to the nearest enemies in reach, at 60% strength
           let from = e;
@@ -1739,7 +2033,7 @@ function bulletHits(sim, b, x0, y0, x1, y1) {
             if (!next) break;
             emit(sim, 'arc', { x0: from.x, y0: from.y, x1: next.x, y1: next.y });
             const r2 = ENEMIES[next.kind].robot;
-            damageEnemy(sim, next, b.damage * 0.6 * (r2 ? b.robotMul : 1), Math.atan2(next.y - from.y, next.x - from.x), false);
+            damageEnemy(sim, next, b.damage * 0.6 * boost * (r2 ? b.robotMul * md.robot : 1), Math.atan2(next.y - from.y, next.x - from.x), false);
             if (b.stun && r2 && !next.dead && !ENEMIES[next.kind].boss) next.stunT = Math.max(next.stunT || 0, b.stun);
             done.push(next.id);
             from = next;
@@ -1753,7 +2047,7 @@ function bulletHits(sim, b, x0, y0, x1, y1) {
   if (b.owner === 'enemy' && s.buddy && s.buddy.downT <= 0 && segCircle(x0, y0, x1, y1, s.buddy.x, s.buddy.y, s.buddy.r)) { hurtBuddy(sim, b.damage); return true; }
   if ((b.owner === 'enemy' || b.owner === 'echo') && s.phase === 'playing') {
     const p = s.player;
-    if (segCircle(x0, y0, x1, y1, p.x, p.y, p.r)) {
+    if (!(b.ground && p.jumpT > 0) && segCircle(x0, y0, x1, y1, p.x, p.y, b.big ? p.r + 4 : p.r)) {
       if (p.iframes > 0) {
         if (!b.grazed) { b.grazed = true; emit(sim, 'dodged', { x: p.x, y: p.y }); }
         return false;
@@ -2038,7 +2332,10 @@ function endExpedition(sim, outcome) {
     missionId: s.config.missionId,
     outcome,
     done: objectiveDone(s),
-    carried: { loot: s.carried.loot.map((l) => ({ ...l })), items: [...s.carried.items], effects: s.carried.effects },
+    carried: { loot: [...s.carried.loot.map((l) => ({ ...l })), ...(s.coin > 0 ? [{ name: 'Loose coin', value: s.coin }] : [])], items: [...s.carried.items], effects: s.carried.effects },
+    floor: s.floor,
+    carry: { hp: p.hp, mags: { ...p.mags }, gun: p.gun, relics: [...p.relics], pulses: p.pulses, ammo: { ...p.ammo }, bandages: p.bandages, dynamite: p.dynamite, coin: s.coin, kills: s.kills },
+    relics: [...p.relics], guns: Object.keys(p.mags),
     burned: s.burned,
     targetKilled: s.targetKilled,
     killedBy: outcome === 'died' ? p.lastHitBy : null,
@@ -2073,6 +2370,8 @@ export function focusPrompt(sim) {
   if (!it) return null;
   let label;
   if (it.kind === 'cache') label = 'Search the cache';
+  else if (it.kind === 'gun' || it.kind === 'relic') label = `Take: ${itemName(it)} (${itemBlurb(it)})`;
+  else if (it.kind === 'ware') label = `Buy ${itemName(it)} for ${it.price} coin (${itemBlurb(it)})`;
   else if (it.kind === 'exit') label = EXIT_LABEL[it.variant] || 'Leave';
   else if (it.kind === 'objective') label = ITEMS[it.item]?.verb ?? 'Take';
   else if (it.kind === 'shop') label = s.config.shopVerbs?.[it.shop] ?? 'Trade';
@@ -2110,7 +2409,7 @@ export function objectiveList(sim) {
 }
 
 export function unsecuredValue(s) {
-  return s.carried.loot.reduce((a, l) => a + l.value, 0);
+  return s.carried.loot.reduce((a, l) => a + l.value, 0) + (s.coin || 0);
 }
 
 export function bossState(sim) {

@@ -2,10 +2,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as R from '../js/rules.js';
-import { CHAPTERS, JOBS, INVESTMENTS, GUNS, GUN_ORDER, ENEMIES, TALK } from '../js/content.js';
+import { CHAPTERS, JOBS, INVESTMENTS, GUNS, GUN_ORDER, ENEMIES, TALK, RELICS, DESCENT, START_GUN } from '../js/content.js';
 import { generateLevel } from '../js/gen/index.js';
 import { validateLevel } from '../js/level.js';
-import { createSim, update, snapshot, restoreSim, abandon } from '../js/sim.js';
+import { createSim, update, snapshot, restoreSim, abandon, giveGun, giveRelic, runMods } from '../js/sim.js';
 
 function campaign(seed = 7) {
   const c = R.newCampaign(seed);
@@ -103,14 +103,15 @@ test('Deputy Tin follows, fights, and only ever goes offline', () => {
   assert.ok(s.buddy.hp > 0 || s.buddy.downT > 0);
 });
 
-function armed(guns, chapter = 8) {
+function armed(guns) {
   const c = campaign();
-  c.chapter = chapter; c.cash = 5000;
-  for (const g of guns) { const r = R.buyGun(c, g); assert.ok(r.ok, `${g}: ${r.reason}`); }
-  c.chapter = 0;
   const { sim } = ride(c, R.availableMissions(c)[0].id);
   const s = sim.state;
   s.player.maxHp = s.player.hp = 1e6;
+  for (const g of guns) giveGun(sim, g, true);
+  update(sim, 1 / 60, { slot: 1 });
+  for (let i = 0; i < 30; i++) update(sim, 1 / 60, {});
+  sim.events.length = 0;
   return { sim, s };
 }
 /** Line three enemies up in front of the drifter on open ground and return them. */
@@ -129,7 +130,11 @@ function lineUp(sim, kinds) {
 test('guns are gated by the story and each behaves differently', () => {
   const c = campaign(); c.cash = 5000;
   assert.equal(R.canBuyGun(c, 'pulse').ok, false, 'no energy weapons before the relays are down');
-  assert.ok(R.canBuyGun(c, 'smg').ok);
+  assert.equal(R.canBuyGun(c, 'smg').ok, false, 'common guns are not sold: they turn up on rides');
+  assert.deepEqual(R.gunPool(c), ['rifle', 'shotgun', 'smg']);
+  c.chapter = 4;
+  assert.ok(R.buyGun(c, 'pulse').ok);
+  assert.ok(R.gunPool(c).includes('pulse'), 'an unlocked gun joins the pool');
 
   // the Long Tom goes through a line of targets; the repeater stops in the first
   for (const [gun, expectHit] of [['longrifle', 3], ['rifle', 1]]) {
@@ -190,6 +195,103 @@ test('guns are gated by the story and each behaves differently', () => {
   }
 });
 
+test('a ride starts with the sidearm, and guns and relics are found', () => {
+  const c = campaign();
+  const { sim } = ride(c, R.availableMissions(c)[0].id);
+  const s = sim.state, p = s.player;
+  assert.deepEqual(Object.keys(p.mags), [START_GUN]);
+  // the best cache on the map always leaves a gun or a relic beside it
+  const cache = s.interactables.filter((i) => i.kind === 'cache').sort((a, b) => b.tier - a.tier)[0];
+  cache.tier = 2;
+  p.x = cache.x + 30; p.y = cache.y;
+  for (const e of s.enemies) { e.x = 60; e.y = 60; }
+  for (let i = 0; i < 80; i++) update(sim, 1 / 60, { interactHeld: true });
+  assert.ok(cache.done, 'cache opened');
+  const drop = s.interactables.find((i) => (i.kind === 'gun' || i.kind === 'relic') && !i.done);
+  assert.ok(drop, 'something to pick up');
+  p.x = drop.x; p.y = drop.y;
+  update(sim, 1 / 60, {});
+  update(sim, 1 / 60, { interactPressed: true });
+  assert.ok(drop.done);
+  assert.ok(drop.gun ? p.mags[drop.gun] !== undefined : p.relics.includes(drop.relic));
+
+  // relics change the numbers
+  const before = sim.cache.guns.revolver.mag;
+  giveRelic(sim, 'deep_pockets', true);
+  assert.equal(sim.cache.guns.revolver.mag, Math.round(before * 1.5));
+  assert.equal(runMods(['hollow_point', 'hair_trigger']).damage, 1.25);
+  for (const [id, r] of Object.entries(RELICS)) assert.ok(r.name && r.desc && r.mod && r.tier, id);
+});
+
+test('the pulse clears enemy fire and a jump clears low cover', () => {
+  const { sim, s } = armed([]);
+  const p = s.player;
+  for (let i = 0; i < 6; i++) s.bullets.push({ id: 900 + i, x: p.x + 80 + i * 10, y: p.y, px: p.x + 80, py: p.y, vx: -10, vy: 0, damage: 5, owner: 'enemy', life: 5, kind: 'fan', hit: [] });
+  const had = p.pulses;
+  update(sim, 1 / 60, { pulse: true });
+  assert.equal(s.bullets.filter((b) => b.owner === 'enemy').length, 0);
+  assert.equal(p.pulses, had - 1);
+  update(sim, 1 / 60, { jump: true });
+  assert.ok(p.jumpT > 0);
+  for (let i = 0; i < 60; i++) update(sim, 1 / 60, {});
+  assert.equal(p.jumpT, 0, 'lands again');
+});
+
+test('the Descent: rooms seal, clear and pay, and floors chain', () => {
+  const c = campaign();
+  c.chapter = 1;
+  const offer = R.availableMissions(c).find((m) => m.kind === 'descent');
+  assert.ok(offer, 'offered once the first chapter is done');
+  let { sim, config, level } = ride(c, offer.id, 5);
+  assert.equal(config.floor, 1);
+  for (let seed = 1; seed <= 6; seed++) for (let floor = 1; floor <= DESCENT.floors.length; floor++) {
+    const L = generateLevel({ gen: 'descent', floor, seed, pool: R.gunPool(c) });
+    assert.deepEqual(validateLevel(L), []);
+    assert.ok(L.rooms.some((r) => r.role === 'boss') && L.rooms.some((r) => r.role === 'shop') && L.rooms.some((r) => r.role === 'chest'));
+  }
+  const s = sim.state, p = s.player;
+  p.maxHp = p.hp = 1e6;
+  assert.equal(s.enemies.length, 0, 'nothing is out until a room is entered');
+  const room = level.rooms.find((r) => r.role === 'combat');
+  p.x = (room.x0 + room.x1) / 2; p.y = (room.y0 + room.y1) / 2;
+  update(sim, 1 / 60, {});
+  const st = s.rooms[room.id];
+  assert.equal(st.state, 'active');
+  assert.ok(s.enemies.length > 0);
+  const [x0, y0] = room.seal[0];
+  assert.ok(sim.cache.flags[y0 * level.w + x0] & 1, 'the door is shut');
+  // the snapshot keeps the seal
+  const again = restoreSim(JSON.parse(JSON.stringify(snapshot(sim))), level);
+  assert.ok(again.cache.flags[y0 * level.w + x0] & 1);
+  let guard = 0;
+  while (st.state === 'active' && guard++ < 10) { for (const e of s.enemies) if (!e.dead && e.room === room.id) { e.dead = true; } update(sim, 1 / 60, {}); }
+  assert.equal(st.state, 'cleared');
+  assert.ok(!(sim.cache.flags[y0 * level.w + x0] & 1), 'the door opens');
+
+  // the lift is locked until the boss is dead, then it leads down
+  const lift = s.interactables.find((i) => i.kind === 'exit');
+  assert.ok(lift.needsClear);
+  s.targetKilled = true;
+  p.x = lift.x; p.y = lift.y;
+  update(sim, 1 / 60, {});
+  update(sim, 1 / 60, { interactPressed: true });
+  for (let i = 0; i < 60 * 8 && s.phase !== 'ended'; i++) update(sim, 1 / 60, {});
+  assert.equal(s.report?.outcome, 'extracted');
+  giveRelic(sim, 'hollow_point', true);
+  const next = R.nextFloor(c, config, { ...s.report, carry: { ...s.report.carry, relics: ['hollow_point'] } });
+  assert.equal(next.floor, 2);
+  const L2 = generateLevel(next.level);
+  const sim2 = createSim(next, L2);
+  assert.deepEqual(sim2.state.player.relics, ['hollow_point'], 'relics ride the lift down');
+  // dying on floor 2 still pays for floor 1
+  const cash = c.cash;
+  sim2.state.player.hp = 0;
+  for (let i = 0; i < 300 && sim2.state.phase !== 'ended'; i++) update(sim2, 1 / 60, {});
+  R.resolveExpedition(c, sim2.state.report);
+  assert.equal(c.cash, cash + DESCENT.reward.cashPerFloor);
+  assert.equal(c.descentBest, 1);
+});
+
 test('old saves land on the right chapter after the two new ones', () => {
   const c = campaign();
   const payload = R.toSavePayload(c);
@@ -205,7 +307,8 @@ test('data sanity', () => {
   assert.equal(CHAPTERS.length, 8);
   for (const ch of CHAPTERS) assert.ok(ch.goal && ch.brief && ch.recap && ch.outro, ch.id);
   for (const role of ['marshal', 'rider', 'agent', 'barkeep', 'townsfolk']) assert.equal(TALK[role].length, CHAPTERS.length + 1, role);
-  for (const g of GUN_ORDER) assert.ok(GUNS[g].gunModel && GUNS[g].role && GUNS[g].desc, g);
+  for (const g of GUN_ORDER) assert.ok(GUNS[g].gunModel && GUNS[g].role && GUNS[g].desc && (g === START_GUN || GUNS[g].tier), g);
+  for (const f of DESCENT.floors) for (const kind of [...Object.keys(f.mix), f.boss]) assert.ok(ENEMIES[kind], kind);
   for (const d of [...CHAPTERS, ...Object.values(JOBS)]) for (const kind of Object.keys(d.level.mix || {})) assert.ok(ENEMIES[kind], `${d.id}: ${kind}`);
   for (const [id, inv] of Object.entries(INVESTMENTS)) assert.ok(inv.name && inv.cost > 0 && inv.effect, id);
 });

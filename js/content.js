@@ -14,7 +14,7 @@ export const ROCK = 16;      // canyon rock (drawn with a cap)
 export const INDOOR = 32;
 
 // ground paint ids (the renderer owns the colours)
-export const GROUND = { sand: 0, trail: 1, rockfloor: 2, wood: 3, grass: 4, camp: 5, water: 6, paving: 7, mine: 8, hollow: 9, field: 10, plank: 11, gravel: 12 };
+export const GROUND = { sand: 0, trail: 1, rockfloor: 2, wood: 3, grass: 4, camp: 5, water: 6, paving: 7, mine: 8, hollow: 9, field: 10, plank: 11, gravel: 12, deck: 13, grate: 14, hull: 15, glow: 16 };
 
 // ---- player weapons ----------------------------------------------------
 // Distances are in sim units (32 = 1 m).
@@ -27,38 +27,92 @@ export const GUNS = {
   },
   rifle: {
     id: 'rifle', name: 'Repeater', role: 'Marksman', ammo: 'cartridges', mag: 12, damage: 62, cooldown: 0.62, spread: 0.006,
-    range: 1400, speed: 1900, reloadRound: 0.26, noise: 640, gunModel: 'qg/Shotgun_4', cost: 150,
+    range: 1400, speed: 1900, reloadRound: 0.26, noise: 640, gunModel: 'qg/Shotgun_4', base: true, tier: 1,
     desc: 'Twelve rounds, long reach, dead straight. Slow to cycle, so make each shot count.',
   },
   shotgun: {
     id: 'shotgun', name: 'Coach gun', role: 'Close quarters', ammo: 'shells', mag: 6, damage: 13, pellets: 8, cooldown: 0.7, spread: 0.17,
-    range: 340, speed: 1050, reloadRound: 0.4, noise: 720, gunModel: 'qg/Shotgun_SawedOff', cost: 120,
+    range: 340, speed: 1050, reloadRound: 0.4, noise: 720, gunModel: 'qg/Shotgun_SawedOff', base: true, tier: 1,
     alt: 'double', desc: 'Eight pellets a shell. Useless at range, brutal up close. Alternate fire lets go two shells at once.',
   },
   smg: {
     id: 'smg', name: 'Rattler', role: 'Bullet hose', ammo: 'cartridges', mag: 30, damage: 11, cooldown: 0.075, spread: 0.075,
-    range: 520, speed: 1200, magReload: 1.7, noise: 600, gunModel: 'qg/SubmachineGun_1', cost: 190,
+    range: 520, speed: 1200, magReload: 1.7, noise: 600, gunModel: 'qg/SubmachineGun_1', base: true, tier: 1,
     desc: 'Thirty rounds in two seconds. Weak per shot, wild past ten metres, and it eats cartridges. The whole magazine swaps at once.',
   },
   longrifle: {
     id: 'longrifle', name: 'Long Tom', role: 'One shot, one grave', ammo: 'cartridges', mag: 4, damage: 150, cooldown: 1.15, spread: 0.002,
-    range: 2200, speed: 2600, reloadRound: 0.75, noise: 900, pierce: 2, gunModel: 'qg/SniperRifle_5', cost: 280, after: 2,
+    range: 2200, speed: 2600, reloadRound: 0.75, noise: 900, pierce: 2, gunModel: 'qg/SniperRifle_5', cost: 140, after: 2, tier: 2,
     desc: 'Four huge rounds. Each one goes clean through up to three targets. Very slow to fire and to load, and very loud.',
   },
   pulse: {
     id: 'pulse', name: 'Pulse carbine', role: 'Company tech', ammo: null, mag: 24, damage: 17, cooldown: 0.13, spread: 0.03,
     range: 800, speed: 1500, noise: 380, recharge: { rate: 9, delay: 0.9 }, robotMul: 1.6, bolt: '#6fd6ff',
-    gunModel: 'gun/blaster-d', cost: 320, after: 4,
+    gunModel: 'gun/blaster-d', cost: 180, after: 4, tier: 2,
     alt: 'overcharge', desc: 'Salvaged Meridian energy weapon. Needs no ammunition: the cell refills when you stop firing. Hits machines 60% harder. Alternate fire dumps half the cell into one heavy bolt.',
   },
   arc: {
     id: 'arc', name: 'Arc caster', role: 'Machine breaker', ammo: null, mag: 6, damage: 38, cooldown: 0.6, spread: 0.02,
     range: 460, speed: 1300, noise: 450, recharge: { rate: 1.6, delay: 1.2 }, robotMul: 1.5, chain: 2, chainRange: 190, stun: 1.6, bolt: '#c9a2ff',
-    gunModel: 'gun/blaster-f', cost: 420, after: 6,
+    gunModel: 'gun/blaster-f', cost: 260, after: 6, tier: 3,
     desc: 'Throws lightning that jumps to two more enemies nearby. Machines it touches lock up for a moment. Short reach and a slow-filling cell.',
   },
+  scatter: {
+    id: 'scatter', name: 'Scatter blaster', role: 'Energy shotgun', ammo: null, mag: 5, damage: 12, pellets: 7, cooldown: 0.55, spread: 0.2,
+    range: 380, speed: 1100, noise: 420, recharge: { rate: 1.3, delay: 1.0 }, robotMul: 1.4, bolt: '#7dffb0',
+    gunModel: 'gun/blaster-c', cost: 150, after: 1, tier: 2,
+    desc: 'Seven energy bolts in a wide cone. Five charges that refill by themselves. Good against machines up close.',
+  },
+  bouncer: {
+    id: 'bouncer', name: 'Ricochet carbine', role: 'Trick shots', ammo: 'cartridges', mag: 10, damage: 30, cooldown: 0.34, spread: 0.02,
+    range: 1500, speed: 1000, magReload: 1.5, noise: 520, bounce: 3, bolt: '#ffd86a',
+    gunModel: 'gun/blaster-h', cost: 160, after: 1, tier: 2,
+    desc: 'Rounds bounce off walls three times, and hit harder after each bounce. Made for rooms and corridors.',
+  },
+  thumper: {
+    id: 'thumper', name: 'Thumper', role: 'Explosive', ammo: 'shells', mag: 3, damage: 20, cooldown: 0.9, spread: 0.02,
+    range: 620, speed: 620, reloadRound: 0.8, noise: 800, explode: { r: 92, damage: 85 },
+    gunModel: 'gun/blaster-a', cost: 220, after: 3, tier: 3,
+    desc: 'Lobs a slow shell that bursts where it lands. Clears a crowd. Mind your own toes.',
+  },
+  rail: {
+    id: 'rail', name: 'Rail lance', role: 'Line breaker', ammo: null, mag: 3, damage: 190, cooldown: 1.0, spread: 0,
+    range: 2400, speed: 3200, noise: 700, recharge: { rate: 0.45, delay: 1.5 }, robotMul: 1.3, pierce: 6, bolt: '#ff7af0',
+    gunModel: 'gun/blaster-e', cost: 300, after: 5, tier: 3,
+    desc: 'A beam that goes through everything in a line. Three charges, and each takes two seconds to come back.',
+  },
 };
-export const GUN_ORDER = ['revolver', 'rifle', 'shotgun', 'smg', 'longrifle', 'pulse', 'arc'];
+export const GUN_ORDER = ['revolver', 'rifle', 'shotgun', 'smg', 'longrifle', 'pulse', 'scatter', 'bouncer', 'thumper', 'arc', 'rail'];
+/** The gun every drifter rides out with. Everything else is found on the ride. */
+export const START_GUN = 'revolver';
+
+// ---- relics: passive items found on a ride and lost when it ends -------------------------
+// `mod` multiplies or adds to the run's modifiers (see sim.js, runMods).
+export const RELICS = {
+  hollow_point: { name: 'Hollow points', desc: '+25% damage.', mod: { damage: 1.25 }, tier: 1 },
+  hair_trigger: { name: 'Hair trigger', desc: '+25% rate of fire.', mod: { rate: 1.25 }, tier: 1 },
+  deep_pockets: { name: 'Deep pockets', desc: '+50% magazine and cell size.', mod: { mag: 1.5 }, tier: 1 },
+  overclock: { name: 'Overclocked loader', desc: 'Reload and recharge 40% faster.', mod: { reload: 1.4 }, tier: 1 },
+  quick_boots: { name: 'Quick boots', desc: '+15% movement speed.', mod: { speed: 1.15 }, tier: 1 },
+  ghost_step: { name: 'Ghost step', desc: 'Dodge rolls protect you for longer and cost less stamina.', mod: { dodge: 1.5 }, tier: 1 },
+  scrap_plating: { name: 'Scrap plating', desc: 'Take 20% less damage.', mod: { armour: 0.8 }, tier: 1 },
+  magnet_coil: { name: 'Magnet coil', desc: 'Coins and ammunition fly to you, and coins are worth 30% more.', mod: { magnet: 1, coin: 1.3 }, tier: 1 },
+  blood_tithe: { name: 'Blood tithe', desc: 'Every kill heals 3 health.', mod: { lifesteal: 3 }, tier: 2 },
+  ship_glass: { name: 'Ship glass', desc: 'Every shot passes through one more enemy.', mod: { pierce: 1 }, tier: 2 },
+  rubber_slugs: { name: 'Rubber slugs', desc: 'Every shot bounces off one wall.', mod: { bounce: 1 }, tier: 2 },
+  static_field: { name: 'Static field', desc: 'Every fifth shot throws lightning at a second enemy.', mod: { static: 1 }, tier: 2 },
+  pulse_cell: { name: 'Spare pulse cell', desc: 'One more pulse charge, now and on every new floor.', mod: { pulses: 1 }, tier: 2 },
+  lucky_coin: { name: 'Lucky coin', desc: 'Enemies drop coins, ammunition and hearts more often.', mod: { luck: 1.6 }, tier: 2 },
+  core_shard: { name: 'Core shard', desc: '+60% damage to machines.', mod: { robot: 1.6 }, tier: 2 },
+  berserk: { name: 'Red mist', desc: 'Below half health you deal 50% more damage.', mod: { berserk: 1.5 }, tier: 3 },
+  twin_link: { name: 'Twin link', desc: 'Every gun fires one extra projectile.', mod: { extra: 1 }, tier: 3 },
+  second_wind: { name: 'Second wind', desc: 'Once per floor, a killing blow leaves you at 30 health instead.', mod: { revive: 1 }, tier: 3 },
+};
+
+/** The pulse: a charge that wipes enemy fire off the screen. */
+export const PULSE = { start: 2, radius: 760, stun: 2.2, knock: 320 };
+export const JUMP = { time: 0.52, low: 12, cost: 0, cooldown: 0.15 };
+
 
 /** Permanent gunsmith upgrades. `mod` is applied by gunStats(). */
 export const UPGRADES = {
@@ -106,7 +160,8 @@ export const ENEMIES = {
   scout: { name: 'scout walker', hp: 34, radius: 10, speed: 138, chase: 160, sight: 410, weapon: 'e_pistol', ai: 'scout', look: 'scout', cash: [1, 5], robot: true },
   enforcer: { name: 'enforcer unit', hp: 105, radius: 11, speed: 104, chase: 136, sight: 400, weapon: 'e_smg', ai: 'skirmish', keep: 170, look: 'enforcer', cash: [5, 12], robot: true },
   crusher: { name: 'crusher unit', hp: 240, radius: 15, speed: 80, chase: 112, sight: 360, weapon: 'e_charge', ai: 'charger', look: 'crusher', cash: [10, 18], robot: true },
-  trooper: { name: 'company trooper', hp: 78, radius: 11, speed: 96, chase: 122, sight: 440, weapon: 'e_pulse', ai: 'ranged', look: 'trooper', cash: [6, 14] },
+  trooper: { name: 'company trooper', hp: 78, radius: 11, speed: 96, chase: 122, sight: 440, weapon: 'e_fan', ai: 'ranged', look: 'trooper', cash: [6, 14] },
+  turret: { name: 'sentry turret', hp: 90, radius: 13, speed: 0, chase: 0, sight: 520, weapon: 'e_ring', ai: 'ranged', look: 'turret', cash: [4, 9], robot: true, rooted: true },
   dynamiter: { name: 'dynamiter', hp: 56, radius: 11, speed: 92, chase: 112, sight: 370, weapon: 'e_dynamite', ai: 'lobber', look: 'dynamiter', cash: [3, 8] },
   brute: { name: 'brute', hp: 200, radius: 15, speed: 84, chase: 118, sight: 340, weapon: 'e_charge', ai: 'charger', look: 'brute', cash: [8, 16] },
   walker: { name: 'Hollow walker', hp: 48, radius: 11, speed: 108, chase: 126, sight: 0, weapon: 'claw', ai: 'swarm', look: 'walker' },
@@ -116,6 +171,8 @@ export const ENEMIES = {
     title: 'OVERSEER UNIT 01', taunt: 'Overseer: "UNAUTHORISED PERSONNEL. PRODUCTION WILL CONTINUE."', down: 'The Overseer is scrap. The line has stopped. Get out.' },
   foreman: { name: 'the Foreman', hp: 950, radius: 17, speed: 78, chase: 104, sight: 600, weapon: 'e_shotgun', ai: 'boss', look: 'foreman', cash: [60, 90], boss: true, robot: true,
     title: 'FOREMAN HARLAN VOSS', taunt: 'Voss: "You should have sold it to me, drifter."', down: 'Voss is down. Get out before the depot burns.' },
+  warden: { name: 'the Warden', hp: 1100, radius: 17, speed: 84, chase: 112, sight: 640, weapon: 'e_shotgun', ai: 'boss', look: 'warden', cash: [70, 100], boss: true, robot: true,
+    title: 'THE WARDEN OF THE HEART', taunt: 'The Warden turns. Every light in the hull turns with it.', down: 'The Warden is still. The ship has nothing left to send. Take the lift.' },
   target: { name: 'target', hp: 1, radius: 12, speed: 0, chase: 0, sight: 0, weapon: null, ai: 'none', look: 'target' },
 };
 
@@ -126,6 +183,9 @@ export const WEAPONS = {
   e_revolver: { kind: 'revolver', range: 320, windup: 0.5, cooldown: 1.6, burst: 3, burstGap: 0.14, damage: 13, speed: 780, spread: 0.07, life: 0.5, noise: 400 },
   e_smg: { kind: 'smg', range: 300, windup: 0.45, cooldown: 1.9, burst: 6, burstGap: 0.075, damage: 6, speed: 820, spread: 0.11, life: 0.45, noise: 420 },
   e_pulse: { kind: 'pulse', range: 560, windup: 0.6, lock: 0.2, cooldown: 1.3, damage: 15, speed: 900, life: 0.7, noise: 360 },
+  // slow, bright shots in patterns: made to be dodged, rolled through or jumped
+  e_fan: { kind: 'fan', range: 520, windup: 0.6, cooldown: 1.7, count: 5, arc: 0.5, damage: 11, speed: 400, life: 1.6, noise: 380, big: true },
+  e_ring: { kind: 'ring', range: 480, windup: 0.75, cooldown: 2.4, count: 12, damage: 10, speed: 330, life: 1.8, noise: 380, big: true },
   e_dynamite: { kind: 'dynamite', range: 400, windup: 0.6, cooldown: 2.6, flight: 0.85, fuse: 0.55, radius: 92, damage: 34, noise: 700 },
   e_charge: { kind: 'charge', range: 300, windup: 0.75, cooldown: 1.7, dash: 0.55, dashSpeed: 430, damage: 30, reach: 34 },
   claw: { kind: 'claw', range: 34, reach: 46, windup: 0.32, cooldown: 0.8, damage: 15, arc: 1.1 },
@@ -268,6 +328,21 @@ export const CHAPTERS = [
     recap: 'You killed Foreman Voss. The ship is silent and Mercy stands.',
   },
 ];
+
+/** The Descent: a run down through three floors of rooms. Each floor ends in a boss and a lift. */
+export const DESCENT = {
+  id: 'descent', title: 'The Descent',
+  brief: 'The Calloway lift still runs. Below the old works is the company foundry, and below that is the ship itself. Every floor is a string of rooms that lock behind you. You ride down with a revolver and whatever you find on the way. Nobody has come back up from the bottom.',
+  floors: [
+    { name: 'The Calloway Works', theme: 'works', size: [24, 24], rooms: 8, threat: 0.9, boss: 'brute', bossName: 'the Claim Boss',
+      mix: { bandit: 4, gunman: 3, dynamiter: 2, husk: 3 } },
+    { name: 'The Foundry', theme: 'foundry', size: [26, 26], rooms: 9, threat: 1.1, boss: 'overseer',
+      mix: { guard: 3, enforcer: 3, trooper: 3, scout: 1, crusher: 1, turret: 2 } },
+    { name: 'The Hull', theme: 'ship', size: [28, 28], rooms: 10, threat: 1.3, boss: 'warden',
+      mix: { walker: 4, husk: 3, enforcer: 3, crusher: 2, turret: 2, trooper: 2 } },
+  ],
+  reward: { cashPerFloor: 90, cashFinish: 400 },
+};
 
 /** Repeatable side jobs. `after` is how many chapters must be done first. */
 export const JOBS = {
@@ -486,6 +561,7 @@ export const TELEGRAMS = {
   FOREMAN_DEAD: (d) => (d.exposed
     ? 'VOSS IS DEAD STOP NEWSPAPERS IN THREE STATES CARRY THE LEDGER STOP MERIDIAN STOCK IS WORTHLESS STOP MERCY STANDS STOP'
     : 'VOSS IS DEAD STOP THE COMPANY NAMES A NEW FOREMAN BY SPRING STOP MERCY STANDS FOR NOW STOP'),
+  DESCENT_DONE: () => 'A DRIFTER RODE THE CALLOWAY LIFT TO THE BOTTOM AND CAME BACK STOP NOBODY BELIEVES IT STOP',
   JOB_DONE: (d) => `JOB SETTLED STOP ${String(d.title).toUpperCase()} STOP`,
   DRIFTER_DIED: (d) => `${d.name} DID NOT COME BACK STOP KILLED BY ${String(d.killer).toUpperCase()} STOP`,
   DRIFTER_FLED: (d) => `${d.name} RODE BACK TO MERCY EMPTY HANDED STOP`,

@@ -11,7 +11,7 @@
 
 import {
   CHAPTERS, JOBS, GEAR, SUPPLIES, INVESTMENTS, TRAITS, PERKS, CLINIC_PRICE, GUNS, UPGRADES, AMMO, CARRY, ITEMS, SHOPS, TELEGRAMS,
-  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS,
+  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER,
 } from './content.js';
 import { makeRng, mixSeed } from './rng.js';
 
@@ -179,6 +179,34 @@ function describe(c, kind, def) {
   };
 }
 
+/** Guns that can turn up on a ride: the common ones, plus whatever the gunsmith has been paid to build. */
+export function gunPool(c) {
+  return GUN_ORDER.filter((g) => g !== START_GUN && (GUNS[g].base || c.armory.guns.includes(g)));
+}
+
+const DESCENT_DEF = {
+  id: 'descent', title: DESCENT.title, brief: DESCENT.brief, hint: 'Rooms seal when you walk in. Kill everything to open them. Find the floor boss, then ride the lift down.',
+  level: { gen: 'descent', floor: 1 }, reward: { cash: 0 }, after: 1,
+};
+const bossLabel = (kind) => (kind === 'foreman' ? 'Kill Foreman Voss' : kind === 'overseer' ? 'Destroy the Overseer' : kind === 'warden' ? 'Destroy the Warden' : kind === 'brute' ? 'Kill the boss' : 'Kill the target');
+function floorConfig(base, floor, seed, pool) {
+  const F = DESCENT.floors[floor - 1];
+  return {
+    ...base, floor, seed: seed >>> 0, title: `${DESCENT.title}: floor ${floor}, ${F.name}`,
+    level: { gen: 'descent', floor, seed: seed >>> 0, pool },
+    objective: { kind: 'kill', enemy: F.boss, label: F.bossName ? `Kill ${F.bossName}` : bossLabel(F.boss), zone: '' },
+  };
+}
+/** The next floor of a descent, carrying down what the drifter holds. Null when the last floor is done. */
+export function nextFloor(c, config, report) {
+  if (!config?.descent || report?.outcome !== 'extracted' || !report.done) return null;
+  const floor = (config.floor || 1) + 1;
+  if (floor > DESCENT.floors.length) return null;
+  const seed = (Math.imul(config.seed ^ 0x9e3779b9, 2654435761) + floor * 977) >>> 0;
+  return { ...floorConfig(config, floor, seed, config.pool), carry: report.carry, intro: `Floor ${floor}: ${DESCENT.floors[floor - 1].name}. The lift will not go back up until this is finished.` };
+}
+export const descentFloors = () => DESCENT.floors.length;
+
 /** What can be ridden right now: the next chapter first, then the side jobs. */
 export function availableMissions(c) {
   const out = [];
@@ -191,6 +219,7 @@ export function availableMissions(c) {
     if (job.faction === 'riders' && perks(c).includes('riders_shun')) continue;
     out.push(describe(c, 'job', job));
   }
+  if (c.chapter >= DESCENT_DEF.after) out.push({ ...describe(c, 'descent', DESCENT_DEF), floors: DESCENT.floors.length, best: c.descentBest || 0 });
   return out;
 }
 
@@ -198,6 +227,7 @@ function missionDef(id) {
   const [kind, key] = String(id).split(':');
   if (kind === 'story') return { kind, def: CHAPTERS.find((k) => k.id === key) };
   if (kind === 'job') return { kind, def: JOBS[key] };
+  if (kind === 'descent') return { kind, def: DESCENT_DEF };
   return { kind: null, def: null };
 }
 
@@ -259,7 +289,8 @@ export function canBuyGun(c, id) {
   if (!open.ok) return open;
   const g = GUNS[id];
   if (!g || !g.cost) return fail('Not for sale.');
-  if (c.armory.guns.includes(id)) return fail('Owned');
+  if (g.base) return fail('Turns up on every ride');
+  if (c.armory.guns.includes(id)) return fail('Unlocked');
   if (g.after && c.chapter < g.after) return fail(`Not built yet: finish "${CHAPTERS[g.after - 1].title}"`, g.cost);
   if (c.cash < g.cost) return short(c, g.cost);
   return { ok: true, price: g.cost };
@@ -269,7 +300,6 @@ export function buyGun(c, id) {
   if (!check.ok) return check;
   c.cash -= check.price;
   c.armory.guns.push(id);
-  if (id === 'shotgun') c.character.shells = Math.max(c.character.shells, 12);
   return { ok: true };
 }
 export function canBuyUpgrade(c, id) {
@@ -278,7 +308,7 @@ export function canBuyUpgrade(c, id) {
   const u = UPGRADES[id];
   if (!u) return fail('Unknown work');
   if (c.armory.upgrades.includes(id)) return fail('Fitted');
-  if (u.gun !== 'revolver' && !c.armory.guns.includes(u.gun)) return fail(`Needs the ${GUNS[u.gun].name.toLowerCase()}`);
+  if (u.gun !== START_GUN && !GUNS[u.gun].base && !c.armory.guns.includes(u.gun)) return fail(`Unlock the ${GUNS[u.gun].name.toLowerCase()} first`, u.cost);
   if (!c.investments.includes('workshop')) return fail("Needs: gunsmith's workshop (Town Hall)", u.cost);
   if (c.cash < u.cost) return short(c, u.cost);
   return { ok: true, price: u.cost };
@@ -364,6 +394,7 @@ export function townConfig(c, arrive = 'trail') {
     objective: null,
     character: ch?.alive ? characterConfig(c) : { name: 'Nobody', trait: 'steady', look: 0, hp: 100, maxHp: 100, gear: [], cartridges: 0, shells: 0, bandages: 0, dynamite: 0 },
     armory: { guns: [...c.armory.guns], upgrades: [...c.armory.upgrades] },
+    pool: gunPool(c),
     giver: chapter && !c.pendingChoice ? chapter.giver : null,
     chapter: c.chapter,
     companion: c.investments.includes('deputy'),
@@ -402,12 +433,14 @@ export function beginExpedition(c, missionId, seed) {
       dynamite: Math.min(ammoCap(c, 'dynamite'), ch.dynamite + (p.includes('rider_cache') ? 1 : 0) + (ch.trait === 'powder' ? 1 : 0)),
     }),
     armory: { guns: [...c.armory.guns], upgrades: [...c.armory.upgrades] },
+    pool: gunPool(c),
     perks: p,
     intel: { fullMap: c.investments.includes('telegraph'), riderIntel: p.includes('rider_intel') },
     bounty,
     sundownBonus: c.investments.includes('watchtower') ? 90 : 0,
     companion: c.investments.includes('deputy'),
   };
+  if (kind === 'descent') return { ok: true, config: { ...floorConfig({ ...config, descent: true }, 1, seed, config.pool), intro: def.hint } };
   return { ok: true, config };
 }
 
@@ -456,6 +489,21 @@ export function resolveExpedition(c, report) {
 
   const carried = report.carried ?? {};
   const loot = carried.loot ?? [];
+  if (kind === 'descent') {
+    // paid by the floor, whether or not the drifter made it back up
+    const finished = report.outcome === 'extracted' && report.done;
+    const cleared = finished ? (report.floor || 1) : Math.max(0, (report.floor || 1) - 1);
+    const pay = cleared * DESCENT.reward.cashPerFloor + (finished && cleared >= DESCENT.floors.length ? DESCENT.reward.cashFinish : 0);
+    if (pay > 0) { c.cash += pay; summary.lines.push({ label: `The Descent: ${cleared} floor${cleared === 1 ? '' : 's'} cleared`, value: `+$${pay}`, tone: 'good' }); }
+    else summary.lines.push({ label: 'The Descent', value: 'No floor cleared', tone: 'muted' });
+    c.descentBest = Math.max(c.descentBest || 0, cleared);
+    summary.floors = cleared;
+    if (finished && cleared >= DESCENT.floors.length) {
+      summary.done = true;
+      summary.outro = 'You rode the lift back up from the heart of the ship. Nobody in Mercy has done that before. The lift is still running, and the ship is never quite the same twice.';
+      record(c, 'DESCENT_DONE', {});
+    }
+  }
 
   if (report.outcome === 'extracted' || report.outcome === 'fled') {
     const kept = report.outcome === 'extracted';
@@ -464,7 +512,7 @@ export function resolveExpedition(c, report) {
       c.cash += lootTotal;
       summary.lines.push({ label: `Sold ${loot.length} find${loot.length === 1 ? '' : 's'}`, value: `+$${lootTotal}` });
     }
-    if (kept && def && report.done) {
+    if (kept && def && report.done && kind !== 'descent') {
       const bountyJob = def.id === 'bounty';
       const payout = bountyJob ? 0 : offer.cash;
       c.cash += payout;
@@ -482,7 +530,7 @@ export function resolveExpedition(c, report) {
         c.jobsDone += 1;
         record(c, 'JOB_DONE', { id: def.id, title: offer.title });
       }
-    } else if (def) {
+    } else if (def && kind !== 'descent') {
       summary.lines.push({ label: `${kind === 'story' ? 'Chapter' : 'Job'}: ${summary.title}`, value: kept ? 'Not finished' : 'Abandoned', tone: 'muted' });
     }
     if (kept && carried.effects && c.bounty) {
@@ -607,6 +655,7 @@ export function fromSavePayload(payload) {
   c.ledgerSeq = Math.max(num(raw.ledgerSeq, 0), ...c.ledger.map((e) => e.n), 0);
   c.expeditionCount = Math.max(0, Math.round(num(raw.expeditionCount, 0)));
   c.jobsDone = Math.max(0, Math.round(num(raw.jobsDone, 0)));
+  c.descentBest = Math.max(0, Math.round(num(raw.descentBest, 0)));
   c.fallen = Array.isArray(raw.fallen) ? raw.fallen.filter((f) => f && typeof f.name === 'string').map((f) => ({ ...f, killedBy: String(f.killedBy ?? 'the Red Country'), expeditions: num(f.expeditions, 0) })) : [];
   c.armory = {
     guns: Array.isArray(raw.armory?.guns) ? [...new Set(raw.armory.guns.filter((g) => GUNS[g] && g !== 'revolver'))] : [],

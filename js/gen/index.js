@@ -2,12 +2,14 @@
 import { generateTown } from './town.js';
 import { generateCanyon } from './canyon.js';
 import { generateMine } from './mine.js';
+import { generateDescent } from './descent.js';
 
 export function generateLevel(spec) {
   switch (spec.gen) {
     case 'town': return generateTown(spec);
     case 'canyon': return generateCanyon(spec);
     case 'mine': return generateMine(spec);
+    case 'descent': return generateDescent(spec);
     default: throw new Error('Unknown level generator: ' + spec.gen);
   }
 }
