@@ -68,6 +68,10 @@ export function scatter(L, rng, count, set, o = {}) {
 
 export const DESERT_FLORA = [
   ['nat/cactus_tall', 5, { s: [0.8, 1.25], clear: 2 }],
+  ['west/cactus-a', 4, { s: [1.0, 1.5], clear: 2 }],
+  ['west/cactus-b', 3, { s: [1.0, 1.4], clear: 2 }],
+  ['west/cactus-d', 3, { s: [1.0, 1.5], clear: 2 }],
+  ['west/tumbleweed', 3, { s: [0.8, 1.3], solid: false }],
   ['nat/cactus_short', 4, { s: [0.8, 1.3], clear: 2 }],
   ['nat/plant_bushDetailed', 4, { solid: false, s: [0.7, 1.2] }],
   ['nat/plant_bushLarge', 4, { solid: false, s: [0.8, 1.3] }],

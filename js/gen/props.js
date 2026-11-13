@@ -50,63 +50,25 @@ function shadeHex(hex, k) {
 export { shadeHex };
 
 export function wagon(L, x, z, r, o = {}) {
-  const cover = o.cover;
-  const b = (a, y, bb, sx, sy, sz, c, c2) => { const [wx, wz] = rot(x, z, r, a, bb); box(L, wx, y, wz, sx, sy, sz, c, { r, c2 }); };
-  b(0, 0.7, 0, 1.5, 0.16, 3.0, WOOD, WOOD_D);                // bed
-  b(0.72, 0.86, 0, 0.08, 0.55, 3.0, WOOD_L, WOOD);            // sides
-  b(-0.72, 0.86, 0, 0.08, 0.55, 3.0, WOOD_L, WOOD);
-  b(0, 0.86, 1.46, 1.5, 0.55, 0.08, WOOD_L, WOOD);
-  b(0, 0.86, -1.46, 1.5, 0.55, 0.08, WOOD_L, WOOD);
-  b(0, 0.55, 2.2, 0.1, 0.1, 1.5, WOOD_D);                     // tongue
-  for (const [wa, wb] of [[0.86, 1.0], [-0.86, 1.0], [0.86, -1.0], [-0.86, -1.0]]) {
-    const [wx, wz] = rot(x, z, r, wa, wb);
-    L.pieces.push({ m: '@cyl', x: wx, y: 0.62, z: wz, sx: 0.62, sy: 0.12, sz: 0.62, r, c: WOOD_L, c2: WOOD_D, seg: 10, axis: 'x' });
-  }
-  if (cover) {
-    for (let k = -1; k <= 1; k++) b(0, 1.4, k * 1.0, 1.56, 0.9, 0.96, '#e4d8bc', '#c9b99a');
-    b(0, 2.3, 0, 1.2, 0.2, 2.9, '#ece2c8', '#d8cbae');
-  } else if (o.load) {
-    b(0.2, 0.86, 0.5, 0.7, 0.5, 0.8, '#9a7a52', '#6e5536');
-    b(-0.25, 0.86, -0.6, 0.6, 0.62, 0.7, '#8a6a44', '#5e4830');
-  }
-  if (o.solid !== false) solidBox(L, x, z, r, 1.9, 3.2, Boolean(cover), cover ? 24 : 14);
+  // a freight cart, or a covered wagon
+  place(L, o.covered ? 'west/cart-c' : 'west/cart-b', x, z, { r, centre: true, s: 1.05 });
 }
 
 export function coach(L, x, z, r) {
-  const b = (a, y, bb, sx, sy, sz, c, c2) => { const [wx, wz] = rot(x, z, r, a, bb); box(L, wx, y, wz, sx, sy, sz, c, { r, c2 }); };
-  b(0, 0.8, 0, 1.5, 0.14, 3.0, IRON_D);                       // chassis
-  b(0, 0.94, 0, 1.6, 1.45, 2.1, '#8e3428', '#6a2219');        // cabin
-  b(0, 2.39, 0, 1.75, 0.12, 2.3, '#3b2a20');                  // roof
-  b(0.81, 1.55, 0, 0.03, 0.55, 0.8, '#d8c39a');               // windows
-  b(-0.81, 1.55, 0, 0.03, 0.55, 0.8, '#d8c39a');
-  b(0, 1.45, 1.35, 1.3, 0.12, 0.55, WOOD, WOOD_D);            // driver's bench
-  b(0, 0.94, 1.5, 1.4, 0.6, 0.25, WOOD_D);
-  b(0, 2.5, -0.2, 1.1, 0.35, 0.9, '#6a4630', '#4a3020');      // luggage
-  for (const [wa, wb, rad] of [[0.9, 1.05, 0.55], [-0.9, 1.05, 0.55], [0.9, -0.9, 0.72], [-0.9, -0.9, 0.72]]) {
-    const [wx, wz] = rot(x, z, r, wa, wb);
-    L.pieces.push({ m: '@cyl', x: wx, y: rad, z: wz, sx: rad, sy: 0.12, sz: rad, r, c: '#c9a05a', c2: '#7a5a30', seg: 12, axis: 'x' });
-  }
-  solidBox(L, x, z, r, 2.0, 3.3, true, 25);
+  place(L, 'west/stagecoach', x, z, { r, centre: true, s: 1.0 });
 }
 
 export function barrel(L, x, z, o = {}) {
-  cyl(L, x, 0, z, 0.38, 0.95, o.c || '#9a6e44', { c2: '#6a4a2e', top: 0.34, seg: 8 });
-  cyl(L, x, 0.93, z, 0.3, 0.03, '#5c3e2a', { seg: 8 });
-  if (o.solid !== false) solidDisc(L, x, z, 0.36, false, 10);
+  place(L, o.c ? 'west/barrel-b' : 'west/barrel-a', x, z, { r: (x * 7 + z * 3) % 6.28, s: 0.92, solid: o.solid === false ? false : 'low', t: o.c ? 'tent_red' : null });
 }
 
 export function crate(L, x, z, r = 0, size = 0.9, o = {}) {
-  box(L, x, o.y || 0, z, size, size * 0.85, size, o.c || '#a47a4c', { r, c2: '#77552f' });
-  box(L, x, (o.y || 0) + size * 0.85, z, size * 1.04, 0.05, size * 1.04, '#8a623c', { r });
-  if (o.solid !== false && !o.y) solidBox(L, x, z, r, size, size, false, Math.round(size * 9));
+  const sc = size / 0.83;
+  place(L, 'west/crate', x, z, { r, y: o.y || 0, s: [sc, sc * 1.9, sc], solid: o.solid !== false && !o.y ? 'low' : false });
 }
 
 export function hitchRail(L, x, z, r, len = 3) {
-  const b = (a, y, bb, sx, sy, sz, c, c2) => { const [wx, wz] = rot(x, z, r, a, bb); box(L, wx, y, wz, sx, sy, sz, c, { r, c2 }); };
-  b(-len / 2, 0, 0, 0.16, 1.1, 0.16, WOOD, WOOD_D);
-  b(len / 2, 0, 0, 0.16, 1.1, 0.16, WOOD, WOOD_D);
-  b(0, 0.95, 0, len + 0.3, 0.12, 0.12, WOOD_L, WOOD);
-  solidBox(L, x, z, r, len, 0.3, false, 11);
+  place(L, 'west/hitching-post', x, z, { r, s: [len / 1.6, 1.1, 1.2], solid: 'low' });
 }
 
 export function lampPost(L, x, z, o = {}) {
@@ -119,9 +81,7 @@ export function lampPost(L, x, z, o = {}) {
 }
 
 export function trough(L, x, z, r = 0) {
-  box(L, x, 0, z, 2.2, 0.55, 0.8, WOOD, { r, c2: WOOD_D });
-  box(L, x, 0.5, z, 1.96, 0.06, 0.58, '#4f93a6', { r });
-  solidBox(L, x, z, r, 2.2, 0.8, false, 6);
+  place(L, 'west/trough-a', x, z, { r, s: 1.45, solid: 'low' });
 }
 
 export function well(L, x, z) {
@@ -135,14 +95,7 @@ export function well(L, x, z) {
 }
 
 export function waterTower(L, x, z) {
-  for (const [a, b] of [[1.1, 1.1], [-1.1, 1.1], [1.1, -1.1], [-1.1, -1.1]]) {
-    box(L, x + a, 0, z + b, 0.24, 5.2, 0.24, WOOD, { c2: WOOD_D });
-    addFlags(L, Math.floor((x + a) / TM), Math.floor((z + b) / TM), WALL, 60);
-  }
-  box(L, x, 2.4, z, 2.6, 0.14, 0.14, WOOD_D); box(L, x, 2.4, z, 0.14, 0.14, 2.6, WOOD_D);
-  box(L, x, 5.1, z, 3.0, 0.2, 3.0, WOOD_L, { c2: WOOD });
-  cyl(L, x, 5.3, z, 1.55, 2.4, '#9a6e44', { c2: '#6a4a2e', seg: 12 });
-  cyl(L, x, 7.7, z, 1.75, 0.9, '#6e4a36', { c2: '#7a5440', top: 0.1, seg: 12 });
+  place(L, 'west/water-tank', x, z, { s: 1.35 });
 }
 
 export function grave(L, x, z, r = 0, kind = 0) {
@@ -236,4 +189,18 @@ export function shelfWall(L, x, z, r, len, o = {}) {
     box(L, wx, 0.42 + row * 0.62, wz, 0.3, 0.34 + ((k + row) % 3) * 0.06, 0.26, cols[(k + row * 2) % cols.length], { r });
   }
   solidBox(L, x, z, r, len, 0.5, true, 23);
+}
+
+/** A wind pump: the tallest thing in any frontier town. */
+export function windmill(L, x, z, r = 0) {
+  place(L, 'west/windmill', x, z, { r, s: 1.15 });
+}
+export function gallows(L, x, z, r = 0) {
+  place(L, 'west/gallows', x, z, { r, centre: true });
+}
+export function cactus(L, x, z, kind = 0, s = 1) {
+  place(L, ['west/cactus-a', 'west/cactus-b', 'west/cactus-c', 'west/cactus-d'][kind % 4], x, z, { r: (x * 5 + z * 11) % 6.28, s: 1.2 * s });
+}
+export function tumbleweed(L, x, z) {
+  place(L, 'west/tumbleweed', x, z, { r: (x + z) % 6.28, solid: false });
 }

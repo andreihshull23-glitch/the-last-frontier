@@ -84,7 +84,9 @@ export function createAssets() {
   async function load(base = 'assets/', onProgress = () => {}) {
     let done = 0;
     const families = ['man', 'woman', 'robot', 'toon'];
-    const packIds = [...ASSET_PACKS.filter((p) => p !== 'chr'), 'qg']; // the old mini figures are no longer drawn
+    // Packs that are baked but that no level uses yet are not downloaded.
+    const NOT_YET = ['chr', 'station', 'factory', 'spacemod'];
+    const packIds = [...ASSET_PACKS.filter((p) => !NOT_YET.includes(p)), 'qg']; // the old mini figures are no longer drawn
     const totalFiles = packIds.length + families.length;
     await Promise.all(families.map(async (id) => {
       const res = await fetch(base + 'people-' + id + '.json');

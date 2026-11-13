@@ -4,7 +4,7 @@ import { TILE, PX, MACRO, SOLID, GROUND, SHOPS } from '../content.js';
 import { makeRng } from '../rng.js';
 import { createLevel, building, skinRock, place, box, cyl, paint, reserve, metres, centreM, tileCentre, setTile } from '../level.js';
 import { scatter, DESERT_FLORA, DESERT_ROCKS, PEBBLES, TM } from './common.js';
-import { horse, wagon, barrel, crate, hitchRail, lampPost, trough, well, waterTower, grave, jobBoard, archGate, table, counter, shelfWall, flag } from './props.js';
+import { horse, wagon, barrel, crate, hitchRail, lampPost, trough, well, waterTower, grave, jobBoard, archGate, table, counter, shelfWall, flag, windmill } from './props.js';
 
 const P = (m) => m * PX;
 
@@ -233,6 +233,7 @@ export function generateTown(spec = {}) {
   wagon(L, 88, 46.6, 1.2, { load: true });
   well(L, 76, 52.5);
   waterTower(L, 81.5, 60);
+  windmill(L, 96, 58, 0.6);
   for (const [lx, lz] of [[27, 34.6], [45, 45.6], [57.5, 34.6], [73, 45.6], [87, 34.6], [57, 45.6], [31.5, 45.6]]) lampPost(L, lx, lz);
   for (const [bx, bz] of [[30.2, 32.6], [47.3, 32.4], [55.6, 32.6], [69.6, 32.5], [84.6, 47.9], [17.6, 48.4], [33.6, 48.2]]) barrel(L, bx, bz);
   crate(L, 60.6, 32.5, 0.3, 0.8); crate(L, 61.4, 32.6, 0.1, 0.6);
