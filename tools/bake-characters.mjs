@@ -1,7 +1,7 @@
 // Bakes the Quaternius character packs (CC0, .gltf with embedded buffers) into
 // assets/people.json: skinned meshes (two bone influences per vertex), one
 // skeleton and one set of resampled animation clips per rig family.
-//   node tools/bake-characters.mjs <dirMen> <dirWomen> <dirRobots> <dirPack> [outDir]
+//   node tools/bake-characters.mjs <dirMen> <dirWomen> <dirRobots> <dirCyber> [outDir]
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,7 +17,10 @@ const FAMILIES = [
   { id: 'man', dir: dMen, height: 1.8, files: ['Adventurer', 'Farmer', 'Swat', 'Spacesuit'] },
   { id: 'woman', dir: dWomen, height: 1.7, files: ['Adventurer', 'SciFi', 'Soldier'] },
   { id: 'robot', dir: dRobots, height: 1.95, files: ['Mike', 'George', 'Leela', 'Stan'] },
-  { id: 'toon', dir: dPack, height: 1.78, files: ['Cowboy_Male', 'Cowboy_Female', 'Zombie_Male', 'Zombie_Female', 'Doctor_Male_Old', 'OldClassy_Male', 'OldClassy_Female'] },
+  // the cyberpunk kit: one human body and three machine chassis, each with its own skeleton and clips
+  { id: 'cyber', dir: dPack, height: 1.8, heights: { Enemy_2Legs: 1.15, Enemy_2Legs_Gun: 1.6, Enemy_Flying: 1.0, Enemy_Flying_Gun: 1.25, Enemy_Large: 2.3, Enemy_Large_Gun: 3.1 },
+    drop: /^Blade/, // the runner is modelled holding a sword; the game puts guns in that hand instead
+    files: ['Character', 'Enemy_2Legs', 'Enemy_2Legs_Gun', 'Enemy_Flying', 'Enemy_Flying_Gun', 'Enemy_Large', 'Enemy_Large_Gun'] },
 ];
 
 function readGltf(path) {
@@ -108,6 +111,7 @@ function bakeFamily(fam) {
         const P = accessor(glb, a.POSITION).data, N = accessor(glb, a.NORMAL).data;
         const J = accessor(glb, a.JOINTS_0).data, Wt = accessor(glb, a.WEIGHTS_0).data;
         const I = accessor(glb, prim.indices).data;
+        if (fam.drop && fam.drop.test(json.materials[prim.material]?.name || '')) continue;
         const f = json.materials[prim.material]?.pbrMetallicRoughness?.baseColorFactor || [0.8, 0.8, 0.8, 1];
         let c = [lin2srgb(f[0]), lin2srgb(f[1]), lin2srgb(f[2])];
         // this pack draws skin as a black silhouette; next to the other packs it needs a skin tone
@@ -140,7 +144,7 @@ function bakeFamily(fam) {
     const q = Math.floor(32767 / maxAbs);
     const n = g.pos.length / 3;
     if (n > 65535) throw new Error('too many vertices ' + file);
-    out.models[file] = { vo: pos.length / 3, vc: n, io: idx.length, ic: g.idx.length, q, scale: +(fam.height / (y1 - y0)).toFixed(4), base: +y0.toFixed(4) };
+    out.models[file] = { vo: pos.length / 3, vc: n, io: idx.length, ic: g.idx.length, q, scale: +((fam.heights?.[file] ?? fam.height) / (y1 - y0)).toFixed(4), base: +y0.toFixed(4) };
     for (const v of g.pos) pos.push(Math.round(v * q));
     for (const v of g.nrm) nrm.push(Math.round(v * 127));
     col.push(...g.col); skin.push(...g.sk); idx.push(...g.idx);

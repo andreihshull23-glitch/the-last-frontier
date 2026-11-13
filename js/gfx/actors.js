@@ -14,7 +14,14 @@ const HUMAN = {
   back: 'Run_Back', left: 'Run_Left', right: 'Run_Right', roll: 'Roll', death: 'Death', hit: 'HitRecieve',
   interact: 'Interact', punch: 'Punch_Right', wave: 'Wave', hand: 'Wrist.R',
 };
+// The cyberpunk kit: the runner shares the human clip names; each machine chassis has its own short set.
+const MACHINE = { idle: 'Idle', walk: 'Walk', run: 'Run', aim: ['Shoot', 0.15], shoot: 'Shoot', death: 'Death', punch: 'Attack', hand: null };
+const MODEL_CLIPS = {
+  Character: { ...HUMAN, idle: 'Idle_Neutral', hand: 'Hand.R' },
+  Enemy_Flying: { ...MACHINE, death: 'Dead' }, Enemy_Flying_Gun: { ...MACHINE, death: 'Dead' },
+};
 const FAMILY = {
+  cyber: MACHINE,
   man: HUMAN,
   woman: HUMAN,
   robot: {
@@ -299,7 +306,7 @@ export function createActors(assets) {
     rig.forEach((b, i) => { rest.set(b.t, i * 7); rest.set(b.r, i * 7 + 3); });
     const clips = clipsOf(look);
     const map = {};
-    for (const [k, v] of Object.entries(FAMILY[look.fam])) if (k === 'hand' || clips[Array.isArray(v) ? v[0] : v]) map[k] = v;
+    for (const [k, v] of Object.entries(MODEL_CLIPS[look.model] || FAMILY[look.fam])) if (k === 'hand' || clips[Array.isArray(v) ? v[0] : v]) map[k] = v;
     const handIdx = rig.findIndex((b) => b.name === map.hand);
     const armIdx = rig.map((b, i) => (/Shoulder|UpperArm|LowerArm|Wrist|Palm|Fist|Hand/.test(b.name) ? i : -1)).filter((i) => i >= 0);
     const a = {
