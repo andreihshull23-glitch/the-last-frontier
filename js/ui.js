@@ -195,7 +195,7 @@ export function createUI(root, panelEl, api) {
 
   function buyRow(title, desc, have, check, label, attrs) {
     return `<div class="item"><div><h3>${esc(title)}</h3><p>${esc(desc)}</p>${have ? `<p class="have">${esc(have)}</p>` : ''}</div>
-      <button class="btn ${check.ok ? '' : 'ghost'}" ${attrs} ${check.ok ? '' : 'disabled'}>${esc(label)}<span class="btn-sub">${check.ok ? `$${check.price}` : esc(check.reason)}</span></button></div>`;
+      <button class="btn ${check.ok ? '' : 'ghost'}" ${attrs} ${check.ok ? '' : 'disabled'}>${esc(label)}<span class="btn-sub">${check.ok ? `$${check.price}` : check.price !== undefined ? `$${check.price} · ${esc(check.reason)}` : esc(check.reason)}</span></button></div>`;
   }
 
   function missionCard(m, compact = false) {

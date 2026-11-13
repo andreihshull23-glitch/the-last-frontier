@@ -28,7 +28,9 @@ const PRUNABLE = new Set(['JOB_DONE', 'DRIFTER_ARRIVED', 'INVESTED', 'DRIFTER_FL
 const LEDGER_CAP = 1200;
 
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-const fail = (reason) => ({ ok: false, reason });
+const fail = (reason, price) => (price === undefined ? { ok: false, reason } : { ok: false, reason, price });
+/** Cannot afford it: say what it costs and how much is missing. */
+const short = (c, price) => ({ ok: false, reason: `$${price - c.cash} short`, price });
 
 function shell() {
   return {
@@ -232,10 +234,10 @@ export function canBuy(c, id) {
   const def = gear ?? supply;
   if (!def) return fail('Nobody sells that.');
   const lock = locked(c, def);
-  if (lock) return fail(lock);
+  if (lock) return fail(lock, def.cost);
   if (gear && ch.gear.includes(id)) return fail('Already carried');
   if (supply && ch[supply.field] >= ammoCap(c, supply.field)) return fail(`Carrying all you can (${ammoCap(c, supply.field)})`);
-  if (c.cash < def.cost) return fail('Not enough cash');
+  if (c.cash < def.cost) return short(c, def.cost);
   return { ok: true, price: def.cost };
 }
 
@@ -258,8 +260,8 @@ export function canBuyGun(c, id) {
   const g = GUNS[id];
   if (!g || !g.cost) return fail('Not for sale.');
   if (c.armory.guns.includes(id)) return fail('Owned');
-  if (g.after && c.chapter < g.after) return fail(`Not built yet: finish "${CHAPTERS[g.after - 1].title}"`);
-  if (c.cash < g.cost) return fail('Not enough cash');
+  if (g.after && c.chapter < g.after) return fail(`Not built yet: finish "${CHAPTERS[g.after - 1].title}"`, g.cost);
+  if (c.cash < g.cost) return short(c, g.cost);
   return { ok: true, price: g.cost };
 }
 export function buyGun(c, id) {
@@ -277,8 +279,8 @@ export function canBuyUpgrade(c, id) {
   if (!u) return fail('Unknown work');
   if (c.armory.upgrades.includes(id)) return fail('Fitted');
   if (u.gun !== 'revolver' && !c.armory.guns.includes(u.gun)) return fail(`Needs the ${GUNS[u.gun].name.toLowerCase()}`);
-  if (!c.investments.includes('workshop')) return fail("Needs: gunsmith's workshop (Town Hall)");
-  if (c.cash < u.cost) return fail('Not enough cash');
+  if (!c.investments.includes('workshop')) return fail("Needs: gunsmith's workshop (Town Hall)", u.cost);
+  if (c.cash < u.cost) return short(c, u.cost);
   return { ok: true, price: u.cost };
 }
 export function buyUpgrade(c, id) {
@@ -293,8 +295,8 @@ export function canInvest(c, id) {
   const inv = INVESTMENTS[id];
   if (!inv) return fail('Unknown project');
   if (c.investments.includes(id)) return fail('Done');
-  if (inv.needsProsperity && c.prosperity < inv.needsProsperity) return fail(`Needs Mercy prosperity ${inv.needsProsperity}`);
-  if (c.cash < inv.cost) return fail('Not enough cash');
+  if (inv.needsProsperity && c.prosperity < inv.needsProsperity) return fail(`Needs Mercy prosperity ${inv.needsProsperity}`, inv.cost);
+  if (c.cash < inv.cost) return short(c, inv.cost);
   return { ok: true, price: inv.cost };
 }
 export function invest(c, id) {
@@ -314,7 +316,7 @@ export function treat(c) {
   if (!ch?.alive) return fail('Nobody to treat.');
   if (ch.hp >= maxHp(ch)) return fail('Already in good health');
   const price = clinicPrice(c);
-  if (c.cash < price) return fail('Not enough cash');
+  if (c.cash < price) return short(c, price);
   c.cash -= price;
   ch.hp = maxHp(ch);
   return { ok: true, price };
