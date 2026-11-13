@@ -9,8 +9,8 @@
 // Geometry is stored quantised: positions int16, normals int8, colours uint8.
 // Texture atlases are baked into vertex colours, so the game needs no textures
 // and can recolour anything per instance.
-import { readdirSync, writeFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { readdirSync, writeFileSync, mkdirSync, existsSync, statSync, readFileSync } from 'node:fs';
+import { join, dirname, resolve, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readGlb, primitives, worldMatrices, accessor, xformPoint, xformDir } from './glb.mjs';
 import { readPng, sample } from './png.mjs';
@@ -53,6 +53,15 @@ const PACKS = [
   { id: 'station', dir: 'kenney_space-station-kit', scale: 3, pick: [/./] },
   { id: 'factory', dir: 'kenney_factory-kit', scale: 2.4, pick: [/^(?!arrow|indicator|button)/] },
   { id: 'spacemod', dir: 'kenney_modular-space-kit', scale: 1, pick: [/^(gate|cables|template-(wall|floor|corner|detail))/] },
+  // Quaternius Modular Sci-Fi MegaKit (.gltf + .bin, textures in a folder of their own). Its detail lives in
+  // trim-sheet textures, so faces are cut into small triangles and each new vertex takes the texture's colour.
+  { id: 'scifi', gltf: 'scifi-megakit', textures: 'scifi-megakit-textures', scale: 1, subdivide: 0.5,
+    skip: /^(Decals|Aliens)$/, pick: [
+      /^Wall(Astra|Band|Window)_(Straight|Straight_Flat|Straight_Window|Straight_Broken|Corner_Square_Inner|Corner_Square_Outer)$/, /^WallWindow_Cap_A$/,
+      /^ShortWall_(Band2|MetalPlates|DarkMetal2|Simple1)_Straight$/, /^Top(Simple|Cables|Astra)_Straight$/, /^Bottom(Metal|Simple)_Straight$/,
+      /^Door_(Frame_A|Frame_Square|Metal|DarkMetal|Simple)$/, /^Platform_(Round1|Stairs_2|Ramp_2|Rails_2|Rails_4)$/, // flat floor plates alias badly at this density, so they are left out
+      /^Column_/, /^Prop_/,
+    ] },
   // the frontier itself: a flat-coloured western kit (FBX). Building pieces are stretched upward so a 1.8 m person fits a doorway.
   { id: 'west', fbx: 'wild-west', scale: 1, tall: { match: /^(Modular)\//, y: 1.3 } },
   { id: 'gun', dir: 'kenney_blaster-kit_2.1', scale: 1, pick: [/^blaster-[a-r]$/, /^crate-/, /^grenade-/, /^clip-/, /^bullet-foam$/, /^target-(large|small)$/], parts: { 'crate-*': ['lid'] } },
@@ -90,9 +99,50 @@ function partNames(pack, name) {
   return out;
 }
 
+/** A .gltf with its buffer in a file beside it, in the same shape readGlb returns. */
+function readGltfFile(file) {
+  const json = JSON.parse(readFileSync(file, 'utf8'));
+  if (json.buffers.length !== 1) throw new Error('expected one buffer: ' + file);
+  const uri = json.buffers[0].uri;
+  const bin = uri.startsWith('data:') ? Buffer.from(uri.slice(uri.indexOf(',') + 1), 'base64') : readFileSync(join(dirname(file), decodeURIComponent(uri)));
+  return { json, bin };
+}
+
+/** Cut every triangle into pieces no longer than `edge` metres, carrying normals and texture coordinates along. */
+function tessellate(p, edge, scale) {
+  const P = p.positions, N = p.normals, U = p.uvs, I = p.indices;
+  const pos = [], nrm = [], uv = [], idx = [];
+  const m = p.matrix;
+  const sc = Math.hypot(m[0], m[1], m[2]) * scale;
+  for (let t = 0; t < I.length; t += 3) {
+    const a = I[t], b = I[t + 1], c = I[t + 2];
+    const len = (i, j) => Math.hypot(P[i * 3] - P[j * 3], P[i * 3 + 1] - P[j * 3 + 1], P[i * 3 + 2] - P[j * 3 + 2]) * sc;
+    const n = Math.min(14, Math.max(1, Math.ceil(Math.max(len(a, b), len(b, c), len(c, a)) / edge)));
+    const base = pos.length / 3;
+    // a triangular grid of (n + 1)(n + 2) / 2 points
+    const at = [];
+    for (let i = 0; i <= n; i++) {
+      at.push([]);
+      for (let j = 0; j <= n - i; j++) {
+        const u = i / n, v = j / n, w = 1 - u - v;
+        at[i].push(pos.length / 3);
+        for (let k = 0; k < 3; k++) pos.push(P[a * 3 + k] * w + P[b * 3 + k] * u + P[c * 3 + k] * v);
+        if (N) for (let k = 0; k < 3; k++) nrm.push(N[a * 3 + k] * w + N[b * 3 + k] * u + N[c * 3 + k] * v);
+        if (U) for (let k = 0; k < 2; k++) uv.push(U[a * 2 + k] * w + U[b * 2 + k] * u + U[c * 2 + k] * v);
+      }
+    }
+    for (let i = 0; i < n; i++) for (let j = 0; j < n - i; j++) {
+      idx.push(at[i][j], at[i + 1][j], at[i][j + 1]);
+      if (j < n - i - 1) idx.push(at[i + 1][j], at[i + 1][j + 1], at[i][j + 1]);
+    }
+    void base;
+  }
+  return { ...p, positions: pos, normals: N ? nrm : null, uvs: U ? uv : null, indices: idx, joints: null, weights: null, skin: undefined };
+}
+
 // Geometry of one GLB as flat arrays, split into the body and named parts.
 function extract(file, pack, name) {
-  const glb = readGlb(file);
+  const glb = file.endsWith('.gltf') ? readGltfFile(file) : readGlb(file);
   const { json } = glb;
   const { world, parent } = worldMatrices(glb);
   const wanted = partNames(pack, name);
@@ -107,8 +157,9 @@ function extract(file, pack, name) {
     return groups.get(k);
   };
   const dir = dirname(file);
-  for (const p of primitives(glb)) {
+  for (let p of primitives(glb)) {
     const g = group(owner[p.node]);
+    if (pack.subdivide && p.uvs) p = tessellate(p, pack.subdivide, pack.scale);
     const mat = json.materials?.[p.material] || {};
     const pbr = mat.pbrMetallicRoughness || {};
     const factor = pbr.baseColorFactor || [1, 1, 1, 1];
@@ -117,6 +168,7 @@ function extract(file, pack, name) {
       const tex = json.textures[pbr.baseColorTexture.index];
       const uri = json.images[tex.source].uri;
       img = texture(join(dir, decodeURIComponent(uri)));
+      if (!img && pack.textures) img = texture(join(packsDir, pack.textures, basename(decodeURIComponent(uri))));
       if (!img) throw new Error('missing texture ' + uri + ' for ' + file);
     }
     // parts are stored relative to their pivot (the part node's rest position)
@@ -134,7 +186,8 @@ function extract(file, pack, name) {
       g.nrm.push(nn[0], nn[1], nn[2]);
       let c;
       if (img && p.uvs) {
-        const s = sample(img, p.uvs[i * 2], p.uvs[i * 2 + 1]);
+        const wrap = (v) => (pack.subdivide ? v - Math.floor(v) : v);
+        const s = sample(img, wrap(p.uvs[i * 2]), wrap(p.uvs[i * 2 + 1]));
         c = [s[0] * factor[0], s[1] * factor[1], s[2] * factor[2]];
       } else if (pack.id === 'nat') {
         let h = NAT_COLORS[mat.name] || NAT_COLORS._defaultMat;
@@ -329,6 +382,18 @@ function rigAndClips(glb, scale) {
 function pack(packDef) {
   let sources;
   if (packDef.fbx) sources = fbxSources(join(packsDir, packDef.fbx));
+  else if (packDef.gltf) {
+    sources = [];
+    const top = join(packsDir, packDef.gltf);
+    for (const d of readdirSync(top).sort()) {
+      if (d.startsWith('.') || d.startsWith('__') || (packDef.skip && packDef.skip.test(d)) || !statSync(join(top, d)).isDirectory()) continue;
+      for (const f of readdirSync(join(top, d)).sort()) {
+        if (!f.endsWith('.gltf') || f.startsWith('.')) continue;
+        const n = f.slice(0, -5);
+        if (matches(n, packDef.pick)) sources.push([join(top, d, f), n.toLowerCase().replace(/_/g, '-')]);
+      }
+    }
+  }
   else {
     const sub = packDef.sub || 'GLB format';
     const dir = join(packsDir, packDef.dir, 'Models', sub);
