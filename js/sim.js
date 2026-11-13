@@ -1813,7 +1813,7 @@ function updateBuddy(sim, dt) {
     return;
   }
   // heel at the drifter's left hand, out of the line of the camera and the gun
-  const hx = p.x + Math.cos(p.aim - Math.PI / 2) * 64 - Math.cos(p.aim) * 10, hy = p.y + Math.sin(p.aim - Math.PI / 2) * 64 - Math.sin(p.aim) * 10;
+  const hx = p.x + Math.cos(p.aim - Math.PI / 2) * 70 - Math.cos(p.aim) * 26, hy = p.y + Math.sin(p.aim - Math.PI / 2) * 70 - Math.sin(p.aim) * 26;
   const d = Math.hypot(hx - b.x, hy - b.y);
   if (d > 1100) { // left behind: catch up out of sight
     const q = navIdx(sim, p.x, p.y);
