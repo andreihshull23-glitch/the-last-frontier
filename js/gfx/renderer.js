@@ -1219,6 +1219,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     r.frame++;
     r.time += dt;
     r.touch = Boolean(ui.touch);
+    r.pad = ui.pad || null;
     r.kick = Math.max(0, r.kick - dt * 9);
     r.hitMarker = Math.max(0, r.hitMarker - dt);
     r.shake = Math.max(0, r.shake - dt * 30);

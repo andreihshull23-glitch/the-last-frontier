@@ -36,7 +36,7 @@ const app = {
 };
 
 function readSettings() {
-  const base = { sens: 1, invert: false, quality: 'auto', mute: false, shake: true, hints: true };
+  const base = { sens: 1, invert: false, quality: 'auto', mute: false, shake: true, hints: true, pad: null };
   try {
     const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
     if (raw && typeof raw === 'object') Object.assign(base, raw);
@@ -66,6 +66,7 @@ const ui = createUI(uiRoot, panelEl, {
   onPanelClose,
   onCampaignChange: () => { app.dirty = true; },
   settings: () => app.settings,
+  pad: () => controls.pad,
   setSetting,
   inRide: () => app.mode === 'ride',
   rideTitle: () => app.sim?.state.config.title ?? 'The ride',
@@ -85,6 +86,7 @@ function applySettings() {
   const s = app.settings;
   controls.prefs.sens = s.sens;
   controls.prefs.invert = s.invert;
+  controls.pad.setBinds(s.pad);
   audio.setMuted(s.mute);
   if (renderer) {
     renderer.shakeOn = s.shake;
@@ -413,7 +415,8 @@ function advance(sim, dt) {
   if (inp.swap) app.pending.swap = inp.swap;
   if (active) {
     let aim = renderer.aimPoint(sim, null);
-    if ((app.pending.fire || inp.fireHeld) && controls.mode === 'touch') aim = renderer.assistTarget(sim) ?? aim;
+    // thumbs are less precise than a mouse: touch and controller shots bend to an enemy near the crosshair
+    if ((app.pending.fire || inp.fireHeld) && (controls.mode === 'touch' || controls.mode === 'gamepad')) aim = renderer.assistTarget(sim) ?? aim;
     const move = renderer.moveToWorld(inp.fwd, inp.right);
     const base = { mx: move.mx, my: move.my, ax: aim.x, ay: aim.y, interactHeld: inp.interactHeld, fireHeld: inp.fireHeld, sprint: inp.sprint };
     app.acc += dt;
@@ -466,9 +469,49 @@ function showProblem(err) {
   clearTimeout(showProblem.t);
   showProblem.t = setTimeout(() => el.remove(), 15000);
 }
+/** Controller button names for the on-screen prompts. */
+function padNames() {
+  const n = controls.pad.name;
+  return { use: n('interact'), reload: n('reload'), heal: n('heal'), map: n('map'), fire: n('fire'), alt: n('alt'), dodge: n('dodge'), throw: n('throw'), next: n('next'), journal: n('journal'), menu: n('pause'), sprint: n('sprint') };
+}
+
+/** Drive menus and panels with a controller: D-pad or stick moves, A presses, B goes back. */
+function padMenus() {
+  const nav = controls.padMenu();
+  const inPanel = Boolean(ui.panel);
+  if (!inPanel && playing()) return;
+  const rootEl = inPanel ? panelEl : uiRoot;
+  if (!rootEl || rootEl.hidden) return;
+  if (nav.back || nav.menu) {
+    if (inPanel) { if (playing()) togglePause(); else ui.closePanel(); }
+    else rootEl.querySelector('[data-act="back"], [data-act="new-no"]')?.click();
+    return;
+  }
+  const dir = nav.down || nav.right ? 1 : nav.up || nav.left ? -1 : 0;
+  if (!dir && !nav.accept) return;
+  const items = [...rootEl.querySelectorAll('button:not([disabled]), input, select')].filter((el) => el.offsetParent !== null);
+  if (!items.length) return;
+  let i = items.indexOf(document.activeElement);
+  const cur = items[i];
+  // left and right change a slider or a choice instead of moving on
+  if (cur && (nav.left || nav.right) && (cur.type === 'range' || cur.tagName === 'SELECT')) {
+    if (cur.type === 'range') cur.value = String(Number(cur.value) + (nav.right ? 1 : -1) * Number(cur.step || 1));
+    else cur.selectedIndex = Math.max(0, Math.min(cur.options.length - 1, cur.selectedIndex + (nav.right ? 1 : -1)));
+    cur.dispatchEvent(new Event('input', { bubbles: true }));
+    return;
+  }
+  if (nav.accept && cur) { cur.click(); return; }
+  i = i < 0 ? (dir >= 0 ? 0 : items.length - 1) : (i + dir + items.length) % items.length;
+  items[i].focus({ preventScroll: false });
+  items[i].scrollIntoView?.({ block: 'nearest' });
+}
+
 function frameBody(ts) {
   const dt = app.last ? Math.min(0.1, (ts - app.last) / 1000) : 0;
   app.last = ts;
+  // The controller can press a menu button that starts or ends a scene, so read it before looking at the scene.
+  controls.padFrame(dt);
+  padMenus();
   const sim = app.sim;
   if (playing()) {
     const halted = Boolean(ui.panel) || renderer.mapOpen;
@@ -490,6 +533,7 @@ function frameBody(ts) {
       const fp = focusPrompt(sim);
       renderer.draw(sim, halted ? 0 : dt, {
         touch: controls.mode === 'touch',
+        pad: controls.mode === 'gamepad' ? padNames() : null,
         touchUI: controls.touchUI(Boolean(fp && fp.kind !== 'extracting')),
         freeCursor: null,
         lockHint: controls.lockHint() && !halted,

@@ -3,6 +3,7 @@
 // Full screens render into #ui; panels render into #panel above the town.
 
 import * as R from './rules.js';
+import { PAD_ACTIONS } from './gamepad.js';
 import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, CHAPTERS, AMMO, PROLOGUE } from './content.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -385,15 +386,17 @@ export function createUI(root, panelEl, api) {
           <tr><th>Move</th><td>W A S D</td></tr><tr><th>Look</th><td>Mouse. Click once to take the mouse; Esc lets go. Arrow keys also turn.</td></tr>
           <tr><th>Sprint</th><td>Shift</td></tr><tr><th>Dodge roll</th><td>Space</td></tr>
           <tr><th>Fire</th><td>Left click; hold to keep firing</td></tr><tr><th>Alt fire</th><td>Right click or F: fan the hammer / both barrels</td></tr>
-          <tr><th>Guns</th><td>1 2 3, mouse wheel, or X</td></tr><tr><th>Reload</th><td>R</td></tr>
+          <tr><th>Guns</th><td>1 to 7, mouse wheel, or X</td></tr><tr><th>Reload</th><td>R</td></tr>
           <tr><th>Dynamite</th><td>G</td></tr><tr><th>Bandage</th><td>Q</td></tr>
           <tr><th>Use / talk</th><td>E (hold for caches and objectives)</td></tr><tr><th>Map</th><td>M or Tab</td></tr>
+          <tr><th>Journal</th><td>J</td></tr><tr><th>Controller</th><td>Left stick moves, right stick looks. Buttons are listed, and can be changed, in Settings.</td></tr>
         </table>
         <p class="muted keys-line">On a phone: left thumb moves (push far to sprint), right thumb looks, and the buttons do the rest.</p>
         <div class="row"><button class="btn" data-p="open" data-id="${pdata.fromTitle ? 'close' : 'pause'}">Back</button></div>`;
     },
     settings() {
       const s = api.settings();
+      const pad = api.pad();
       return `<div class="bar"><div><p class="eyebrow">Settings</p><h2 id="panel-title">Make it yours</h2></div></div>
         <div class="settings">
           <label for="set-sens">Look sensitivity <span class="num" id="set-sens-v">${s.sens.toFixed(1)}×</span></label>
@@ -407,6 +410,10 @@ export function createUI(root, panelEl, api) {
           <label class="check"><input id="set-mute" type="checkbox" data-set="mute" ${s.mute ? 'checked' : ''}> Mute sound</label>
           <label class="check"><input id="set-hints" type="checkbox" data-set="hints" ${s.hints ? 'checked' : ''}> Show key hints on screen</label>
         </div>
+        <h3 class="section">Controller</h3>
+        <p class="muted">${pad.available ? (pad.id ? `Connected: ${esc(pad.id.replace(/\s*\(.*$/, ''))}.` : 'Plug in or wake a controller and press any button on it.') : 'This page is not allowed to read controllers. Open the game in its own browser tab.'} Left stick moves and the right stick looks. In menus the D-pad moves, A presses and B goes back.</p>
+        <div class="padbinds">${PAD_ACTIONS.map(([id, label]) => `<div class="padrow"><span>${esc(label)}</span><button class="btn ghost small" data-p="padbind" data-id="${id}">${pad.capturing === id ? 'Press a button…' : esc(pad.name(id))}</button></div>`).join('')}</div>
+        <div class="row"><button class="link" data-p="padreset">Reset controller buttons</button></div>
         <div class="row"><button class="btn" data-p="open" data-id="${pdata.fromTitle ? 'close' : 'pause'}">Done</button></div>`;
     },
   };
@@ -443,6 +450,8 @@ export function createUI(root, panelEl, api) {
     else if (act === 'unpick') { pdata = {}; renderPanel(); }
     else if (act === 'ride') { const was = panel; panel = null; panelEl.hidden = true; panelEl.innerHTML = ''; if (!api.startRide(id)) { panel = was; panelEl.hidden = false; renderPanel(); } }
     else if (act === 'open') { if (id === 'close') closePanel(); else { const keep = pdata.fromTitle; panel = id; pdata = { fromTitle: keep }; renderPanel(); } }
+    else if (act === 'padbind') { const pad = api.pad(); if (pad.capturing === id) pad.cancelCapture(); else pad.capture(id, (binds) => { api.setSetting('pad', binds); if (panel === 'settings') renderPanel(); }); renderPanel(); }
+    else if (act === 'padreset') { api.pad().cancelCapture(); api.setSetting('pad', null); renderPanel(); }
     else if (act === 'mute') { api.setSetting('mute', !api.settings().mute); renderPanel(); }
     else if (act === 'giveup') { pdata = { giveup: true }; renderPanel(); }
     else if (act === 'giveup-no') { pdata = {}; renderPanel(); }

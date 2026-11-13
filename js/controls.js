@@ -1,4 +1,4 @@
-// Keyboard, mouse and touch input for the third-person view.
+// Keyboard, mouse, touch and controller input for the third-person view.
 //
 // WASD moves relative to the camera and the mouse looks (pointer lock, or
 // edge-turning with a free cursor where lock is refused). Touch: move stick on
@@ -10,8 +10,15 @@ const STICK_RADIUS = 56;
 const MOUSE_SENS = 0.0024;
 const TOUCH_SENS = 0.0065;
 const EDGES = ['fire', 'alt', 'dodge', 'reload', 'heal', 'interact', 'throw'];
+const STICK_TURN = 1.35;   // right stick, as a multiple of the arrow-key turn rate
+const STICK_PITCH = 1.7;
+
+import { createGamepad } from './gamepad.js';
 
 export function createControls(stage, hooks) {
+  const pad = createGamepad();
+  let padState = null;       // this frame's controller reading
+  let padSprint = false;
   const keys = new Set();
   const arrows = new Set();
   const edge = Object.fromEntries(EDGES.map((k) => [k, false]));
@@ -241,6 +248,19 @@ export function createControls(stage, hooks) {
     return { x: (dx / l) * m, y: (dy / l) * m, full: l > STICK_RADIUS * 1.35 };
   }
 
+  /** Read the controller. main calls this once at the start of every frame, in play and in menus. */
+  function padFrame(dt) {
+    padState = pad.poll(dt);
+    if (padState && padState.active) mode = 'gamepad';
+    return padState;
+  }
+  /** Menu navigation presses for this frame (each is reported once). */
+  function padMenu() {
+    const nav = padState ? padState.nav : {};
+    if (padState) padState.nav = {};
+    return nav;
+  }
+
   function sample() {
     let fwd = 0, right = 0;
     for (const k of keys) { right += MOVE_KEYS[k][0]; fwd -= MOVE_KEYS[k][1]; }
@@ -258,13 +278,34 @@ export function createControls(stage, hooks) {
       const ny = (mouse.y - size.h / 2) / (size.h / 2);
       pitch -= Math.sign(ny) * Math.max(0, Math.min(1, (Math.abs(ny) - 0.86) / 0.12)) * 0.6;
     }
+    // controller: left stick moves, right stick looks, bound buttons do the rest
+    const g = enabled && padState && !padState.capturing ? padState : null;
+    let padFire = false, padUse = false;
+    if (g) {
+      if (g.move > 0) { right = g.lx; fwd = -g.ly; }
+      else padSprint = false;
+      turn += g.rx * STICK_TURN * prefs.sens;
+      pitch += -g.ry * STICK_PITCH * prefs.sens * (prefs.invert ? -1 : 1);
+      const P = g.pressed;
+      if (P.has('sprint')) padSprint = !padSprint;
+      if (g.move > 0.2 && padSprint) sprint = true;
+      for (const k of ['fire', 'alt', 'dodge', 'reload', 'heal', 'interact', 'throw']) if (P.has(k)) edge[k] = true;
+      if (P.has('next')) swap = 1;
+      if (P.has('prev')) swap = -1;
+      if (P.has('map')) hooks.onMap?.();
+      if (P.has('journal')) hooks.onJournal?.();
+      if (P.has('pause')) hooks.onPause?.();
+      padFire = g.held.has('fire');
+      padUse = g.held.has('interact');
+      g.pressed = new Set();
+    }
     const out = {
       fwd: Math.max(-1, Math.min(1, fwd)), right: Math.max(-1, Math.min(1, right)),
       lookX: look.x, lookY: look.y, turn, pitch,
       freeCursor: free ? { x: mouse.x, y: mouse.y } : null,
       fire: edge.fire, alt: edge.alt, dodge: edge.dodge, reload: edge.reload, heal: edge.heal, throw: edge.throw,
-      interactPressed: edge.interact, interactHeld: interactKey || touch.act !== null,
-      fireHeld: mouse.down || touch.fire !== null, sprint, slot, swap,
+      interactPressed: edge.interact, interactHeld: interactKey || touch.act !== null || padUse,
+      fireHeld: mouse.down || touch.fire !== null || padFire, sprint, slot, swap,
     };
     for (const k of EDGES) edge[k] = false;
     look.x = look.y = 0;
@@ -275,6 +316,9 @@ export function createControls(stage, hooks) {
   return {
     layout,
     sample,
+    padFrame,
+    padMenu,
+    pad,
     prefs,
     get mode() { return mode; },
     setTown(on) { town = Boolean(on); layout(size.w, size.h, size.insets); },

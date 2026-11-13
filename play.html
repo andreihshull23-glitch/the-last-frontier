@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#121318">
+  <title>The Last Frontier</title>
+  <style>html, body { margin: 0; height: 100%; background: #121318; color: #ece1cb; font: 16px/1.5 system-ui, sans-serif; } #boot { padding: 24px; }</style>
+</head>
+<body>
+  <p id="boot">Loading The Last Frontier…</p>
+  <script>
+    // index.html is written as a fragment (the claude.ai host wraps it). This page wraps it
+    // the same way so the game also runs in an ordinary browser tab or on GitHub Pages.
+    fetch('index.html').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.text();
+    }).then(function (html) {
+      document.open();
+      document.write('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+        + '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+        + '<meta name="theme-color" content="#121318"><title>The Last Frontier</title>'
+        + '<style>html, body { margin: 0; height: 100%; } body { font: 14px system-ui, sans-serif; } img { max-width: 100%; } [hidden] { display: none !important; }</style></head><body>' + html + '</body></html>');
+      document.close();
+    }).catch(function (err) {
+      document.getElementById('boot').textContent = 'Could not load the game (' + err.message + '). This page has to be served over HTTP, not opened from a file.';
+    });
+  </script>
+</body>
+</html>

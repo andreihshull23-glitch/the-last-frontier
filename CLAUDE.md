@@ -7,7 +7,7 @@ The loop: walk the town of Mercy (shops, job board, Town Hall), ride out on a st
 ## Run and test
 
 - Unit tests: `npm test` (`tests/game.test.js`: generators, rules, sim determinism, the companion).
-- Browser smoke test: `node tests/smoke.mjs <outDir> <path/to/three.min.js> [sections]`. Sections: `town`, `death`, `levels`, `phone`. It uses Playwright and writes screenshots. WebGL runs on SwiftShader, which is slow, so the test waits on sim time, never wall time.
+- Browser smoke test: `node tests/smoke.mjs <outDir> <path/to/three.min.js> [sections]`. Sections: `town`, `death`, `levels`, `phone`, `pad` (a simulated controller and `play.html`). It uses Playwright and writes screenshots. WebGL runs on SwiftShader, which is slow, so the test waits on sim time, never wall time.
 - Viewers for art work: `tests/actorview.mjs` (character line-ups), `tests/levelview.mjs`, `tests/viewer.mjs`.
 - Local play: serve the folder over HTTP and open `/?debug` (`window.LF_DEBUG`). ES modules do not load from `file://`.
 - `index.html` has no `<html>`, `<head>` or `<body>` because the Artifact host wraps it.
@@ -28,6 +28,8 @@ All art is baked to vertex colours, with no textures, into quantised JSON packs 
 - `js/content.js` holds data only.
 - `js/gfx/*` draws: `assets.js` (packs, tints, merging), `world.js` (static level), `actors.js` (characters, skeletons, clips, guns in hands), `renderer.js` (camera, effects, per-frame sync).
 - `js/hud.js`, `js/ui.js`, `js/controls.js`, `js/audio.js`, `js/save.js` read the sim and never write it.
+- `js/gamepad.js` reads a controller once per frame (`controls.padFrame`). Bindings are data in the `pad` setting. `main.js` drives menus from it (`padMenus`).
+- `play.html` wraps `index.html` in a full page for ordinary browser tabs and GitHub Pages.
 - `js/main.js` wires everything and runs the fixed 60 Hz step.
 
 ## Scale

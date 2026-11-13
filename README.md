@@ -10,7 +10,9 @@ A third-person sci-fi Western roguelike that runs in the browser. Walk the town 
 python3 -m http.server 8000
 ```
 
-Then open `http://localhost:8000/`. The only dependency is three.js r128, loaded from cdnjs.
+Then open `http://localhost:8000/play.html`. The only dependency is three.js r128, loaded from cdnjs.
+
+`index.html` is written as a fragment because the claude.ai Artifact host wraps it in a page. `play.html` wraps it the same way, so use `play.html` in an ordinary browser tab or on GitHub Pages.
 
 ## Controls
 
@@ -19,6 +21,10 @@ Then open `http://localhost:8000/`. The only dependency is three.js r128, loaded
 - 1 to 7 or the mouse wheel to change guns, G for dynamite, Q for a bandage.
 - J for the journal: the story so far and what to do next.
 - E to use or talk, M for the map, Esc for the menu.
+
+### Controller
+
+Any standard controller works: left stick moves, right stick looks, RT fires, LT alternate fire, A dodges, X reloads, Y uses, B bandages, RB dynamite, LB next gun, L3 sprint. In menus the D-pad moves, A presses and B goes back. Every button can be changed in Settings.
 
 ## Layout
 

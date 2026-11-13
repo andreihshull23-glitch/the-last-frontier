@@ -310,6 +310,77 @@ if (want('phone')) {
   await ctx.close();
 }
 
+// ---------------------------------------------------------------- 5. controller, and the standalone page
+if (want('pad')) {
+  // a fake standard-mapping controller the test can drive
+  const fakePad = () => {
+    const pad = { id: 'Test Pad (STANDARD GAMEPAD)', index: 0, connected: true, mapping: 'standard', timestamp: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false, value: 0 })) };
+    window.__pad = pad;
+    window.__press = (i, on) => { pad.buttons[i] = { pressed: on, value: on ? 1 : 0 }; pad.timestamp++; };
+    navigator.getGamepads = () => [pad, null, null, null];
+  };
+  const { ctx, page } = await newPage({ viewport: { width: 1280, height: 720 } });
+  await page.addInitScript(fakePad);
+  // the standalone page wraps index.html for an ordinary browser tab
+  await page.goto(`${base}/play.html?debug`);
+  await page.waitForFunction(() => window.LF_DEBUG && window.LF_DEBUG.app.mode === 'title', null, { timeout: 120000 });
+  check(await page.locator('h1.title').count() === 1, 'play.html shows the title screen');
+  await shot(page, '50-standalone-title');
+  const frames = (n = 4) => page.evaluate((k) => new Promise((res) => { let i = 0; const f = () => (++i >= k ? res() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
+  const tap = async (i) => { await page.evaluate((b) => window.__press(b, true), i); await frames(2); await page.evaluate((b) => window.__press(b, false), i); await frames(2); }; // short, so slow test frames do not auto-repeat
+  // menus: D-pad down focuses the first button, A presses it
+  await tap(13);
+  const focused = await page.evaluate(() => document.activeElement?.dataset?.act ?? null);
+  check(focused === 'new', `the D-pad moves focus in menus (${focused})`);
+  await tap(0);
+  await page.waitForSelector('[data-act="hire"]');
+  await tap(13); await tap(0);
+  await waitMode(page, 'town');
+  check(true, 'hired a drifter with the controller');
+  await D(page, () => window.LF_DEBUG.quality(2));
+  // walk with the left stick
+  const x0 = await D(page, () => window.LF_DEBUG.state().player.x);
+  const t0 = await simT(page);
+  await page.evaluate(() => { window.__pad.axes[1] = -1; window.__pad.timestamp++; });
+  await waitSim(page, t0 + 1.5);
+  await page.evaluate(() => { window.__pad.axes[1] = 0; window.__pad.timestamp++; });
+  const moved = await D(page, (x) => Math.abs(window.LF_DEBUG.state().player.x - x), x0);
+  check(moved > 40, `the left stick walks (${moved.toFixed(0)} units)`);
+  // look with the right stick
+  const a0 = await D(page, () => window.LF_DEBUG.state().player.aim);
+  await page.evaluate(() => { window.__pad.axes[2] = 1; window.__pad.timestamp++; });
+  await waitSim(page, (await simT(page)) + 0.6);
+  await page.evaluate(() => { window.__pad.axes[2] = 0; window.__pad.timestamp++; });
+  const a1 = await D(page, () => window.LF_DEBUG.state().player.aim);
+  check(Math.abs(a1 - a0) > 0.3, `the right stick turns (${(a1 - a0).toFixed(2)} rad)`);
+  // fire with the right trigger
+  await page.evaluate(() => window.__press(7, true));
+  await waitSim(page, (await simT(page)) + 0.5);
+  await page.evaluate(() => window.__press(7, false));
+  const shot1 = await D(page, () => window.LF_DEBUG.state().player.shotT);
+  check(shot1 > 0, 'the right trigger fires');
+  await shot(page, '51-pad-town');
+  // rebinding: open the menu with Menu, go to settings by mouse, bind Fire to RB (5) and fire with it
+  await tap(9);
+  await page.waitForSelector('#panel .sheet.pause');
+  await page.click('[data-p="open"][data-id="settings"]');
+  await page.click('[data-p="padbind"][data-id="fire"]');
+  await tap(5);
+  const name = await page.locator('[data-p="padbind"][data-id="fire"]').textContent();
+  check(name.trim() === 'RB', `fire rebound in settings (${name.trim()})`);
+  await shot(page, '52-pad-settings');
+  await tap(1);                                  // B closes the panel
+  await page.waitForFunction(() => !window.LF_DEBUG.ui.panel);
+  const before = await D(page, () => window.LF_DEBUG.state().player.shotT);
+  await frames(6);
+  await page.evaluate(() => window.__press(5, true));
+  await waitSim(page, (await simT(page)) + 0.5);
+  await page.evaluate(() => window.__press(5, false));
+  const after = await D(page, () => window.LF_DEBUG.state().player.shotT);
+  check(after > before, 'the rebound button fires');
+  await ctx.close();
+}
+
 await browser.close();
 server.close();
 const real = problems.filter((p) => !/Failed to load resource|fonts\.g|net::ERR/.test(p));

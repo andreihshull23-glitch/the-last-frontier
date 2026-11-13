@@ -355,7 +355,7 @@ function drawWeapons(r, ctx, sim, right, bottom, compact) {
   ctx.fillText(reserve, x + W - 10, y + 36);
   ctx.fillStyle = DUST;
   ctx.font = `500 10px ${FONT_MONO}`;
-  ctx.fillText(energy ? (mag < g.mag ? 'recharging' : 'charged') : p.reloading ? 'loading' : mag === 0 ? 'EMPTY' : !r.touch && r.keyHints ? '[R]' : '', x + W - 10, y + 19);
+  ctx.fillText(energy ? (mag < g.mag ? 'recharging' : 'charged') : p.reloading ? 'loading' : mag === 0 ? 'EMPTY' : !r.touch && r.keyHints ? `[${r.pad ? r.pad.reload : 'R'}]` : '', x + W - 10, y + 19);
   if (H > 46) {
     let sx = x + 10;
     ctx.textAlign = 'left';
@@ -507,7 +507,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     if (narrow) drawClock(ctx, s, right, top + mm.h + 12, true, 'right');
     else drawClock(ctx, s, w / 2, top + 4, false, 'center');
   }
-  if (!r.touch && r.keyHints && !compact) label(ctx, '[M] MAP', right, top + mm.h + (narrow && !town && !s.noClock ? 54 : 20), DUST, `500 10px ${FONT_MONO}`, 'right');
+  if (!r.touch && r.keyHints && !compact) label(ctx, `[${r.pad ? r.pad.map : 'M'}] MAP`, right, top + mm.h + (narrow && !town && !s.noClock ? 54 : 20), DUST, `500 10px ${FONT_MONO}`, 'right');
 
   // ---- vitals ----
   const barW = compact ? 118 : r.touch ? 160 : 210;
@@ -581,7 +581,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     ctx.textAlign = 'left'; ctx.fillStyle = INK;
     ctx.fillText(`${Math.ceil(p.hp)}/${p.maxHp}`, vitalsX + 10, vitalsY + 44);
     ctx.fillStyle = SAGE; ctx.textAlign = 'right';
-    ctx.fillText(`${p.bandages} bandage${p.bandages === 1 ? '' : 's'}${r.keyHints && !r.touch ? ' [Q]' : ''}`, vitalsX + 10 + barW, vitalsY + 44);
+    ctx.fillText(`${p.bandages} bandage${p.bandages === 1 ? '' : 's'}${r.keyHints && !r.touch ? ` [${r.pad ? r.pad.heal : 'Q'}]` : ''}`, vitalsX + 10 + barW, vitalsY + 44);
   }
 
   // weapons
@@ -595,7 +595,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
   // what the action key does here
   const fp = focusPrompt(sim);
   if (fp && s.phase === 'playing' && !r.mapOpen) {
-    const key = r.touch ? 'ACT' : 'E';
+    const key = r.touch ? 'ACT' : r.pad ? r.pad.use : 'E';
     const text = fp.kind === 'extracting' ? `[${key}] Cancel` : `[${key}] ${fp.hold ? 'Hold: ' : ''}${fp.label}`;
     ctx.font = `600 13px ${FONT_MONO}`;
     const tw = ctx.measureText(text).width + 18;
@@ -611,7 +611,12 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
   if (ui.touchUI && !r.mapOpen) drawTouchUI(ctx, ui.touchUI);
   if (!r.touch && r.keyHints && s.t < 22 && w >= 1000 && !r.mapOpen) {
     ctx.globalAlpha = clamp((22 - s.t) / 3, 0, 1) * 0.85;
-    const hint = town
+    const P = r.pad;
+    const hint = P
+      ? (town
+        ? `Left stick walk · Right stick look · ${P.sprint} sprint · ${P.use} talk and trade · ${P.journal} journal · ${P.map} map · ${P.menu} menu`
+        : `Left stick move · Right stick look · ${P.fire} fire · ${P.alt} alt fire · ${P.dodge} dodge · ${P.reload} reload · ${P.next} next gun · ${P.throw} dynamite · ${P.heal} bandage · ${P.use} use`)
+      : town
       ? 'WASD walk · Mouse look · Shift sprint · E talk and trade · J journal · M map · Esc menu'
       : 'WASD move · Shift sprint · Space dodge · Click fire · Right-click alt fire · 1-7 guns · G dynamite · R reload · Q bandage · E use';
     label(ctx, hint, w / 2, bottom - (town ? 6 : 4), INK, `500 11px ${FONT_MONO}`);
