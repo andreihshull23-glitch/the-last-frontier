@@ -1,0 +1,79 @@
+<title>Level viewer</title>
+<style>
+  :root { color-scheme: dark; }
+  body { background: #20222a; color: #e8e2d0; font: 11px/1.2 ui-monospace, monospace; overflow: hidden; }
+  canvas { display: block; }
+</style>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="module">
+  import { createAssets, Merger } from '../js/gfx/assets.js';
+  import { registerTints } from '../js/gfx/tints.js';
+  import { buildWorld } from '../js/gfx/world.js';
+  import { generateLevel } from '../js/gen/index.js';
+  import { SOLID, ROCK, OPAQUE, BLOCKS_SHOT, TILE, PX } from '../js/content.js';
+  const q = new URLSearchParams(location.search);
+  window.addEventListener('error', (e) => { window.ERR = String(e.message) + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno; window.READY = true; });
+  window.addEventListener('unhandledrejection', (e) => { window.ERR = String(e.reason && (e.reason.stack || e.reason.message) || e.reason).slice(0, 600); window.READY = true; });
+  const assets = createAssets();
+  await assets.load('../assets/');
+  registerTints(assets);
+  const spec = JSON.parse(q.get('spec') || '{"gen":"town"}');
+  const L = generateLevel(spec);
+  const W = innerWidth, H = innerHeight;
+  const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+  renderer.setSize(W, H); renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = +(q.get('exp') || 1.0);
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(q.get('bg') || '#9fc4e0');
+  scene.add(new THREE.HemisphereLight(0xcfe4ff, 0xa07a5a, 0.62));
+  const sun = new THREE.DirectionalLight(0xffeccf, 1.0); 
+  const Wm = L.w * TILE / PX, Hm = L.h * TILE / PX;
+  const cx = +(q.get('cx') || Wm / 2), cz = +(q.get('cz') || Hm / 2);
+  sun.position.set(cx - 40, 70, cz + 30); sun.target.position.set(cx, 0, cz); scene.add(sun.target);
+  sun.castShadow = true;
+  const span = +(q.get('span') || Math.max(Wm * H / W, Hm) / 2 + 2);
+  const ext = span * 2.2;
+  Object.assign(sun.shadow.camera, { left: -ext, right: ext, top: ext, bottom: -ext, near: 1, far: 300 });
+  sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.05; scene.add(sun);
+  const world = buildWorld(assets, L, { seed: spec.seed || 1 });
+  scene.add(world.group);
+  if (q.get('roofs') === '0') for (const r of world.roofs) { r.mesh.visible = false; for (const s of r.signs) s.visible = false; }
+  // debug overlay
+  if (q.get('tiles')) {
+    const m = new Merger(assets);
+    const TM = TILE / PX;
+    for (let ty = 0; ty < L.h; ty++) for (let tx = 0; tx < L.w; tx++) {
+      const f = L.flags[ty * L.w + tx];
+      if (!(f & SOLID) || f & ROCK) continue;
+      const col = f & BLOCKS_SHOT ? [255, 40, 40] : [255, 200, 0];
+      m.addQuad([tx * TM, 0.06, (ty + 1) * TM, (tx + 1) * TM, 0.06, (ty + 1) * TM, (tx + 1) * TM, 0.06, ty * TM, tx * TM, 0.06, ty * TM], [0, 1, 0], [...col, ...col, ...col, ...col]);
+    }
+    if (!m.empty) scene.add(new THREE.Mesh(m.build(), new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55, depthTest: false })));
+  }
+  if (q.get('marks')) {
+    const mark = (x, y, color, r = 0.5) => { const s = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), new THREE.MeshBasicMaterial({ color, depthTest: false })); s.position.set(x / PX, 2.2, y / PX); s.renderOrder = 9; scene.add(s); };
+    for (const it of L.items) mark(it.x, it.y, it.kind === 'exit' ? 0x40ff80 : it.kind === 'objective' ? 0xffff40 : 0x40a0ff);
+    for (const n of L.npcs) mark(n.x, n.y, 0x40ff40, 0.4);
+    for (const s of L.spawns) mark(s.x, s.y, 0xff3030, 0.4);
+    mark(L.start.x, L.start.y, 0xffffff, 0.7);
+  }
+  const view = q.get('view') || 'top';
+  const az = +(q.get('az') || 0) * Math.PI / 180, el = +(q.get('el') || (view === 'top' ? 89.9 : 40)) * Math.PI / 180;
+  let cam;
+  if (view === 'persp') {
+    cam = new THREE.PerspectiveCamera(+(q.get('fov') || 60), W / H, 0.1, 500);
+    cam.position.set(+(q.get('px') || cx), +(q.get('py') || 2.2), +(q.get('pz') || cz + 6));
+    cam.lookAt(cx, +(q.get('ly') || 1.2), cz);
+    scene.fog = new THREE.Fog(scene.background.getHex(), 40, 150);
+  } else {
+    cam = new THREE.OrthographicCamera(-span * W / H, span * W / H, span, -span, 0.1, 600);
+    const d = 200;
+    cam.position.set(cx + Math.sin(az) * Math.cos(el) * d, Math.sin(el) * d, cz + Math.cos(az) * Math.cos(el) * d);
+    cam.up.set(0, view === 'top' ? 0 : 1, view === 'top' ? -1 : 0);
+    cam.lookAt(cx, 0, cz);
+  }
+  renderer.render(scene, cam);
+  window.INFO = { w: L.w, h: L.h, pieces: L.pieces.length, calls: renderer.info.render.calls, tris: renderer.info.render.triangles, items: L.items.length, npcs: L.npcs.length, spawns: L.spawns.length };
+  window.READY = true;
+</script>

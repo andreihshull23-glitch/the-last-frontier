@@ -1,0 +1,81 @@
+<title>Model viewer</title>
+<style>
+  :root { color-scheme: dark; }
+  body { background: #20222a; color: #e8e2d0; font: 11px/1.2 ui-monospace, monospace; overflow: hidden; }
+  canvas { display: block; }
+  .tag { position: absolute; transform: translate(-50%, 0); white-space: nowrap; text-shadow: 0 1px 2px #000; pointer-events: none; }
+</style>
+<canvas id="c"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="module">
+  import { createAssets, Merger } from '../js/gfx/assets.js';
+  import * as tintLib from '../js/gfx/tints.js';
+  const q = new URLSearchParams(location.search);
+  window.addEventListener('error', (e) => { window.ERR = String(e.message); window.READY = true; });
+  window.addEventListener('unhandledrejection', (e) => { window.ERR = String(e.reason && e.reason.message || e.reason); window.READY = true; });
+  const assets = createAssets();
+  await assets.load('../assets/');
+  if (tintLib.registerTints) tintLib.registerTints(assets);
+  let names = [];
+  for (const part of (q.get('m') || 'cave/*').split(',')) {
+    if (part.endsWith('*')) {
+      const [id] = part.split('/');
+      const pre = part.slice(0, -1);
+      names.push(...assets.names(id).filter((n) => n.startsWith(pre)));
+    } else names.push(part);
+  }
+  const not = q.get('not'); if (not) names = names.filter((n) => !new RegExp(not).test(n));
+  const cell = +(q.get('cell') || 6), cols = +(q.get('cols') || Math.ceil(Math.sqrt(names.length * 1.6)));
+  const tint = q.get('tint') || null;
+  const W = innerWidth, H = innerHeight;
+  const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+  renderer.setSize(W, H); renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  const scene = new THREE.Scene(); scene.background = new THREE.Color(0x20222a);
+  scene.add(new THREE.HemisphereLight(0xcfe0ff, 0x6b5a48, 0.75));
+  const sun = new THREE.DirectionalLight(0xfff0d8, 1.25); sun.position.set(-30, 60, 25); sun.castShadow = true;
+  const rows = Math.ceil(names.length / cols);
+  const ext = Math.max(cols, rows) * cell;
+  sun.shadow.camera.left = -ext; sun.shadow.camera.right = ext; sun.shadow.camera.top = ext; sun.shadow.camera.bottom = -ext; sun.shadow.camera.far = 300;
+  sun.shadow.mapSize.set(4096, 4096); sun.shadow.bias = -0.0005; sun.shadow.normalBias = 0.04; scene.add(sun);
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(ext * 3, ext * 3), new THREE.MeshLambertMaterial({ color: 0x15161b }));
+  ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  const grid = new THREE.GridHelper(cols * cell, cols * cell, 0x555a66, 0x30333c); grid.position.set((cols - 1) * cell / 2, 0.01, (rows - 1) * cell / 2);
+  if (q.get('grid')) scene.add(grid);
+  const tags = [];
+  names.forEach((n, i) => {
+    const x = (i % cols) * cell, z = Math.floor(i / cols) * cell;
+    const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = +(q.get('ry') || 0) * Math.PI / 180;
+    let raw = { bb: [0, 0, 0, 0, 0, 0] };
+    if (assets.has(n)) {
+      const m = assets.mesh(n, tint); m.castShadow = true; m.receiveShadow = true; g.add(m);
+      raw = assets.raw(n);
+      if (raw.pivot) m.position.set(raw.pivot[0], raw.pivot[1], raw.pivot[2]);
+    }
+    for (const extra of ['#glass', '#door', '#lid', '#gate', '#door-left', '#door-right']) {
+      if (!n.includes('#') && assets.has(n + extra)) {
+        const e = assets.mesh(n + extra, tint); const p = assets.raw(n + extra).pivot; e.position.set(p[0], p[1], p[2]); e.castShadow = true; g.add(e);
+      }
+    }
+    scene.add(g);
+    if (q.get('axes')) { const ax = new THREE.AxesHelper(1.5); ax.position.set(x, 0.02, z); scene.add(ax); }
+    tags.push({ n, x, z, bb: raw.bb });
+  });
+  const az = +(q.get('az') || 35) * Math.PI / 180, el = +(q.get('el') || 32) * Math.PI / 180;
+  const cx = (cols - 1) * cell / 2, cz = (rows - 1) * cell / 2;
+  const span = 0.5 * Math.max(rows * cell * 0.8 + 3, (cols * cell + 2) * H / W) * +(q.get('zoom') || 1.1);
+  const cam = new THREE.OrthographicCamera(-span * W / H, span * W / H, span, -span, 0.1, 1000);
+  const d = 200;
+  cam.position.set(cx + Math.sin(az) * Math.cos(el) * d, Math.sin(el) * d + 1, cz + Math.cos(az) * Math.cos(el) * d);
+  cam.lookAt(cx, +(q.get('ly') || 1), cz);
+  renderer.render(scene, cam);
+  for (const t of tags) {
+    const v = new THREE.Vector3(t.x, -0.2, t.z + cell * 0.32).project(cam);
+    const el2 = document.createElement('div'); el2.className = 'tag';
+    el2.textContent = t.n.split('/')[1] + (q.get('dims') ? ` ${(t.bb[3]-t.bb[0]).toFixed(1)}×${(t.bb[4]-t.bb[1]).toFixed(1)}×${(t.bb[5]-t.bb[2]).toFixed(1)}` : '');
+    el2.style.left = ((v.x + 1) / 2 * W) + 'px'; el2.style.top = ((1 - v.y) / 2 * H) + 'px';
+    document.body.appendChild(el2);
+  }
+  window.READY = true;
+</script>

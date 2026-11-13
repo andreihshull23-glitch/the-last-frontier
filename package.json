@@ -1,0 +1,10 @@
+{
+  "name": "the-last-frontier",
+  "private": true,
+  "type": "module",
+  "description": "A third-person sci-fi Western extraction roguelike that runs in the browser.",
+  "scripts": {
+    "test": "node --test tests/game.test.js",
+    "smoke": "node tests/smoke.mjs"
+  }
+}

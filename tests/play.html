@@ -1,0 +1,83 @@
+<title>Play harness</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<style>
+  :root { color-scheme: dark; } html, body { height: 100%; }
+  body { background: #121318; overflow: hidden; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+</style>
+<canvas id="gl"></canvas><canvas id="hud"></canvas>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script type="module">
+  import { createAssets } from '../js/gfx/assets.js';
+  import { createRenderer } from '../js/gfx/renderer.js';
+  import { generateLevel } from '../js/gen/index.js';
+  import * as S from '../js/sim.js';
+  import * as R from '../js/rules.js';
+  const q = new URLSearchParams(location.search);
+  window.addEventListener('error', (e) => { window.ERR = String(e.message) + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno; window.READY = true; });
+  window.addEventListener('unhandledrejection', (e) => { window.ERR = String(e.reason && (e.reason.stack || e.reason.message) || e.reason).slice(0, 700); window.READY = true; });
+  const assets = createAssets();
+  await assets.load('../assets/');
+  const c = R.newCampaign(+(q.get('cseed') || 7));
+  R.hireDrifter(c, +(q.get('hire') || 0));
+  c.cash = 900;
+  c.chapter = +(q.get('chapter') || 0);
+  if (q.get('guns')) { c.armory.guns = ['rifle', 'shotgun']; c.character.shells = 24; }
+  if (q.get('gear')) c.character.gear = q.get('gear').split(',');
+  const mode = q.get('mode') || 'town';
+  let config;
+  if (mode === 'town') config = R.townConfig(c);
+  else { const b = R.beginExpedition(c, mode, +(q.get('seed') || 11)); if (!b.ok) throw new Error(b.reason); config = b.config; }
+  const t0 = performance.now();
+  const level = generateLevel(config.level);
+  const sim = S.createSim(config, level);
+  const r = createRenderer(document.getElementById('gl'), document.getElementById('hud'), assets);
+  r.autoQuality = false;
+  r.setQuality(+(q.get('q') || 1));
+  r.prepare(sim);
+  window.BUILD_MS = Math.round(performance.now() - t0);
+  const p = sim.state.player;
+  if (q.get('x')) { p.x = +q.get('x') * 32; p.y = +q.get('y') * 32; }
+  if (q.get('near')) {
+    const st = sim.state;
+    const kind = q.get('near');
+    const t = kind === 'objective' ? st.interactables.find((i) => i.kind === 'objective') : kind === 'cache' ? st.interactables.find((i) => i.kind === 'cache') : kind === 'exit' ? st.interactables.filter((i) => i.kind === 'exit').pop()
+      : st.enemies.filter((e) => !q.get('ekind') || e.kind === q.get('ekind')).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[+(q.get('nth') || 0)];
+    const d = +(q.get('dist') || 8) * 32;
+    // stand back from it along a clear line
+    let best = null;
+    for (let k = 0; k < 24; k++) {
+      const a = (k / 24) * Math.PI * 2 + 0.3;
+      const x = t.x + Math.cos(a) * d, y = t.y + Math.sin(a) * d;
+      const ti = Math.floor(y / 16) * level.w + Math.floor(x / 16);
+      if (sim.cache.nav[ti] && S.hasLOS(sim, x, y, t.x, t.y)) { best = [x, y, a]; break; }
+    }
+    if (best) { p.x = best[0]; p.y = best[1]; r.yaw = best[2] + Math.PI; p.aim = r.yaw; }
+  }
+  if (q.get('yaw')) r.yaw = +q.get('yaw') * Math.PI / 180;
+  if (q.get('pitch')) r.pitch = +q.get('pitch');
+  if (q.get('peace')) for (const e of sim.state.enemies) { e.x = -9999; }
+  if (q.get('clock')) sim.state.clockOffset = +q.get('clock');
+  const secs = +(q.get('t') || 1.5);
+  const script = q.get('do') || '';
+  const ui = { town: { cash: c.cash, who: `${c.character.name} · ${c.character.trait}`, hint: 'Talk to the marshal outside the Town Hall.', giver: config.giver, canRide: true } };
+  let frames = 0;
+  const step = (dt) => {
+    r.updateCamera(sim, dt);
+    const aim = r.aimPoint(sim, null);
+    const mv = r.moveToWorld(script.includes('fwd') ? 1 : 0, script.includes('right') ? 1 : 0);
+    const input = { mx: mv.mx, my: mv.my, ax: aim.x, ay: aim.y, fireHeld: script.includes('fire'), sprint: script.includes('sprint'), interactHeld: script.includes('use'), interactPressed: false,
+      throw: script.includes('throw') && frames === 20, slot: script.includes('rifle') && frames === 2 ? 2 : script.includes('shotgun') && frames === 2 ? 3 : 0, dodge: script.includes('dodge') && frames === 30 };
+    S.update(sim, dt, input);
+    r.consume(sim.events, sim);
+    sim.events.length = 0;
+    frames++;
+  };
+  for (let i = 0; i < secs * 60; i++) step(1 / 60);
+  if (q.get('map')) r.mapOpen = true;
+  r.draw(sim, 1 / 60, { ...ui, cameraUpdated: false });
+  r.draw(sim, 1 / 60, { ...ui, cameraUpdated: false });
+  window.SIM = sim; window.RND = r;
+  window.INFO = { build: window.BUILD_MS, calls: r.gl.info.render.calls, tris: r.gl.info.render.triangles, enemies: sim.state.enemies.length, px: Math.round(p.x / 32), py: Math.round(p.y / 32), zone: sim.state.zone };
+  window.READY = true;
+</script>
