@@ -203,14 +203,15 @@ export function createUI(root, panelEl, api) {
     const tags = [];
     if (m.kind === 'story') tags.push(`Chapter ${m.chapter}`);
     if (m.faction) tags.push(FACTIONS[m.faction].short);
-    tags.push(m.gen === 'mine' ? 'Underground' : m.night ? 'After dark' : 'Canyon');
+    if (m.kind === 'descent') tags.push('Roguelike run', `${m.floors} floors`, m.best ? `Best: floor ${m.best}` : 'Never finished');
+    else tags.push(m.gen === 'mine' ? 'Underground' : m.night ? 'After dark' : 'Canyon');
     if (m.kind === 'job' && m.tier) tags.push(`Danger ${m.tier}`);
     const rep = Object.entries(m.rep).map(([f, d]) => `${FACTIONS[f].short} ${signed(d)}`);
     return `<article class="bill ${m.faction || 'none'} ${m.kind === 'story' ? 'is-selected' : ''}">
       <div class="tags">${tags.map((t) => `<span>${esc(t)}</span>`).join('')}</div>
       <h3>${esc(m.title)}</h3>
       <p class="brief">${esc(m.brief)}</p>
-      <p class="reward num">${m.cash ? `$${m.cash}` : 'Bounty on proof'}${rep.length ? ' · ' + esc(rep.join(' · ')) : ''}${m.prosperity ? ` · Mercy ${signed(m.prosperity)}` : ''}</p>
+      <p class="reward num">${m.kind === 'descent' ? 'Paid by the floor, even if you do not come back' : m.cash ? `$${m.cash}` : 'Bounty on proof'}${rep.length ? ' · ' + esc(rep.join(' · ')) : ''}${m.prosperity ? ` · Mercy ${signed(m.prosperity)}` : ''}</p>
       ${compact ? '' : `<button class="btn" data-p="pick" data-id="${esc(m.id)}">Take this job</button>`}
     </article>`;
   }
@@ -254,14 +255,16 @@ export function createUI(root, panelEl, api) {
         const owned = g === 'revolver' || camp.armory.guns.includes(g);
         const def = GUNS[g];
         return owned
-          ? `<div class="item built"><div><h3>${esc(def.name)} <span class="muted">· ${esc(def.role)}</span></h3><p>${esc(def.desc)}</p><p class="have">${esc(stat(g))}</p></div><span class="have">In your armory</span></div>`
-          : buyRow(`${def.name} · ${def.role}`, def.desc, stat(g), R.canBuyGun(camp, g), 'Buy', `data-p="gun" data-id="${g}"`);
+          ? `<div class="item built"><div><h3>${esc(def.name)} <span class="muted">· ${esc(def.role)}</span></h3><p>${esc(def.desc)}</p><p class="have">${esc(stat(g))}</p></div><span class="have">${g === 'revolver' ? 'You always carry it' : 'Unlocked: can be found'}</span></div>`
+          : def.base
+            ? `<div class="item built"><div><h3>${esc(def.name)} <span class="muted">· ${esc(def.role)}</span></h3><p>${esc(def.desc)}</p><p class="have">${esc(stat(g))}</p></div><span class="have">Found on every ride</span></div>`
+            : buyRow(`${def.name} · ${def.role}`, def.desc, stat(g), R.canBuyGun(camp, g), 'Unlock', `data-p="gun" data-id="${g}"`);
       }).join('');
       const work = Object.entries(UPGRADES).map(([id, u]) => (ups.includes(id)
         ? `<div class="item built"><div><h3>${esc(u.name)}</h3><p>${esc(u.desc)}</p></div><span class="have">Fitted</span></div>`
         : buyRow(u.name, u.desc, GUNS[u.gun].name, R.canBuyUpgrade(camp, id), 'Fit', `data-p="upgrade" data-id="${id}"`))).join('');
       return `${head(SHOPS.gunsmith.keeper, 'Gunsmith')}
-        <p class="muted">Guns and gunsmith work stay in the armory. A dead drifter does not take them along. Try anything at the range behind the shop.</p>
+        <p class="muted">You ride out with the revolver and find everything else on the way: in caches, in shops down the shaft, and on whatever you kill. Paying the gunsmith to build a gun means it can turn up from then on. Try any of them at the range behind the shop.</p>
         <h3 class="section">Guns</h3><div class="items">${guns}</div>
         <h3 class="section">Workshop</h3><div class="items">${work}</div>${foot()}`;
     },

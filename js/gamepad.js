@@ -12,6 +12,9 @@ export const PAD_ACTIONS = [
   ['interact', 'Use / talk'],
   ['heal', 'Bandage'],
   ['throw', 'Dynamite'],
+  ['pulse', 'Pulse (clears enemy fire)'],
+  ['jump', 'Jump'],
+  ['camera', 'Switch camera'],
   ['next', 'Next gun'],
   ['prev', 'Previous gun'],
   ['map', 'Map'],
@@ -22,7 +25,7 @@ export const PAD_ACTIONS = [
 /** Default layout, as button indices of the standard mapping. */
 export const PAD_DEFAULTS = {
   fire: 7, alt: 6, dodge: 0, sprint: 10, reload: 2, interact: 3, heal: 1,
-  throw: 5, next: 4, prev: 14, map: 8, journal: 12, pause: 9,
+  throw: 5, next: 4, prev: 14, map: 8, journal: 12, pause: 9, pulse: 13, jump: 11, camera: 15,
 };
 
 const NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'Home'];

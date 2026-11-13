@@ -1,7 +1,7 @@
 // The third-person view: an over-the-shoulder camera on the 2D sim. The sim's
 // plane is the ground (sim x -> world x, sim y -> world z, 32 units = 1 m).
 // This module reads the sim and never writes it.
-import { TILE as TS, PX, ENEMIES, WEAPONS, GUNS, SOLID, OPAQUE, BLOCKS_SHOT, ITEMS } from '../content.js';
+import { TILE as TS, PX, ENEMIES, WEAPONS, GUNS, RELICS, JUMP, SOLID, OPAQUE, BLOCKS_SHOT, ITEMS } from '../content.js';
 import { castRay, isVisible, visionRadius, nightFactor, darkness, clockTime, CLOCK, PLAYER, haunted, focusPrompt } from '../sim.js';
 import { buildWorld } from './world.js';
 import { createActors, LOOKS, drifterLook } from './actors.js';
@@ -14,8 +14,11 @@ const TM = TS / PX;          // metres per tile
 const TAU = Math.PI * 2;
 const EYE = 1.5;
 const GUN_Y = 1.08;
-const PITCH_MIN = -0.34;
-const PITCH_MAX = 0.6;
+// Two cameras: close over the shoulder, and high above the fight so every shot in the room can be seen.
+const CAMERAS = {
+  shoulder: { min: -0.34, max: 0.6, start: 0.14, dist: 1, side: 1 },
+  high: { min: 0.62, max: 1.18, start: 0.86, dist: 2.25, side: 0.25 },
+};
 const QUALITY = [
   { dpr: 2, shadows: 2048, fx: 1 },
   { dpr: 1.5, shadows: 1024, fx: 0.7 },
@@ -203,7 +206,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
   };
   const basic = (hex, opts = {}) => new THREE.MeshBasicMaterial({ color: col(hex), transparent: true, depthWrite: false, toneMapped: false, ...opts });
   const tracerMat = new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending });
-  const tracers = new THREE.InstancedMesh(G.box, tracerMat, 96);
+  const tracers = new THREE.InstancedMesh(G.box, tracerMat, 320);
   tracers.frustumCulled = false;
   tracers.count = 0;
   tracers.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(96 * 3), 3);
@@ -290,6 +293,24 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
         g.add(mesh);
         o.spin = mesh;
       }
+    } else if (it.kind === 'gun' || it.kind === 'relic' || it.kind === 'ware') {
+      const tier = it.gun ? GUNS[it.gun].tier || 1 : it.relic ? RELICS[it.relic].tier : 1;
+      const glow = it.heal ? '#ff6a6a' : ['', '#e8dcc0', '#7fe0ff', '#ff9af0'][tier];
+      const ring = new THREE.Mesh(G.ring, basic(glow, { opacity: 0.7, side: THREE.DoubleSide }));
+      ring.scale.setScalar(0.55); ring.position.y = 0.05; g.add(ring);
+      let item;
+      if (it.gun) {
+        item = assets.mesh(GUNS[it.gun].gunModel);
+        item.scale.setScalar(GUNS[it.gun].gunModel.startsWith('gun/') ? 0.8 : 1.25);
+      } else if (it.relic) {
+        item = new THREE.Mesh(G.crystal, new THREE.MeshBasicMaterial({ color: col(glow), toneMapped: false }));
+        item.scale.set(0.5, 0.7, 0.5);
+      } else {
+        item = procMesh((m) => { m.addBox(0, -0.16, 0, 0.42, 0.32, 0.3, 0, C('#ece6d8'), C('#c4bcaa')); m.addBox(0, 0.17, 0, 0.3, 0.012, 0.09, 0, C('#d0403a')); m.addBox(0, 0.17, 0, 0.09, 0.013, 0.3, 0, C('#d0403a')); });
+      }
+      item.position.y = 0.95;
+      g.add(item);
+      o.spin = item; o.ring = ring; o.glow = glow;
     } else if (it.kind === 'exit') {
       const ring = new THREE.Mesh(G.ring, basic('#a9c98f', { opacity: 0.5, side: THREE.DoubleSide }));
       ring.scale.setScalar(PLAYER.extractRadius * U);
@@ -438,7 +459,8 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     r.yaw += dYaw;
     if (r.yaw > Math.PI) r.yaw -= TAU;
     if (r.yaw < -Math.PI) r.yaw += TAU;
-    r.pitch = clamp(r.pitch + dPitch, PITCH_MIN, PITCH_MAX);
+    const cam = CAMERAS[r.camMode] || CAMERAS.shoulder;
+    r.pitch = clamp(r.pitch + dPitch, cam.min, cam.max);
   };
   /** Move axes (forward/right, -1..1) to a world-space move vector for the sim. */
   r.moveToWorld = (fwd, right) => {
@@ -446,6 +468,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     return { mx: fwd * cy - right * sy, my: fwd * sy + right * cy };
   };
   r.updateCamera = (sim, dt) => {
+    const cam = CAMERAS[r.camMode] || CAMERAS.shoulder;
     const p = r.playerPos || sim.state.player;
     const px = p.x * U, pz = p.y * U;
     // The pivot rides the (interpolated) drifter exactly: no lag for the camera to catch up on.
@@ -456,13 +479,15 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     const sideFree = castRay(sim, r.pivot.x / U, r.pivot.z / U, b.rx, b.rz, 1.2 / U, OPAQUE) * U;
     const sideWant = Math.min(0.92, Math.max(0, sideFree - 0.22));
     r.side = r.side === undefined ? sideWant : lerp(r.side, sideWant, 1 - Math.exp(-dt * 14));
-    const side = Math.min(r.side, sideWant + 0.25);
+    const side = Math.min(r.side, sideWant + 0.25) * cam.side;
     const sx = r.pivot.x + b.rx * side, sz = r.pivot.z + b.rz * side;
-    const dist = (r.view.w < r.view.h ? 5.4 : 4.9) * (sim.state.player.sprinting ? 1.07 : 1);
+    r.camDist = r.camDist === undefined ? cam.dist : lerp(r.camDist, cam.dist, 1 - Math.exp(-(dt || 0.016) * 6));
+    const dist = (r.view.w < r.view.h ? 5.4 : 4.9) * (sim.state.player.sprinting ? 1.07 : 1) * r.camDist;
     const dx = -b.fx * dist, dz = -b.fz * dist;
     const hd = Math.hypot(dx, dz) || 1;
     const free = castRay(sim, sx / U, sz / U, dx / hd, dz / hd, (hd + 0.4) / U, OPAQUE) * U;
-    const want = free < hd + 0.3 ? clamp((free - 0.3) / hd, 0.08, 1) : 1;
+    // the high camera looks over walls, so nothing squeezes it
+    const want = r.camMode === 'high' ? 1 : free < hd + 0.3 ? clamp((free - 0.3) / hd, 0.08, 1) : 1;
     // pull in quickly but not in one frame, ease back out slowly
     r.camScale = want < r.camScale ? Math.max(want, lerp(r.camScale, want, 1 - Math.exp(-dt * 30)) - 0.0) : lerp(r.camScale, want, 1 - Math.exp(-dt * 4));
     // Squeezed by a wall: rise over it and tip down toward the drifter (roofs hide while you are inside).
@@ -615,6 +640,12 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     r.resize();
   }
   r.setQuality = setQuality;
+  r.camMode = 'shoulder';
+  r.setCamera = (mode) => {
+    if (mode === r.camMode || !CAMERAS[mode]) return;
+    r.camMode = mode;
+    r.pitch = CAMERAS[mode].start;
+  };
   r.autoQuality = true;
 
   r.prepare = (sim) => {
@@ -692,6 +723,20 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           flashAt(bx, 1.1, bz, 2.5, '#c9a2ff');
           break;
         }
+        case 'pulse': {
+          r.shake = Math.max(r.shake, 6);
+          flashAt(X, 1.2, Z, 9, '#8fe6ff', 0.18);
+          for (let i = 0; i < 64; i++) { const a = (i / 64) * Math.PI * 2, sp = 16 + Math.random() * 6; emit(sparks, { x: X, y: 0.9 + Math.random() * 0.4, z: Z, vx: Math.cos(a) * sp, vy: 0.4, vz: Math.sin(a) * sp, life: 0.45, size: 0.22, color: '#aaf0ff', drag: 1.2 }); }
+          break;
+        }
+        case 'beam_in':
+          for (let i = 0; i < 16; i++) emit(sparks, { x: X + (Math.random() - 0.5) * 0.5, y: Math.random() * 2.6, z: Z + (Math.random() - 0.5) * 0.5, vx: 0, vy: 3 + Math.random() * 3, vz: 0, life: 0.6, size: 0.14, color: '#ff8a5a' });
+          flashAt(X, 1.2, Z, 2.5, '#ff8a5a', 0.3);
+          break;
+        case 'room_sealed': r.shake = Math.max(r.shake, e.boss ? 7 : 3); break;
+        case 'room_cleared': r.shake = Math.max(r.shake, 2); break;
+        case 'jump': emit(dust, { x: X, y: 0.1, z: Z, vx: 0, vy: 0.5, vz: 0, life: 0.5, size: 0.4, grow: 2, a: 0.3, color: '#b8a898', drag: 2 }); break;
+        case 'land': for (let i = 0; i < 5; i++) emit(dust, { x: X, y: 0.1, z: Z, vx: (Math.random() - 0.5) * 2, vy: 0.4, vz: (Math.random() - 0.5) * 2, life: 0.5, size: 0.35, grow: 2, a: 0.3, color: '#b8a898', drag: 2 }); break;
         case 'buddy_shot': { const a = r.world?.buddy; if (a) a.shootT = 0; break; }
         case 'echo_shot':
           flashAt(X, GUN_Y, Z, 2, '#9fe8ff');
@@ -863,6 +908,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     a.face = a.face === undefined ? want : turn(a.face, want, dt * 24);
     const pp = r.playerPos || p;
     actors.place(a, pp.x * U, pp.y * U, a.face);
+    a.root.position.y = p.jumpT > 0 ? Math.sin(Math.PI * (1 - p.jumpT / JUMP.time)) * 1.05 : 0;
     actors.update(a, dt, { speed, armed, facing: a.face, moveAngle: speed > 0.5 ? Math.atan2(p.vy, p.vx) : undefined });
     if (a.gun) a.gun.visible = !town || armed;
     a.root.visible = true;
@@ -959,7 +1005,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     let n = 0;
     const colors = tracers.instanceColor.array;
     for (const b of s.bullets) {
-      if (n >= 96) break;
+      if (n >= 320) break;
       const ang = Math.atan2(b.vy, b.vx);
       const len = Math.min(2.4, Math.max(0.5, Math.hypot(b.x - b.px, b.y - b.py) * U * 1.4));
       pos.set(b.x * U - Math.cos(ang) * len / 2, GUN_Y, b.y * U - Math.sin(ang) * len / 2);
@@ -967,6 +1013,17 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       scl.set(len, 0.035, 0.035);
       m4.compose(pos, quat, scl);
       tracers.setMatrixAt(n, m4);
+      if (b.big) {
+        const pulse = 0.3 + Math.sin(r.time * 18 + b.id) * 0.04;
+        pos.set(b.x * U, b.ground ? 0.28 : GUN_Y, b.y * U);
+        scl.set(pulse, b.ground ? pulse * 0.55 : pulse, pulse);
+        m4.compose(pos, quat, scl);
+        tracers.setMatrixAt(n, m4);
+        const cb = b.ground ? [1, 0.72, 0.2] : [1, 0.25, 0.5];
+        colors[n * 3] = cb[0]; colors[n * 3 + 1] = cb[1]; colors[n * 3 + 2] = cb[2];
+        n++;
+        continue;
+      }
       const energy = b.owner === 'player' ? GUNS[b.kind]?.bolt : null;
       if (energy || b.kind === 'pulse') { scl.set(len * 0.8, b.heavy ? 0.16 : 0.07, b.heavy ? 0.16 : 0.07); m4.compose(pos, quat, scl); tracers.setMatrixAt(n, m4); }
       const c = energy ? (b.kind === 'arc' ? [0.8, 0.62, 1] : [0.42, 0.85, 1]) : b.kind === 'pulse' ? [1, 0.3, 0.55] : b.owner === 'player' ? [1, 0.88, 0.55] : b.owner === 'echo' ? [0.45, 0.85, 1] : [1, 0.42, 0.22];
@@ -1013,12 +1070,53 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     }
   }
 
+  /** Energy barriers across the doors of a room that is sealed for a fight. */
+  function syncRooms(sim) {
+    const s = sim.state, W = r.world, L = sim.level;
+    if (!s.rooms || !L.rooms) return;
+    W.barriers ||= new Map();
+    for (const st of s.rooms) {
+      const on = st.state === 'active';
+      let g = W.barriers.get(st.id);
+      if (!g && on) {
+        g = new THREE.Group();
+        for (const [x0, y0, x1, y1] of L.rooms[st.id].seal) {
+          const w = (x1 - x0 + 1) * TS * U, d = (y1 - y0 + 1) * TS * U;
+          const m = new THREE.Mesh(G.box, basic('#ff5a3a', { opacity: 0.3, side: THREE.DoubleSide }));
+          m.scale.set(w, 3.4, d);
+          m.position.set((x0 + x1 + 1) / 2 * TS * U, 1.7, (y0 + y1 + 1) / 2 * TS * U);
+          g.add(m);
+        }
+        W.group.add(g);
+        W.barriers.set(st.id, g);
+      }
+      if (g) {
+        g.visible = on;
+        if (on) for (const m of g.children) m.material.opacity = 0.24 + Math.sin(r.time * 6 + m.position.x) * 0.08;
+      }
+    }
+  }
+
   function syncProps(sim, dt) {
+    syncRooms(sim);
     const s = sim.state, W = r.world;
     for (const it of s.interactables) {
-      const o = W.props.get(it.id);
-      if (!o) continue;
-      if (it.kind === 'cache') {
+      let o = W.props.get(it.id);
+      if (!o) {
+        // dropped during the ride: make it now
+        if (it.done || !(it.kind === 'gun' || it.kind === 'relic' || it.kind === 'ware')) continue;
+        o = makeProp(it);
+        if (!o) continue;
+        W.group.add(o.group);
+        W.props.set(it.id, o);
+        for (let i = 0; i < 14; i++) emit(sparks, { x: it.x * U, y: 0.2, z: it.y * U, vx: (Math.random() - 0.5) * 3, vy: 2 + Math.random() * 3, vz: (Math.random() - 0.5) * 3, life: 0.5, size: 0.12, color: o.glow });
+      }
+      if (it.kind === 'gun' || it.kind === 'relic' || it.kind === 'ware') {
+        o.group.visible = !it.done;
+        o.spin.rotation.y += dt * 1.6;
+        o.spin.position.y = 0.95 + Math.sin(r.time * 2.4 + it.id) * 0.08;
+        o.ring.material.opacity = 0.5 + Math.sin(r.time * 4 + it.id) * 0.2;
+      } else if (it.kind === 'cache') {
         const target = it.done ? 1 : 0;
         if (o.open !== target) { o.open += Math.sign(target - o.open) * Math.min(Math.abs(target - o.open), dt * 3); o.lid.rotation.z = o.open * 2.2; }
       } else if (it.kind === 'objective') {
@@ -1043,6 +1141,8 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       let m = W.pickups.get(k.id);
       if (!m) {
         if (k.kind === 'cash') m = new THREE.Mesh(G.coin, new THREE.MeshLambertMaterial({ color: col('#e8b84a'), emissive: col('#5a3a08') }));
+        else if (k.kind === 'heart') { m = new THREE.Mesh(G.crystal, new THREE.MeshBasicMaterial({ color: col('#ff5a6a'), toneMapped: false })); m.scale.set(0.3, 0.3, 0.3); }
+        else if (k.kind === 'pulse') { m = new THREE.Mesh(G.crystal, new THREE.MeshBasicMaterial({ color: col('#6fd6ff'), toneMapped: false })); m.scale.set(0.3, 0.42, 0.3); }
         else if (k.kind === 'ammo') { m = new THREE.Mesh(G.box, new THREE.MeshLambertMaterial({ color: col(k.ammo === 'shells' ? '#b5483a' : '#c9a05a'), emissive: col('#3a2408') })); m.scale.set(0.26, 0.16, 0.18); }
         else { m = new THREE.Mesh(G.box, new THREE.MeshLambertMaterial({ color: col('#8a5a36'), emissive: col('#3a2408') })); m.scale.set(0.4, 0.28, 0.2); }
         m.castShadow = true;
@@ -1124,9 +1224,9 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
   function updateEnvironment(sim, dt) {
     const s = sim.state, p = s.player, L = sim.level;
     const town = s.mode === 'town';
-    const mine = L.dark;
+    const mine = L.dark || Boolean(L.ambient);
     const hollow = L.theme === 'hollow';
-    const n = hollow ? 1 : mine ? 1 : nightFactor(s);
+    const n = L.ambient ? 0 : hollow ? 1 : mine ? 1 : nightFactor(s);
     const bonus = s.config.sundownBonus ?? 0;
     const pre = town ? 0.55 : s.noClock ? 0.2 : clamp(clockTime(s) / (CLOCK.dusk + bonus), 0, 1);
     const R = visionRadius(sim) * U;
@@ -1163,11 +1263,19 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       sunCol = new THREE.Color('#a48cff'); sunI = 0.28;
       skyTop = new THREE.Color('#0c0818'); skyHor = new THREE.Color('#3a2a5a');
     }
-    if (mine) {
+    if (mine && !L.ambient) {
       fogCol = new THREE.Color('#070605'); fogNear = 2.5; fogFar = Math.max(17, R * 1.7 + 4);
       hemiSky = new THREE.Color('#6a5a4a'); hemiGround = new THREE.Color('#141010'); hemiI = 0.2;
       sunI = 0;
       skyTop = new THREE.Color('#000000'); skyHor = new THREE.Color('#070605');
+    }
+    const amb = L.ambient || null;
+    if (amb) {
+      fogCol = new THREE.Color(amb.fog); fogNear = amb.near; fogFar = amb.far;
+      hemiSky = new THREE.Color(amb.sky); hemiGround = new THREE.Color(amb.ground); hemiI = amb.hemi;
+      sunCol = new THREE.Color(amb.sun); sunI = amb.sunI;
+      skyTop = new THREE.Color(amb.fog); skyHor = new THREE.Color(amb.fog);
+      elev = 1.25;
     }
     const lin = (c) => c.clone().convertSRGBToLinear();
     scene.fog.color.copy(lin(fogCol));
@@ -1205,7 +1313,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     }
     // The drifter's own light in the dark. It hangs above and a little behind them, so the camera
     // sees them lit rather than as a silhouette.
-    lantern.intensity = mine ? 2.3 : n * 1.9 + (hollow ? 0.5 : 0);
+    lantern.intensity = L.ambient ? 0.9 : mine ? 2.3 : n * 1.9 + (hollow ? 0.5 : 0);
     lantern.distance = R * 1.35 + 3;
     lantern.color.copy(col(hollow ? '#cdbcff' : '#ffc98a'));
     lantern.position.set(px - Math.cos(r.yaw) * 0.7, 2.3, pz - Math.sin(r.yaw) * 0.7);

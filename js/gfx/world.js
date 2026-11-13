@@ -11,6 +11,7 @@ const BASE_GROUND = {
   [G.sand]: [222, 178, 126], [G.trail]: [203, 152, 106], [G.rockfloor]: [204, 146, 108], [G.wood]: [146, 102, 66],
   [G.grass]: [182, 164, 98], [G.camp]: [170, 124, 86], [G.water]: [64, 142, 164], [G.paving]: [176, 168, 158],
   [G.mine]: [112, 94, 80], [G.hollow]: [66, 58, 90], [G.field]: [142, 106, 68], [G.plank]: [164, 120, 78], [G.gravel]: [184, 168, 146],
+  [G.deck]: [104, 110, 122], [G.grate]: [72, 78, 90], [G.hull]: [58, 54, 96], [G.glow]: [96, 214, 232],
 };
 export const THEMES = {
   red: { ground: BASE_GROUND, cap: [204, 138, 104], rockTint: null },
@@ -19,6 +20,9 @@ export const THEMES = {
     ground: { ...BASE_GROUND, [G.sand]: [118, 98, 84], [G.trail]: [128, 108, 90], [G.rockfloor]: [104, 86, 76], [G.mine]: [112, 94, 80], [G.camp]: [96, 78, 66] },
     cap: [34, 28, 28], rockTint: 'mine', dark: true,
   },
+  works: { ground: { ...BASE_GROUND, [G.mine]: [128, 108, 92], [G.plank]: [150, 110, 72] }, cap: [44, 36, 34], rockTint: 'mine' },
+  foundry: { ground: BASE_GROUND, cap: [52, 56, 66], rockTint: null },
+  ship: { ground: BASE_GROUND, cap: [30, 28, 52], rockTint: null },
   hollow: {
     ground: { ...BASE_GROUND, [G.sand]: [74, 64, 100], [G.trail]: [88, 76, 116], [G.rockfloor]: [64, 56, 90], [G.hollow]: [52, 44, 78], [G.grass]: [84, 80, 120], [G.camp]: [60, 52, 80] },
     cap: [70, 58, 100], rockTint: 'hollow',

@@ -36,7 +36,7 @@ const app = {
 };
 
 function readSettings() {
-  const base = { sens: 1, invert: false, quality: 'auto', mute: false, shake: true, hints: true, pad: null };
+  const base = { sens: 1, invert: false, quality: 'auto', mute: false, shake: true, hints: true, pad: null, camera: 'shoulder' };
   try {
     const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
     if (raw && typeof raw === 'object') Object.assign(base, raw);
@@ -50,6 +50,7 @@ const audio = createAudio();
 const saves = createSaveManager();
 const controls = createControls(stage, {
   onPause: () => togglePause(),
+  onCamera: () => { if (renderer && playing() && !ui.panel) { setSetting('camera', app.settings.camera === 'high' ? 'shoulder' : 'high'); toast(app.settings.camera === 'high' ? 'High camera: see the whole fight. V switches back.' : 'Shoulder camera. V switches back.'); } },
   onJournal: () => { if (playing() && app.campaign?.character && !ui.panel) { controls.releaseLock?.(); ui.openPanel('journal'); } },
   onMap: () => { if (renderer && playing() && !ui.panel) renderer.mapOpen = !renderer.mapOpen; },
   onLockLost: () => { if (app.mode === 'ride' && !ui.panel && app.sim?.state.phase === 'playing') ui.openPanel('pause'); },
@@ -90,6 +91,7 @@ function applySettings() {
   audio.setMuted(s.mute);
   if (renderer) {
     renderer.shakeOn = s.shake;
+    renderer.setCamera(s.camera === 'high' ? 'high' : 'shoulder');
     renderer.keyHints = s.hints;
     renderer.autoQuality = s.quality === 'auto';
     if (s.quality !== 'auto' && renderer.quality !== Number(s.quality)) renderer.setQuality(Number(s.quality));
@@ -236,6 +238,17 @@ function saveRun() {
 }
 
 function finishRide() {
+  // The Descent: the lift goes down to the next floor, carrying what the drifter holds.
+  const down = R.nextFloor(app.campaign, app.sim.state.config, app.sim.state.report);
+  if (down) {
+    try {
+      const sim = createSim(down, generateLevel(down.level));
+      renderer.dispose();
+      audio.play('chapter');
+      enterRide(sim);
+      return;
+    } catch (err) { console.error(err); /* fall through and settle what was earned */ }
+  }
   const summary = R.resolveExpedition(app.campaign, app.sim.state.report);
   saves.clearRun();
   persist();
@@ -401,7 +414,7 @@ function stepSim(sim, input) {
   }
 }
 
-const EDGES = ['fire', 'alt', 'dodge', 'reload', 'heal', 'throw', 'interactPressed'];
+const EDGES = ['fire', 'alt', 'dodge', 'reload', 'heal', 'throw', 'interactPressed', 'pulse', 'jump'];
 
 /** Look, aim through the crosshair, then step the sim with camera-relative movement. */
 function advance(sim, dt) {
@@ -472,7 +485,7 @@ function showProblem(err) {
 /** Controller button names for the on-screen prompts. */
 function padNames() {
   const n = controls.pad.name;
-  return { use: n('interact'), reload: n('reload'), heal: n('heal'), map: n('map'), fire: n('fire'), alt: n('alt'), dodge: n('dodge'), throw: n('throw'), next: n('next'), journal: n('journal'), menu: n('pause'), sprint: n('sprint') };
+  return { pulse: n('pulse'), jump: n('jump'), camera: n('camera'), use: n('interact'), reload: n('reload'), heal: n('heal'), map: n('map'), fire: n('fire'), alt: n('alt'), dodge: n('dodge'), throw: n('throw'), next: n('next'), journal: n('journal'), menu: n('pause'), sprint: n('sprint') };
 }
 
 /** Drive menus and panels with a controller: D-pad or stick moves, A presses, B goes back. */

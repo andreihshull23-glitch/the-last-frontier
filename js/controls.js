@@ -9,7 +9,7 @@ const ARROWS = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowR
 const STICK_RADIUS = 56;
 const MOUSE_SENS = 0.0024;
 const TOUCH_SENS = 0.0065;
-const EDGES = ['fire', 'alt', 'dodge', 'reload', 'heal', 'interact', 'throw'];
+const EDGES = ['fire', 'alt', 'dodge', 'reload', 'heal', 'interact', 'throw', 'pulse', 'jump'];
 const STICK_TURN = 1.35;   // right stick, as a multiple of the arrow-key turn rate
 const STICK_PITCH = 1.7;
 
@@ -58,6 +58,8 @@ export function createControls(stage, hooks) {
       { id: 'reload', label: 'LOAD', x: R - 112, y: B - big * 2 - 132, r: 21 },
       { id: 'swap', label: 'GUN', x: R - 46, y: B - big * 2 - 134, r: 21 },
       { id: 'throw', label: 'DYN', x: R - big * 2 - 134, y: B - 48, r: 21 },
+      { id: 'pulse', label: 'PULSE', x: R - big * 2 - 190, y: B - 100, r: 22 },
+      { id: 'jump', label: 'JUMP', x: R - big * 2 - 126, y: B - 160, r: 21 },
     ];
     const walk = [{ id: 'act', label: 'ACT', x: R - big - 18, y: B - big - 24, r: big }];
     buttons = [...(town ? walk : ride), ...top].map((b) => ({ ...b, active: false, pointer: null }));
@@ -120,6 +122,9 @@ export function createControls(stage, hooks) {
       case 'KeyE': edge.interact = true; interactKey = true; break;
       case 'KeyF': edge.alt = true; break;
       case 'KeyG': edge.throw = true; break;
+      case 'KeyB': edge.pulse = true; break;
+      case 'KeyC': edge.jump = true; break;
+      case 'KeyV': hooks.onCamera?.(); break;
       case 'Digit1': slot = 1; break;
       case 'Digit2': slot = 2; break;
       case 'Digit3': slot = 3; break;
@@ -127,6 +132,9 @@ export function createControls(stage, hooks) {
       case 'Digit5': slot = 5; break;
       case 'Digit6': slot = 6; break;
       case 'Digit7': slot = 7; break;
+      case 'Digit8': slot = 8; break;
+      case 'Digit9': slot = 9; break;
+      case 'Digit0': slot = 10; break;
       case 'KeyJ': hooks.onJournal?.(); break;
       case 'KeyX': swap = 1; break;
       case 'KeyM': case 'Tab': hooks.onMap?.(); break;
@@ -165,6 +173,8 @@ export function createControls(stage, hooks) {
         else if (b.id === 'map') hooks.onMap?.();
         else if (b.id === 'swap') swap = 1;
         else if (b.id === 'fire') { edge.fire = true; touch.fire = e.pointerId; }
+        else if (b.id === 'pulse') edge.pulse = true;
+        else if (b.id === 'jump') edge.jump = true;
         else edge[b.id] = true;
       } else if (x < size.w * 0.4 && !touch.move) touch.move = { id: e.pointerId, ox: x, oy: y, x, y };
       else if (!touch.look) touch.look = { id: e.pointerId, x, y };
@@ -289,7 +299,8 @@ export function createControls(stage, hooks) {
       const P = g.pressed;
       if (P.has('sprint')) padSprint = !padSprint;
       if (g.move > 0.2 && padSprint) sprint = true;
-      for (const k of ['fire', 'alt', 'dodge', 'reload', 'heal', 'interact', 'throw']) if (P.has(k)) edge[k] = true;
+      for (const k of ['fire', 'alt', 'dodge', 'reload', 'heal', 'interact', 'throw', 'pulse', 'jump']) if (P.has(k)) edge[k] = true;
+      if (P.has('camera')) hooks.onCamera?.();
       if (P.has('next')) swap = 1;
       if (P.has('prev')) swap = -1;
       if (P.has('map')) hooks.onMap?.();
@@ -303,7 +314,7 @@ export function createControls(stage, hooks) {
       fwd: Math.max(-1, Math.min(1, fwd)), right: Math.max(-1, Math.min(1, right)),
       lookX: look.x, lookY: look.y, turn, pitch,
       freeCursor: free ? { x: mouse.x, y: mouse.y } : null,
-      fire: edge.fire, alt: edge.alt, dodge: edge.dodge, reload: edge.reload, heal: edge.heal, throw: edge.throw,
+      fire: edge.fire, alt: edge.alt, dodge: edge.dodge, reload: edge.reload, heal: edge.heal, throw: edge.throw, pulse: edge.pulse, jump: edge.jump,
       interactPressed: edge.interact, interactHeld: interactKey || touch.act !== null || padUse,
       fireHeld: mouse.down || touch.fire !== null || padFire, sprint, slot, swap,
     };

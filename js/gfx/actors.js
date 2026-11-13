@@ -47,6 +47,8 @@ export const LOOKS = {
   trooper: { fam: 'man', model: 'Swat', gun: 'gun/blaster-d' },
   overseer: { fam: 'robot', model: 'Stan', tint: 'overseer', gun: 'gun/blaster-a', scale: 1.45 },
   foreman: { fam: 'robot', model: 'Mike', tint: 'iron', gun: 'qg/Shotgun_4', scale: 1.5 },
+  warden: { fam: 'robot', model: 'Mike', tint: 'warden', gun: 'gun/blaster-e', scale: 1.6 },
+  turret: { fam: 'robot', model: 'Leela', tint: 'turret', scale: 0.72 },
   // the Hollow keeps its dead
   walker: { fam: 'toon', model: 'Zombie_Male', tint: 'hollowskin' },
   husk: { fam: 'toon', model: 'Zombie_Female', tint: 'husk', scale: 0.82 },
@@ -100,6 +102,8 @@ function registerCharacterTints(assets) {
   R('cloth_rust', cloth(0.06, 0.6, 1.0));
   R('crusher', chain(remap([{ sat: [0.3, 1], h: 0.09, s: 0.8, lMul: 1.0 }]), multiply(0.85, 0.82, 0.8)));
   R('overseer', chain(remap([{ sat: [0.3, 1], h: 0.78, s: 0.6, lMul: 0.75 }]), multiply(0.6, 0.6, 0.68)));
+  R('warden', chain(remap([{ sat: [0.3, 1], h: 0.52, s: 0.75, lMul: 0.95 }]), multiply(0.5, 0.62, 0.78)));
+  R('turret', chain(remap([{ sat: [0.15, 1], h: 0.02, s: 0.7, lMul: 0.9 }]), multiply(0.62, 0.6, 0.62)));
   R('ghost', chain(remap([{ sat: [0, 1], h: 0.54, s: 0.45, lMul: 1.2 }]), multiply(0.8, 1, 1.1)));
 }
 

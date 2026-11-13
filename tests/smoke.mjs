@@ -84,8 +84,12 @@ if (want('town')) {
   // gunsmith: buy the repeater
   await D(page, () => window.LF_DEBUG.open('gunsmith'));
   await page.waitForSelector('#panel .sheet.gunsmith');
-  await page.click('[data-p="gun"][data-id="rifle"]');
-  check(await D(page, () => window.LF_DEBUG.app.campaign.armory.guns.includes('rifle')), 'bought the repeater');
+  // common guns are found on rides, not sold; unlock one that the story allows
+  check(await page.locator('[data-p="gun"][data-id="rifle"]').count() === 0, 'the repeater is found, not sold');
+  await D(page, () => { window.LF_DEBUG.app.campaign.chapter = 1; window.LF_DEBUG.ui.renderPanel(); });
+  await page.click('[data-p="gun"][data-id="scatter"]');
+  check(await D(page, () => window.LF_DEBUG.app.campaign.armory.guns.includes('scatter')), 'unlocked the scatter blaster');
+  await D(page, () => { window.LF_DEBUG.app.campaign.chapter = 0; });
   await shot(page, '08-gunsmith-panel');
   await page.click('[data-p="close"]');
   // the marshal has the job
