@@ -31,6 +31,7 @@
   const which = (q.get('set') || 'enemies');
   let list = [];
   if (which === 'drifters') list = Array.from({ length: 12 }, (_, i) => ['drifter ' + i, drifterLook(i, i % 3 === 0 ? ['lantern', 'duster'] : []), { player: true, gun: ['Revolver_1', 'SniperRifle_2', 'Shotgun_1'][i % 3] }]);
+  else if (which === 'all') { const fam = q.get('fam'); list = Object.keys(assets.people.get(fam).json.models).map((m) => [fam + ' / ' + m.replace(/_/g, ' '), { fam, model: m }, {}]); }
   else if (which === 'robots') list = ['guard','scout','foreman'].map((k) => [k, { ...LOOKS[k], gun: null, scale: 1 }, {}]);
   else if (which === 'enemies') list = ['bandit', 'gunman', 'guard', 'scout', 'dynamiter', 'brute', 'walker', 'husk', 'bounty', 'foreman'].map((k) => [k, LOOKS[k], {}]);
   else list = Object.keys(LOOKS).filter((k) => k.startsWith('keeper') || ['clerk', 'marshal', 'rider', 'agent', 'undertaker', 'townsman', 'townswoman', 'towns2', 'towns3'].includes(k)).map((k) => [k, LOOKS[k], { enemy: false }]);
