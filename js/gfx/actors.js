@@ -1,7 +1,6 @@
 // Characters: Quaternius people, robots and zombies on their own skeletons,
 // playing the animations that ship with each pack. Hats, masks and badges are
 // built in code and ride the head bone; guns ride the right hand.
-import { DRIFTER_LOOKS } from '../content.js';
 import { MODEL_BOX } from '../data/models.js';
 import { Merger, colorAttribute, remap, multiply, chain } from './assets.js';
 
@@ -32,14 +31,17 @@ const FAMILY = {
 const cowboy = (c, band = '#2e241c') => ({ type: 'cowboy', c, band });
 // Only models that suit a sci-fi western are used: adventurers, farmers, cowboys, old-west townsfolk,
 // company troopers in armour and space suits, robots, and the Hollow's dead. Clothes are recoloured for variety.
+// Space cowboys: one set of realistic bodies, dressed with modelled hats from the western kit and
+// recoloured clothes. Machines are the Meridian Company's; the Hollow's dead are the same people, gone grey.
+const hat = (model, c = null) => ({ type: 'model', model: 'west/hat-' + model, c });
 export const LOOKS = {
-  // outlaws are people
-  bandit: { fam: 'man', model: 'Adventurer', tint: 'cloth_black', hat: cowboy('#2b2622', '#8e3428'), gun: 'qg/Shotgun_SawedOff' },
-  gunman: { fam: 'toon', model: 'Cowboy_Male', tint: 'outlaw', gun: 'qg/Revolver_3' },
-  dynamiter: { fam: 'man', model: 'Farmer', tint: 'cloth_red', hat: cowboy('#3d342e') },
-  brute: { fam: 'man', model: 'Farmer', tint: 'cloth_black', hat: { type: 'bowler', c: '#2b2622' }, scale: 1.32 },
-  bounty: { fam: 'woman', model: 'Adventurer', tint: 'cloth_black', hat: cowboy('#1e1a18', '#b5483a'), gun: 'qg/Revolver_5', scale: 1.06 },
-  // the Meridian Company fields machines, and a few people in armour
+  // outlaws
+  bandit: { fam: 'man', model: 'Adventurer', tint: 'cloth_black', hat: hat('b'), gun: 'qg/Shotgun_SawedOff' },
+  gunman: { fam: 'man', model: 'Adventurer', tint: 'cloth_red', hat: hat('a'), gun: 'qg/Revolver_3' },
+  dynamiter: { fam: 'man', model: 'Farmer', tint: 'cloth_red' },
+  brute: { fam: 'man', model: 'Farmer', tint: 'cloth_black', scale: 1.32 },
+  bounty: { fam: 'woman', model: 'Adventurer', tint: 'cloth_black', hat: hat('b'), gun: 'qg/Revolver_5', scale: 1.06 },
+  // the Meridian Company
   guard: { fam: 'robot', model: 'George', gun: 'gun/blaster-e' },
   scout: { fam: 'robot', model: 'Leela', scale: 0.8 },
   enforcer: { fam: 'robot', model: 'Stan', gun: 'gun/blaster-h', scale: 0.95 },
@@ -49,39 +51,38 @@ export const LOOKS = {
   foreman: { fam: 'robot', model: 'Mike', tint: 'iron', gun: 'qg/Shotgun_4', scale: 1.5 },
   warden: { fam: 'robot', model: 'Mike', tint: 'warden', gun: 'gun/blaster-e', scale: 1.6 },
   turret: { fam: 'robot', model: 'Leela', tint: 'turret', scale: 0.72 },
-  // the Hollow keeps its dead
-  walker: { fam: 'toon', model: 'Zombie_Male', tint: 'hollowskin' },
-  husk: { fam: 'toon', model: 'Zombie_Female', tint: 'husk', scale: 0.82 },
+  // the Hollow: miners and drifters the ship kept walking
+  walker: { fam: 'man', model: 'Farmer', tint: 'hollow_dead' },
+  husk: { fam: 'woman', model: 'Adventurer', tint: 'husk_dead', scale: 0.86 },
   // Mercy
   deputy: { fam: 'robot', model: 'Stan', gun: 'gun/blaster-n', scale: 0.86, tint: 'deputy' },
   keeper_store: { fam: 'woman', model: 'Adventurer', tint: 'cloth_blue' },
   keeper_gunsmith: { fam: 'woman', model: 'SciFi', tint: 'cloth_rust' },
-  keeper_outfitter: { fam: 'woman', model: 'Adventurer', hat: cowboy('#c9b48a', '#8e3428') },
-  keeper_clinic: { fam: 'toon', model: 'Doctor_Male_Old' },
+  keeper_outfitter: { fam: 'woman', model: 'Adventurer', hat: hat('a') },
+  keeper_clinic: { fam: 'man', model: 'Spacesuit', tint: 'cloth_white' },
   keeper_telegraph: { fam: 'robot', model: 'George', tint: 'brass', scale: 0.85 },
-  keeper_saloon: { fam: 'toon', model: 'OldClassy_Female' },
-  keeper_stable: { fam: 'man', model: 'Farmer', hat: cowboy('#8a623c') },
-  clerk: { fam: 'toon', model: 'OldClassy_Male' },
-  marshal: { fam: 'toon', model: 'Cowboy_Female' },
-  rider: { fam: 'woman', model: 'Soldier', hat: cowboy('#5c4631', '#5b7f4b') },
+  keeper_saloon: { fam: 'woman', model: 'Adventurer', tint: 'cloth_red' },
+  keeper_stable: { fam: 'man', model: 'Farmer' },
+  clerk: { fam: 'man', model: 'Adventurer', tint: 'cloth_white', hat: hat('c') },
+  marshal: { fam: 'woman', model: 'Soldier', tint: 'cloth_rust', hat: hat('b') },
+  rider: { fam: 'woman', model: 'Soldier', hat: hat('a') },
   agent: { fam: 'man', model: 'Spacesuit' },
-  undertaker: { fam: 'toon', model: 'OldClassy_Male', tint: 'outlaw' },
-  townsman: { fam: 'man', model: 'Adventurer', tint: 'cloth_rust', hat: cowboy('#6f5136') },
-  townswoman: { fam: 'woman', model: 'Adventurer', tint: 'cloth_red' },
-  towns2: { fam: 'man', model: 'Farmer', tint: 'cloth_green', hat: cowboy('#c9b48a') },
-  towns3: { fam: 'man', model: 'Farmer', hat: cowboy('#8a623c', '#b5483a') },
+  undertaker: { fam: 'man', model: 'Adventurer', tint: 'cloth_black', hat: hat('c') },
+  townsman: { fam: 'man', model: 'Adventurer', tint: 'cloth_rust', hat: hat('b') },
+  townswoman: { fam: 'woman', model: 'Adventurer', tint: 'cloth_green' },
+  towns2: { fam: 'man', model: 'Farmer', tint: 'cloth_green' },
+  towns3: { fam: 'man', model: 'Farmer' },
 };
 const DRIFTER_BODIES = [
-  ['man', 'Adventurer', null], ['woman', 'Adventurer', null], ['toon', 'Cowboy_Male', null], ['toon', 'Cowboy_Female', null],
-  ['man', 'Farmer', null], ['woman', 'Soldier', null], ['man', 'Adventurer', 'cloth_blue'], ['woman', 'Adventurer', 'cloth_rust'],
-  ['man', 'Farmer', 'cloth_green'], ['woman', 'SciFi', 'cloth_rust'], ['man', 'Adventurer', 'cloth_red'], ['woman', 'Soldier', 'cloth_blue'],
+  ['man', 'Adventurer', null, 'a'], ['woman', 'Adventurer', null, 'b'], ['man', 'Adventurer', 'cloth_blue', 'b'], ['woman', 'Soldier', null, 'a'],
+  ['man', 'Farmer', null, null], ['woman', 'SciFi', 'cloth_rust', 'b'], ['man', 'Adventurer', 'cloth_red', 'c'], ['woman', 'Adventurer', 'cloth_rust', 'a'],
+  ['man', 'Farmer', 'cloth_green', null], ['woman', 'Soldier', 'cloth_blue', 'b'], ['man', 'Swat', 'cloth_rust', 'a'], ['woman', 'Adventurer', 'cloth_blue', 'c'],
 ];
 export function drifterLook(index, gear = []) {
   const n = DRIFTER_BODIES.length;
   const i = ((index % n) + n) % n;
-  const [fam, model, tint] = DRIFTER_BODIES[i];
-  const d = DRIFTER_LOOKS[i % DRIFTER_LOOKS.length];
-  return { fam, model, tint, hat: fam === 'toon' ? null : cowboy(d.hat, '#2e241c'), key: 'drifter' + i };
+  const [fam, model, tint, h] = DRIFTER_BODIES[i];
+  return { fam, model, tint, hat: h ? hat(h) : null, key: 'drifter' + i };
 }
 
 function registerCharacterTints(assets) {
@@ -104,6 +105,10 @@ function registerCharacterTints(assets) {
   R('overseer', chain(remap([{ sat: [0.3, 1], h: 0.78, s: 0.6, lMul: 0.75 }]), multiply(0.6, 0.6, 0.68)));
   R('warden', chain(remap([{ sat: [0.3, 1], h: 0.52, s: 0.75, lMul: 0.95 }]), multiply(0.5, 0.62, 0.78)));
   R('turret', chain(remap([{ sat: [0.15, 1], h: 0.02, s: 0.7, lMul: 0.9 }]), multiply(0.62, 0.6, 0.62)));
+  R('cloth_white', remap([{ hue: [0.125, 0.78], sat: [0.12, 1], s: 0.08, lMul: 1.7 }]));
+  // the dead: everything drained toward grey-violet, skin included
+  R('hollow_dead', chain(remap([{ sat: [0, 1], h: 0.72, s: 0.16, lMul: 0.82 }]), multiply(0.86, 0.9, 1.0)));
+  R('husk_dead', chain(remap([{ sat: [0, 1], h: 0.1, s: 0.1, lMul: 0.95 }]), multiply(0.9, 0.9, 0.86)));
   R('ghost', chain(remap([{ sat: [0, 1], h: 0.54, s: 0.45, lMul: 1.2 }]), multiply(0.8, 1, 1.1)));
 }
 
@@ -158,7 +163,12 @@ export function createActors(assets) {
       hx0 = Math.min(hx0, x); hx1 = Math.max(hx1, x); hy0 = Math.min(hy0, y); hy1 = Math.max(hy1, y); hz0 = Math.min(hz0, z); hz1 = Math.max(hz1, z);
     }
     const cx = (hx0 + hx1) / 2, hw = Math.min((hx1 - hx0) / 2, 0.19 * (look.fam === 'toon' ? 2 : 1)), cz = (hz0 + hz1) / 2, top = hy1, hh = hy1 - hy0;
-    if (look.hat) {
+    if (look.hat && look.hat.type === 'model') {
+      const box = MODEL_BOX[look.hat.model];
+      // the kit's hats are a little small for these heads: fit the crown to the skull
+      const sc = (hw * 2.25) / (box[3] - box[0]) * 1.9;
+      acc.add(look.hat.model, cx, top - hh * 0.3 - box[1] * sc, cz, 0, sc);
+    } else if (look.hat) {
       const c = hex(look.hat.c), y = top - hh * 0.2;
       if (look.hat.type === 'cowboy') {
         acc.addCyl(cx, y, cz, hw * 1.9, 0.02, hw * 2.0, c, dark(c, 0.8), 12);
