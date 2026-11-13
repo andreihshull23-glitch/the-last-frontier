@@ -371,7 +371,7 @@ if (want('pad')) {
   await page.click('[data-p="padbind"][data-id="fire"]');
   await tap(5);
   const name = await page.locator('[data-p="padbind"][data-id="fire"]').textContent();
-  check(name.trim() === 'RB', `fire rebound in settings (${name.trim()})`);
+  check(name.trim() === 'RB / R1', `fire rebound in settings, shown as Xbox / PlayStation (${name.trim()})`);
   await shot(page, '52-pad-settings');
   await tap(1);                                  // B closes the panel
   await page.waitForFunction(() => !window.LF_DEBUG.ui.panel);
