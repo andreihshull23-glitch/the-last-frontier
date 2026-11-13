@@ -112,11 +112,11 @@ export function createUI(root, panelEl, api) {
       const camp = c();
       const last = camp.fallen[camp.fallen.length - 1];
       const first = camp.fallen.length === 0;
-      return `<section class="result">
+      return `<section class="result hire">
         <p class="eyebrow">${first ? 'The Dry Fork Saloon, Mercy' : 'Boot Hill has a new marker'}</p>
         <h1 class="h-screen">${first ? 'Who rides for Mercy?' : 'Mercy needs another gun'}</h1>
         ${first
-    ? `<div class="prologue">${PROLOGUE.map((p) => `<p><strong>${esc(p.title)}.</strong> ${esc(p.text)}</p>`).join('')}</div><p class="lede">The marshal is hiring. Three drifters are at the bar. Each has one thing they are good at, and it dies with them.</p>`
+    ? '<p class="lede">The marshal is hiring. Three drifters are at the bar. Each has one thing they are good at, and it dies with them. Pick one.</p>'
     : `<div class="memory"><p><strong>${esc(last.name)}</strong> was killed by ${esc(last.killedBy)}.</p>
        <p class="muted">Kept: $${camp.cash} in the bank, ${camp.armory.guns.length ? camp.armory.guns.map((g) => GUNS[g].name.toLowerCase()).join(' and ') + ', ' : ''}the town and the story so far. Lost: their kit and everything they carried.${camp.bounty ? ` ${esc(camp.bounty.name)} is wearing that kit now. There is a bounty on the board.` : ''}</p></div>`}
         <div class="candidates">${(camp.candidates ?? []).map((k, i) => `<article class="candidate">
@@ -126,6 +126,7 @@ export function createUI(root, panelEl, api) {
           <p class="bio">${esc(k.bio)}</p>
           <button class="btn" data-act="hire" data-i="${i}">Hire ${esc(k.name.split(' ')[0])}</button>
         </article>`).join('')}</div>
+        ${first ? `<div class="prologue"><p class="eyebrow">The story so far</p>${PROLOGUE.map((p) => `<p><strong>${esc(p.title)}.</strong> ${esc(p.text)}</p>`).join('')}</div>` : ''}
       </section>`;
     },
     results() {
@@ -414,15 +415,19 @@ export function createUI(root, panelEl, api) {
           <label class="check"><input id="set-hints" type="checkbox" data-set="hints" ${s.hints ? 'checked' : ''}> Show key hints on screen</label>
         </div>
         <h3 class="section">Controller</h3>
-        <p class="muted">${pad.available ? (pad.id ? `Connected: ${esc(pad.id.replace(/\s*\(.*$/, ''))}.` : 'Plug in or wake a controller and press any button on it.') : 'This page is not allowed to read controllers. Open the game in its own browser tab.'} Left stick moves and the right stick looks. In menus the D-pad moves, A presses and B goes back.</p>
-        <div class="padbinds">${PAD_ACTIONS.map(([id, label]) => `<div class="padrow"><span>${esc(label)}</span><button class="btn ghost small" data-p="padbind" data-id="${id}">${pad.capturing === id ? 'Press a button…' : esc(pad.name(id))}</button></div>`).join('')}</div>
+        <p class="muted">${pad.available ? (pad.id ? `Connected: ${esc(pad.id.replace(/\s*\(.*$/, ''))}.` : 'Plug in or wake a controller and press any button on it.') : 'This page is not allowed to read controllers. Open the game in its own browser tab.'} Left stick moves and the right stick looks. In menus the left stick moves a cursor, the right stick scrolls, the D-pad steps between buttons, A or Cross presses and B or Circle goes back. Buttons are shown as Xbox / PlayStation.</p>
+        <div class="padbinds">${PAD_ACTIONS.map(([id, label]) => `<div class="padrow"><span>${esc(label)}</span><button class="btn ghost small" data-p="padbind" data-id="${id}">${pad.capturing === id ? 'Press a button…' : esc(pad.label(id))}</button></div>`).join('')}</div>
         <div class="row"><button class="link" data-p="padreset">Reset controller buttons</button></div>
         <div class="row"><button class="btn" data-p="open" data-id="${pdata.fromTitle ? 'close' : 'pause'}">Done</button></div>`;
     },
   };
 
+  let lastPanel = null;
   function renderPanel() {
     if (!panel) return;
+    const keepScroll = lastPanel === panel ? panelEl.querySelector('.sheet')?.scrollTop ?? 0 : 0;
+    lastPanel = panel;
+    queueMicrotask(() => { const sh = panelEl.querySelector('.sheet'); if (sh && keepScroll) sh.scrollTop = keepScroll; });
     const fn = PANELS[panel];
     panelEl.innerHTML = `<div class="sheet ${panel}" role="dialog" aria-modal="true" aria-labelledby="panel-title" tabindex="-1">
       ${notice ? `<p class="notice" role="status">${esc(notice)}</p>` : ''}${fn ? fn() : ''}</div>`;

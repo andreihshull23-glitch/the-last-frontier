@@ -28,8 +28,19 @@ export const PAD_DEFAULTS = {
   throw: 5, next: 4, prev: 14, map: 8, journal: 12, pause: 9, pulse: 13, jump: 11, camera: 15,
 };
 
-const NAMES = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'Home'];
-export const padButtonName = (i) => (i === undefined || i === null || i < 0 ? 'unbound' : NAMES[i] ?? `Button ${i}`);
+const XBOX = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'Home'];
+const PS = ['Cross', 'Circle', 'Square', 'Triangle', 'L1', 'R1', 'L2', 'R2', 'Share', 'Options', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'PS'];
+/**
+ * What a button is called. `style` is 'xbox', 'ps', or 'both' (Xbox name, then PlayStation name where they differ).
+ */
+export function padButtonName(i, style = 'both') {
+  if (i === undefined || i === null || i < 0) return 'unbound';
+  const x = XBOX[i] ?? `Button ${i}`, ps = PS[i] ?? x;
+  if (style === 'ps') return ps;
+  if (style === 'xbox' || x === ps) return x;
+  return `${x} / ${ps}`;
+}
+const isPlayStation = (id) => /dualsense|dualshock|playstation|wireless controller|054c/i.test(id || '');
 
 const DEADZONE = 0.18;
 /** Remove the dead zone and ease the response so small pushes are precise. */
@@ -81,7 +92,7 @@ export function createGamepad() {
         binds[c.action] = i;
         c.done({ ...binds });
       }
-      return { active: false, capturing: true, held: new Set(), pressed: new Set(), lx: 0, ly: 0, rx: 0, ry: 0, move: 0, nav: {} };
+      return { active: false, capturing: true, held: new Set(), pressed: new Set(), lx: 0, ly: 0, rx: 0, ry: 0, move: 0, nav: {}, anyDown: true };
     }
 
     const held = new Set(), pressed = new Set();
@@ -94,15 +105,16 @@ export function createGamepad() {
     const [rx, ry] = shape(p.axes[2] || 0, p.axes[3] || 0);
 
     // menu navigation: D-pad or left stick, with auto-repeat; A accepts, B goes back
-    const ax = down[15] || lx > 0.6 ? 1 : down[14] || lx < -0.6 ? -1 : 0;
-    const ay = down[13] || ly > 0.6 ? 1 : down[12] || ly < -0.6 ? -1 : 0;
+    // the D-pad steps between buttons; the left stick moves a cursor instead (see padMenus in main.js)
+    const ax = down[15] ? 1 : down[14] ? -1 : 0;
+    const ay = down[13] ? 1 : down[12] ? -1 : 0;
     const dir = ay ? (ay > 0 ? 'down' : 'up') : ax ? (ax > 0 ? 'right' : 'left') : null;
     const nav = { accept: edge[0], back: edge[1], menu: edge[9] };
     if (dir !== navDir) { navDir = dir; navHeld = 0; if (dir) nav[dir] = true; }
     else if (dir) { navHeld += dt; if (navHeld > 0.38) { navHeld -= 0.12; nav[dir] = true; } }
 
     const active = down.some(Boolean) || move > 0 || Math.hypot(rx, ry) > 0;
-    return { active, capturing: false, held, pressed, lx, ly, rx, ry, move, nav };
+    return { active, capturing: false, held, pressed, lx, ly, rx, ry, move, nav, anyDown: down.some(Boolean) };
   }
 
   return {
@@ -116,6 +128,10 @@ export function createGamepad() {
     capture(action, done) { capture = { action, done }; },
     cancelCapture() { capture = null; },
     get capturing() { return capture?.action ?? null; },
-    name: (action) => padButtonName(binds[action]),
+    /** Short name for on-screen prompts, in the style of the controller that is plugged in. */
+    name: (action) => padButtonName(binds[action], isPlayStation(seenId) ? 'ps' : 'xbox'),
+    /** Both names, for the settings list. */
+    label: (action) => padButtonName(binds[action], 'both'),
+    get style() { return isPlayStation(seenId) ? 'ps' : 'xbox'; },
   };
 }

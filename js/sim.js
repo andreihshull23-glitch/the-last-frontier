@@ -2107,7 +2107,16 @@ function updateBuddy(sim, dt) {
     return;
   }
   // heel at the drifter's left hand, out of the line of the camera and the gun
-  const hx = p.x + Math.cos(p.aim - Math.PI / 2) * 70 - Math.cos(p.aim) * 26, hy = p.y + Math.sin(p.aim - Math.PI / 2) * 70 - Math.sin(p.aim) * 26;
+  // Pick the heel point a few times a second, not every frame: a point that moves with every twitch
+  // of the aim forces a new path search each frame and makes the machine dither.
+  b.goalT = (b.goalT ?? 0) - dt;
+  if (b.goalT <= 0 || b.gx === undefined || Math.hypot(b.gx - p.x, b.gy - p.y) > 150) {
+    b.goalT = 0.4;
+    let gx = p.x + Math.cos(p.aim - Math.PI / 2) * 70 - Math.cos(p.aim) * 26, gy = p.y + Math.sin(p.aim - Math.PI / 2) * 70 - Math.sin(p.aim) * 26;
+    if (navIdx(sim, gx, gy) < 0 || !hasLOS(sim, p.x, p.y, gx, gy, SOLID)) { gx = p.x - Math.cos(p.aim) * 40; gy = p.y - Math.sin(p.aim) * 40; }
+    b.gx = gx; b.gy = gy;
+  }
+  const hx = b.gx, hy = b.gy;
   const d = Math.hypot(hx - b.x, hy - b.y);
   if (d > 1100) { // left behind: catch up out of sight
     const q = navIdx(sim, p.x, p.y);
@@ -2121,9 +2130,11 @@ function updateBuddy(sim, dt) {
       if (de < best && hasLOS(sim, b.x, b.y, e.x, e.y, BLOCKS_SHOT)) { best = de; target = e; }
     }
   }
+  // start walking when well out of place, keep walking until nearly there: no flip-flopping at the edge
+  const was = b.moving;
   b.moving = false;
-  if (d > BUDDY.follow * (target ? 2.2 : 0.45)) {
-    const dir = navigate(sim, b, navIdx(sim, hx, hy) >= 0 ? hx : p.x, navIdx(sim, hx, hy) >= 0 ? hy : p.y);
+  if (d > BUDDY.follow * (target ? 2.2 : was ? 0.3 : 1.0)) {
+    const dir = navigate(sim, b, hx, hy);
     if (dir) {
       const l = Math.hypot(dir.x, dir.y) || 1;
       const sp = BUDDY.speed * (d > 320 ? 1.5 : 1);

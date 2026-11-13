@@ -222,9 +222,14 @@
   .confirm-ride { display: grid; gap: 10px; padding: 20px; background: var(--panel-raised); border: 1px solid var(--lamp); }
   .confirm-ride h3 { font-size: 36px; }
   .warn { color: var(--lamp); }
-  .candidates { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; }
+  .candidates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+  @media (max-width: 860px) { .candidates { grid-template-columns: 1fr; } }
+  .result.hire { max-width: 1080px; }
+  .hire-top { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .hire-top { grid-template-columns: 1fr; } }
+  .hire-top .prologue { margin: 0; max-width: none; }
   .candidate { display: grid; gap: 10px; align-content: start; padding: 20px; background: var(--panel); border: 1px solid var(--rule); }
-  .candidate h3 { font-size: 38px; }
+  .candidate h3 { font-size: clamp(26px, 2.6vw, 36px); }
   .candidate .eyebrow { color: var(--lamp); }
   .candidate .btn { justify-self: start; }
   .trait-desc { font-weight: 600; }
@@ -298,7 +303,9 @@
   }
   .sheet {
     width: min(760px, 100%);
-    max-height: 100%;
+    /* a percentage would not bind inside the centring grid, so a tall sheet ran off the top of the screen */
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
     overflow-y: auto;
     overscroll-behavior: contain;
     display: grid;

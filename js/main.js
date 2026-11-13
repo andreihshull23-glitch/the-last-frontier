@@ -488,13 +488,48 @@ function padNames() {
   return { pulse: n('pulse'), jump: n('jump'), camera: n('camera'), use: n('interact'), reload: n('reload'), heal: n('heal'), map: n('map'), fire: n('fire'), alt: n('alt'), dodge: n('dodge'), throw: n('throw'), next: n('next'), journal: n('journal'), menu: n('pause'), sprint: n('sprint') };
 }
 
-/** Drive menus and panels with a controller: D-pad or stick moves, A presses, B goes back. */
-function padMenus() {
+/** The controller's menu cursor: the left stick moves it, A clicks what is under it. */
+const cursor = { x: 0, y: 0, on: false, el: null, idle: 0 };
+function showCursor(on) {
+  if (on && !cursor.el) {
+    const el = document.createElement('div');
+    el.id = 'lf-cursor';
+    el.style.cssText = 'position:fixed;left:0;top:0;width:22px;height:22px;margin:-11px 0 0 -11px;border:3px solid #e8a33d;border-radius:50%;background:rgba(232,163,61,.25);box-shadow:0 0 0 2px rgba(0,0,0,.6);z-index:60;pointer-events:none;will-change:transform';
+    document.body.appendChild(el);
+    cursor.el = el;
+    cursor.x = innerWidth / 2; cursor.y = innerHeight / 2;
+  }
+  cursor.on = on;
+  if (cursor.el) cursor.el.style.display = on ? 'block' : 'none';
+}
+window.addEventListener('mousemove', () => { if (cursor.on) showCursor(false); });
+
+/** Drive menus and panels with a controller: the stick moves a cursor, the D-pad steps, A presses, B goes back. */
+function padMenus(dt) {
   const nav = controls.padMenu();
   const inPanel = Boolean(ui.panel);
-  if (!inPanel && playing()) return;
+  if (!inPanel && playing()) { if (cursor.on) showCursor(false); return; }
   const rootEl = inPanel ? panelEl : uiRoot;
-  if (!rootEl || rootEl.hidden) return;
+  if (!rootEl || rootEl.hidden) { if (cursor.on) showCursor(false); return; }
+  const st = controls.padSticks();
+  const scroller = inPanel ? panelEl.querySelector('.sheet') || panelEl : uiRoot;
+  if (st) {
+    if (st.lx || st.ly) {
+      if (!cursor.on) showCursor(true);
+      const speed = 950 * dt;
+      cursor.x = Math.max(4, Math.min(innerWidth - 4, cursor.x + st.lx * speed));
+      cursor.y = Math.max(4, Math.min(innerHeight - 4, cursor.y + st.ly * speed));
+      // pushing against the top or bottom edge scrolls the page under the cursor
+      if (cursor.y <= 30 && st.ly < 0) scroller.scrollBy(0, st.ly * 900 * dt);
+      if (cursor.y >= innerHeight - 30 && st.ly > 0) scroller.scrollBy(0, st.ly * 900 * dt);
+    }
+    if (st.ry) scroller.scrollBy(0, st.ry * 1100 * dt);
+  }
+  if (cursor.on) {
+    cursor.el.style.transform = `translate(${cursor.x}px, ${cursor.y}px)`;
+    const under = document.elementFromPoint(cursor.x, cursor.y)?.closest('button, input, select, a');
+    if (under && rootEl.contains(under) && document.activeElement !== under) under.focus({ preventScroll: true });
+  }
   if (nav.back || nav.menu) {
     if (inPanel) { if (playing()) togglePause(); else ui.closePanel(); }
     else rootEl.querySelector('[data-act="back"], [data-act="new-no"]')?.click();
@@ -513,7 +548,13 @@ function padMenus() {
     cur.dispatchEvent(new Event('input', { bubbles: true }));
     return;
   }
-  if (nav.accept && cur) { cur.click(); return; }
+  if (nav.accept) {
+    const under = cursor.on ? document.elementFromPoint(cursor.x, cursor.y)?.closest('button, input, select, a') : null;
+    const target = under && rootEl.contains(under) ? under : cur;
+    if (target && !target.disabled) target.click();
+    return;
+  }
+  if (cursor.on) showCursor(false); // the D-pad takes over from the cursor
   i = i < 0 ? (dir >= 0 ? 0 : items.length - 1) : (i + dir + items.length) % items.length;
   items[i].focus({ preventScroll: false });
   items[i].scrollIntoView?.({ block: 'nearest' });
@@ -524,7 +565,7 @@ function frameBody(ts) {
   app.last = ts;
   // The controller can press a menu button that starts or ends a scene, so read it before looking at the scene.
   controls.padFrame(dt);
-  padMenus();
+  padMenus(dt);
   const sim = app.sim;
   if (playing()) {
     const halted = Boolean(ui.panel) || renderer.mapOpen;

@@ -370,7 +370,10 @@ export function createActors(assets) {
     } else if (a.speed > 3.6) { part = 'run'; rate = Math.max(0.6, a.speed / 5.2); }
     else if (a.speed > 0.4) { part = 'walk'; rate = Math.max(0.6, a.speed / 1.7); }
     if (a.oneT > 0 && !a.oneShot) a.oneT = 0;
-    if (part !== a.part) { a.from.set(a.pose); a.fade = 0; a.part = part; a.t = 0; }
+    a.partT = (a.partT ?? 1) + dt;
+    const urgent = part === 'death' || part === 'roll' || part === 'hit' || part === 'punch' || part === 'interact' || a.part === 'roll' || a.part === 'punch';
+    if (part !== a.part && !urgent && a.partT < 0.16) part = a.part; // hold the pose: no twitching between two states
+    if (part !== a.part) { a.from.set(a.pose); a.fade = 0; a.part = part; a.t = 0; a.partT = 0; }
     a.t += dt * rate;
     const c = clipOf(a, part) || clipOf(a, 'idle');
     const tt = c.hold !== null ? c.hold * c.clip.dur : time !== null ? time : a.t;

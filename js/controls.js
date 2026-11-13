@@ -19,6 +19,7 @@ export function createControls(stage, hooks) {
   const pad = createGamepad();
   let padState = null;       // this frame's controller reading
   let padSprint = false;
+  let padArmed = true;       // false until every button is released after a menu closes
   const keys = new Set();
   const arrows = new Set();
   const edge = Object.fromEntries(EDGES.map((k) => [k, false]));
@@ -289,7 +290,9 @@ export function createControls(stage, hooks) {
       pitch -= Math.sign(ny) * Math.max(0, Math.min(1, (Math.abs(ny) - 0.86) / 0.12)) * 0.6;
     }
     // controller: left stick moves, right stick looks, bound buttons do the rest
-    const g = enabled && padState && !padState.capturing ? padState : null;
+    // The button that closed a menu must not also act in the game: wait for the controller to be let go.
+    if (padState && !padArmed && !padState.anyDown) padArmed = true;
+    const g = enabled && padArmed && padState && !padState.capturing ? padState : null;
     let padFire = false, padUse = false;
     if (g) {
       if (g.move > 0) { right = g.lx; fwd = -g.ly; }
@@ -333,7 +336,9 @@ export function createControls(stage, hooks) {
     prefs,
     get mode() { return mode; },
     setTown(on) { town = Boolean(on); layout(size.w, size.h, size.insets); },
-    setEnabled(on) { enabled = on; if (!on) clearAll(); },
+    setEnabled(on) { if (on && !enabled) padArmed = false; enabled = on; if (!on) clearAll(); },
+    /** Stick positions this frame, for the menu cursor. */
+    padSticks() { return padState && !padState.capturing ? { lx: padState.lx, ly: padState.ly, rx: padState.rx, ry: padState.ry } : null; },
     /** True when a click would take hold of the mouse for looking around. */
     lockHint() { return mode === 'keyboard' && !locked && !lockFailed; },
     releaseLock() {
