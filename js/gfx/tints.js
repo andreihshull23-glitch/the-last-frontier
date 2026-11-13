@@ -42,6 +42,10 @@ export function registerTints(assets) {
   T('crate_meridian', remap([{ sat: [0.3, 1], h: 0.6, s: 0.3, lMul: 0.7 }, { sat: [0, 0.3], lMul: 0.75 }]));
   // rock and theme washes
   T('canyon', remap([{ hue: SLATE, h: 0.045, s: 0.42, lMul: 1.05 }]));
+  // sci-fi kit walls: rusted company iron on the Foundry, the ship's own dark plate on the Hull
+  T('rustwall', chain(remap([{ sat: [0, 1], h: 0.06, s: 0.2, lMul: 0.72 }]), multiply(0.8, 0.74, 0.7)));
+  T('hullwall', chain(remap([{ sat: [0, 0.35], h: 0.63, s: 0.16, lMul: 0.62 }, { sat: [0.35, 1], h: 0.5, s: 0.5, lMul: 0.9 }]), multiply(0.8, 0.86, 1.0)));
+  T('machine', chain(remap([{ sat: [0, 1], sMul: 0.55, lMul: 0.8 }]), multiply(0.9, 0.82, 0.74)));
   T('mine', chain(remap([{ sat: [0, 1], sMul: 0.72 }]), multiply(0.74, 0.7, 0.72)));
   T('hollow', remap([{ sat: [0, 1], h: 0.74, s: 0.28, lMul: 0.62 }]));
   T('hollow_glow', remap([{ sat: [0, 1], h: 0.72, s: 0.6, lMul: 1.15 }]));
