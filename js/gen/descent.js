@@ -12,18 +12,24 @@ const TAU = Math.PI * 2;
 const M = MACRO * TM; // one cell is 4 m
 
 /** Colours and light for each floor. */
+// The look is a frontier one first: timber, rust and lantern light. The machines and the ship show
+// through it more the deeper you go, as dull copper trim on floor two and a dim glow on floor three.
 export const FLOOR_LOOK = {
   works: {
-    floor: GROUND.mine, wall: null, trim: '#7a5236', cover: '#8a6a4e', cover2: '#5c4632', pillar: '#6e4a30', lamp: [1, 0.74, 0.4], lampBox: '#f2c46a',
+    floor: GROUND.mine, wall: null, trim: '#7a5236', cover: '#8a6a4e', cover2: '#5c4632', pillar: '#6e4a30', lamp: [1, 0.74, 0.4], lampBox: '#f2c46a', timber: '#7a5236',
     ambient: { sky: '#8a7a6a', ground: '#5a4636', hemi: 0.7, sun: '#ffd9a8', sunI: 0.42, fog: '#1c1612', near: 26, far: 90 },
   },
   foundry: {
-    floor: GROUND.deck, stripe: GROUND.grate, wall: '#565c68', wall2: '#30343c', trim: '#ff8a3a', cover: '#6a707c', cover2: '#3a3f4a', pillar: '#4a505c', lamp: [1, 0.6, 0.28], lampBox: '#ffb060',
-    ambient: { sky: '#9aa4b4', ground: '#4a4038', hemi: 0.78, sun: '#ffe2c0', sunI: 0.4, fog: '#14161c', near: 28, far: 96 },
+    // riveted iron plate gone to rust, shored with timber
+    floor: GROUND.deck, stripe: GROUND.grate, wall: '#6a5446', wall2: '#3a2e26', trim: '#b8763a', cover: '#8a6a4e', cover2: '#4a382c', pillar: '#5a483c', lamp: [1, 0.7, 0.38], lampBox: '#f0b860', timber: '#6e4a30',
+    rivets: '#8a7060', glowEvery: 0,
+    ambient: { sky: '#9a8a78', ground: '#4a3c30', hemi: 0.74, sun: '#ffd9a8', sunI: 0.42, fog: '#191411', near: 26, far: 92 },
   },
   ship: {
-    floor: GROUND.hull, stripe: GROUND.glow, wall: '#2c2a44', wall2: '#17162a', trim: '#7df0ff', cover: '#3a3760', cover2: '#1e1c38', pillar: '#34315a', lamp: [0.5, 0.9, 1], lampBox: '#9af4ff',
-    ambient: { sky: '#7a80c8', ground: '#2a2444', hemi: 0.8, sun: '#c8d8ff', sunI: 0.36, fog: '#0c0a1c', near: 26, far: 92 },
+    // the hull itself: dark ribbed metal, with the miners' timber and lanterns strung through it
+    floor: GROUND.hull, stripe: GROUND.glow, wall: '#3c3e4c', wall2: '#22232e', trim: '#4f9aa6', cover: '#6a5a4a', cover2: '#3a3028', pillar: '#44465a', lamp: [1, 0.74, 0.42], lampBox: '#f0b860', timber: '#6e4a30',
+    rivets: '#55586a', glowEvery: 3, glow: [0.45, 0.85, 0.95],
+    ambient: { sky: '#8088a0', ground: '#3a3440', hemi: 0.72, sun: '#e8dcc8', sunI: 0.38, fog: '#121218', near: 26, far: 92 },
   },
 };
 
@@ -118,15 +124,21 @@ function build(spec, seed) {
         const along = dx === 0;
         box(L, ex, 0, ez, along ? M : 0.24, 4.4, along ? 0.24 : M, look.wall, { c2: look.wall2 });
         box(L, ex + dx * 0.14, 0, ez + dy * 0.14, along ? M : 0.1, 0.5, along ? 0.1 : M, look.wall2);
-        box(L, ex + dx * 0.14, 2.7, ez + dy * 0.14, along ? M * 0.7 : 0.06, 0.12, along ? 0.06 : M * 0.7, look.trim);
-        if (rng.chance(0.3)) box(L, ex + dx * 0.16, 1.1, ez + dy * 0.16, along ? 1.1 : 0.08, 1.2, along ? 0.08 : 1.1, look.wall2, { c2: look.wall });
+        box(L, ex + dx * 0.14, 3.1, ez + dy * 0.14, along ? M : 0.05, 0.07, along ? 0.05 : M, look.trim);
+        // rivet bands and the odd patch plate
+        for (const u of [-1.2, 1.2]) box(L, ex + dx * 0.14 + (along ? u : 0), 0.5, ez + dy * 0.14 + (along ? 0 : u), along ? 0.14 : 0.05, 2.6, along ? 0.05 : 0.14, look.rivets);
+        if (rng.chance(0.3)) box(L, ex + dx * 0.16, 1.0, ez + dy * 0.16, along ? 1.1 : 0.06, 1.1, along ? 0.06 : 1.1, look.wall2, { c2: look.wall });
+        // timber shoring against the plate, as in the works above
+        if (rng.chance(0.35)) box(L, ex + dx * 0.3, 0, ez + dy * 0.3, 0.24, 4.3, 0.24, look.timber, { c2: look.cover2 });
       }
     }
   }
   for (let ty = 0; ty < L.h; ty++) for (let tx = 0; tx < L.w; tx++) {
     const i = ty * L.w + tx;
     if (L.flags[i] & ROCK) continue;
-    L.ground[i] = look.stripe !== undefined && (tx % MACRO === 0 || ty % MACRO === 0) ? look.stripe : look.floor;
+    const seam = tx % MACRO === 0 || ty % MACRO === 0;
+    const cell = Math.floor(tx / MACRO) + Math.floor(ty / MACRO);
+    L.ground[i] = look.stripe === undefined || !seam ? look.floor : look.stripe === GROUND.glow ? (look.glowEvery && cell % look.glowEvery === 0 && (tx % MACRO === 0) ? GROUND.glow : GROUND.grate) : look.stripe;
   }
 
   // ---- what stands in a room -------------------------------------------------------------
@@ -134,12 +146,14 @@ function build(spec, seed) {
   /** Low cover: stops bullets and bodies, but a jump clears it. */
   const cover = (x, z, sx, sz) => {
     box(L, x, 0, z, sx, 1.0, sz, look.cover, { c2: look.cover2, solid: true });
-    box(L, x, 1.0, z, sx * 0.92, 0.06, sz * 0.92, look.trim);
+    box(L, x, 1.0, z, sx * 1.02, 0.07, sz * 1.02, look.cover2);
+    box(L, x, 0.45, z, sx * 1.02, 0.08, sz * 1.02, look.cover2);
     for (let a = -sx / 2 + 0.125; a < sx / 2; a += 0.25) for (let b = -sz / 2 + 0.125; b < sz / 2; b += 0.25) addFlags(L, Math.floor((x + a) / TM), Math.floor((z + b) / TM), BLOCKS_SHOT, 10);
   };
   const pillar = (x, z) => {
     box(L, x, 0, z, 0.9, 4.4, 0.9, look.pillar, { c2: look.cover2, solid: 'wall' });
-    box(L, x, 2.4, z, 1.0, 0.14, 1.0, look.trim);
+    box(L, x, 2.4, z, 1.02, 0.1, 1.02, look.cover2);
+    box(L, x, 0, z, 1.1, 0.3, 1.1, look.cover2);
   };
   L.rooms = [];
   const rect = (r) => ({ X: r.tx * TM, Z: r.ty * TM, W: r.tw * TM, D: r.th * TM });
@@ -183,7 +197,7 @@ function build(spec, seed) {
       r.chest = [P(cx), P(cz)];
     } else if (r.role === 'shop') {
       box(L, cx, 0, f.Z + 1.4, f.W - 3, 0.9, 0.8, look.cover, { c2: look.cover2, solid: true });
-      box(L, cx, 0.9, f.Z + 1.4, f.W - 2.8, 0.06, 0.9, look.trim);
+      box(L, cx, 0.9, f.Z + 1.4, f.W - 2.8, 0.06, 0.9, look.cover2);
       r.wares = [-1, 0, 1].map((k) => [P(cx + k * 2.6), P(cz + 1.2)]);
       for (const [wx, wy] of r.wares) cyl(L, wx / PX, 0, wy / PX, 0.5, 0.25, look.cover2, { top: 0.42 });
     }
@@ -192,7 +206,20 @@ function build(spec, seed) {
 
   // corridor lights
   let n = 0;
-  for (const i of corridor) { if (n++ % 2) continue; lamp((i % mw + 0.5) * M, (Math.floor(i / mw) + 0.5) * M, 3.9); }
+  for (const i of corridor) {
+    const cx = (i % mw + 0.5) * M, cz = (Math.floor(i / mw) + 0.5) * M;
+    const mx = i % mw, my = Math.floor(i / mw);
+    const alongX = !L.rock[my * mw + mx - 1] || !L.rock[my * mw + mx + 1];
+    if (n % 2 === 0) lamp(cx, cz, 3.7);
+    else if (look.timber) {
+      // a timber set: two legs and a cap
+      const [ax, az, bx, bz] = alongX ? [cx, cz - 1.7, cx, cz + 1.7] : [cx - 1.7, cz, cx + 1.7, cz];
+      box(L, ax, 0, az, 0.26, 3.5, 0.26, look.timber, { c2: look.cover2 }); box(L, bx, 0, bz, 0.26, 3.5, 0.26, look.timber, { c2: look.cover2 });
+      box(L, cx, 3.4, cz, alongX ? 0.3 : 3.7, 0.26, alongX ? 3.7 : 0.3, look.timber, { c2: look.cover2 });
+    }
+    if (look.glow && n % 5 === 2) L.lights.push({ x: cx, y: 0.6, z: cz, c: look.glow, r: 7, kind: 'glow' });
+    n++;
+  }
 
   // ---- who is waiting -----------------------------------------------------------------------
   const nav = buildNav(L);

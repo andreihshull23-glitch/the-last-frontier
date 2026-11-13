@@ -1082,7 +1082,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
         g = new THREE.Group();
         for (const [x0, y0, x1, y1] of L.rooms[st.id].seal) {
           const w = (x1 - x0 + 1) * TS * U, d = (y1 - y0 + 1) * TS * U;
-          const m = new THREE.Mesh(G.box, basic('#ff5a3a', { opacity: 0.3, side: THREE.DoubleSide }));
+          const m = new THREE.Mesh(G.box, basic('#d8642e', { opacity: 0.3, side: THREE.DoubleSide }));
           m.scale.set(w, 3.4, d);
           m.position.set((x0 + x1 + 1) / 2 * TS * U, 1.7, (y0 + y1 + 1) / 2 * TS * U);
           g.add(m);
