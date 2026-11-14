@@ -13,9 +13,14 @@ const BASE_GROUND = {
   [G.mine]: [112, 94, 80], [G.hollow]: [66, 58, 90], [G.field]: [142, 106, 68], [G.plank]: [164, 120, 78], [G.gravel]: [184, 168, 146],
   [G.deck]: [118, 104, 92], [G.grate]: [88, 76, 68], [G.hull]: [78, 80, 94], [G.glow]: [96, 176, 188],
 };
+const CITY_GROUND = {
+  ...BASE_GROUND, [G.sand]: [54, 56, 72], [G.trail]: [74, 76, 98], [G.rockfloor]: [60, 60, 76], [G.wood]: [70, 74, 96], [G.grass]: [58, 64, 74], [G.camp]: [66, 60, 80],
+  [G.paving]: [84, 78, 104], [G.field]: [196, 164, 44], [G.plank]: [76, 80, 104], [G.gravel]: [64, 64, 80], [G.deck]: [60, 64, 84], [G.grate]: [40, 43, 58], [G.hull]: [48, 50, 70], [G.glow]: [70, 215, 235],
+};
 export const THEMES = {
-  red: { ground: BASE_GROUND, cap: [204, 138, 104], rockTint: null },
-  town: { ground: BASE_GROUND, cap: [204, 138, 104], rockTint: null },
+  // a district of the Spire: wet-dark paving, worn lanes, roofs you never see lit
+  red: { ground: CITY_GROUND, cap: [15, 16, 25], rockTint: 'mine' },
+  town: { ground: CITY_GROUND, cap: [15, 16, 25], rockTint: 'mine' },
   mine: {
     ground: { ...BASE_GROUND, [G.sand]: [118, 98, 84], [G.trail]: [128, 108, 90], [G.rockfloor]: [104, 86, 76], [G.mine]: [112, 94, 80], [G.camp]: [96, 78, 66] },
     cap: [34, 28, 28], rockTint: 'mine', dark: true,
@@ -24,7 +29,7 @@ export const THEMES = {
   foundry: { ground: BASE_GROUND, cap: [48, 40, 34], rockTint: null },
   ship: { ground: BASE_GROUND, cap: [34, 35, 44], rockTint: null },
   deck: {
-    ground: { ...BASE_GROUND, [G.deck]: [60, 64, 84], [G.grate]: [40, 43, 58], [G.hull]: [48, 50, 70], [G.glow]: [70, 215, 235], [G.paving]: [84, 78, 104], [G.field]: [196, 164, 44] },
+    ground: CITY_GROUND,
     cap: [15, 16, 25], rockTint: null,
   },
   hollow: {
@@ -45,6 +50,8 @@ function valueNoise(x, y, seed) {
   const a = hash2(x0, y0, seed), b = hash2(x0 + 1, y0, seed), c = hash2(x0, y0 + 1, seed), d = hash2(x0 + 1, y0 + 1, seed);
   return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
 }
+// wood and stone from the older kits are painted as dark plate wherever nothing says otherwise
+const OLD_KIT = /^(nat|west|forest|arena)\/(?!rock_|stone_|rocks)/;
 const hexRgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
 
 export function buildWorld(assets, L, opts = {}) {
@@ -162,7 +169,7 @@ export function buildWorld(assets, L, opts = {}) {
   const addPiece = (m, p) => {
     if (p.m === '@box') m.addBox(p.x, p.y, p.z, p.sx, p.sy, p.sz, p.r, hexRgb(p.c), p.c2 ? hexRgb(p.c2) : null);
     else if (p.m === '@cyl') m.addCyl(p.x, p.y, p.z, p.sx, p.sy, p.sz, hexRgb(p.c), p.c2 ? hexRgb(p.c2) : null, p.seg, p.axis || 'y', p.r || 0);
-    else m.add(p.m, p.x, p.y, p.z, p.r, p.s, p.t || (rockTinted(p.m) ? theme.rockTint : null), p.shade || 1);
+    else m.add(p.m, p.x, p.y, p.z, p.r, p.s, p.t || (rockTinted(p.m) ? theme.rockTint : OLD_KIT.test(p.m) ? 'timber' : null), p.shade || 1);
   };
   // lit things (neon, screens) are drawn unshaded, in a mesh of their own
   const glowM = new Merger(assets);
@@ -248,9 +255,9 @@ export function buildWorld(assets, L, opts = {}) {
     c.strokeStyle = s.fg || '#ecd9a8'; c.lineWidth = s.glow ? 5 : 8; c.strokeRect(10, 10, cv.width - 20, cv.height - 20);
     c.fillStyle = s.fg || '#ecd9a8';
     let size = cv.height * 0.56;
-    c.font = `700 ${size}px "Big Shoulders Display", "Arial Narrow", Impact, sans-serif`;
+    c.font = `700 ${size}px "Jersey 15", "Arial Narrow", Impact, sans-serif`;
     const tw = c.measureText(s.text).width;
-    if (tw > cv.width - 60) { size *= (cv.width - 60) / tw; c.font = `700 ${size}px "Big Shoulders Display", "Arial Narrow", Impact, sans-serif`; }
+    if (tw > cv.width - 60) { size *= (cv.width - 60) / tw; c.font = `700 ${size}px "Jersey 15", "Arial Narrow", Impact, sans-serif`; }
     c.textAlign = 'center'; c.textBaseline = 'middle';
     c.fillText(s.text, cv.width / 2, cv.height / 2 + size * 0.04);
     const tex = new THREE.CanvasTexture(cv);

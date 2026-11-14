@@ -1,6 +1,6 @@
 # The Last Frontier
 
-A third-person sci-fi Western roguelike that runs in the browser. Walk the town of Mercy, gear up in its shops, then ride out on story chapters and jobs. Outlaws are people, the Meridian Company fields robots, and the Hollow keeps its dead walking.
+A third-person cyberpunk roguelike that runs in the browser. Walk Mercy Deck, a neon concourse on level 12 of a sealed tower; fit plug-ins and unlock guns at its stalls; then take the freight lift out on story chapters, jobs and the Descent. The gangs are people, Meridian's machines answer to something else now, and the Hollow under the foundations keeps its dead walking.
 
 ## Play
 

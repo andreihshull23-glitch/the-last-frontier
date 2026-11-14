@@ -1158,7 +1158,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
 
   function syncLights(sim, dt) {
     const s = sim.state, p = s.player, W = r.world;
-    const dark = sim.level.neon ? 0.85 : darkness(sim);
+    const dark = sim.level.neon ? 0.85 : sim.level.city ? Math.max(0.7, darkness(sim)) : darkness(sim);
     for (const f of flashes) { f.t = Math.max(0, f.t - dt); if (f.t <= 0) f.light.intensity = 0; }
     const px = p.x * U, pz = p.y * U;
     const sources = [];
@@ -1270,6 +1270,14 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       sunI = 0;
       skyTop = new THREE.Color('#000000'); skyHor = new THREE.Color('#070605');
     }
+    if (L.city) {
+      // inside the Spire: house lights before lockdown, emergency red after
+      sunCol = mix('#9aa8ff', '#ff5a6a', n); sunI = lerp(0.46, 0.2, n);
+      hemiSky = mix('#7a84d0', '#6a3048', n); hemiGround = new THREE.Color('#2a2238'); hemiI = lerp(0.66, 0.42, n);
+      fogCol = mix('#131226', '#140709', n); fogNear = lerp(30, 3, n); fogFar = lerp(115, R * 1.8 + 6, n);
+      skyTop = new THREE.Color('#07060f'); skyHor = mix('#2a1f4a', '#3a1018', n);
+      elev = 0.95;
+    }
     const amb = L.ambient || null;
     if (amb) {
       fogCol = new THREE.Color(amb.fog); fogNear = amb.near; fogFar = amb.far;
@@ -1291,14 +1299,14 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     sun.target.position.set(px, 0, pz);
     sun.target.updateMatrixWorld();
     sun.castShadow = QUALITY[r.quality].shadows > 0 && !mine && sunI > 0.24;
-    sunDisc.visible = b < 0.5 && !mine && !hollow;
+    sunDisc.visible = b < 0.5 && !mine && !hollow && !L.city;
     sunDisc.position.copy(camera.position).addScaledVector(dir, 520);
     sunDisc.lookAt(camera.position);
     sunDisc.material.color.copy(lin(sunCol)).multiplyScalar(1.5);
-    moonDisc.visible = b >= 0.5 && !mine;
+    moonDisc.visible = b >= 0.5 && !mine && !L.city;
     moonDisc.position.copy(camera.position).addScaledVector(dir, 520);
     moonDisc.lookAt(camera.position);
-    stars.material.opacity = mine ? 0 : b * 0.95;
+    stars.material.opacity = mine || L.city ? 0 : b * 0.95;
     stars.position.copy(camera.position);
     sky.position.copy(camera.position);
     mesas.position.set(camera.position.x, 0, camera.position.z);
@@ -1306,6 +1314,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     mesaMat.color.copy(lin(mix(mix('#a8705a', '#6a3a48', a), '#0c0e18', b)));
     if (hollow) mesaMat.color.copy(col('#1c1430'));
     outerGround.material.color.copy(lin(mix(mix('#c99a6a', '#8a5a44', a), '#0a0c14', b)));
+    if (L.city) { mesaMat.color.copy(col('#0b0a14')); outerGround.material.color.copy(col('#0b0a14')); }
     outerGround.visible = !mine;
     r.envT -= dt;
     if (r.envT <= 0) {
@@ -1314,7 +1323,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     }
     // The drifter's own light in the dark. It hangs above and a little behind them, so the camera
     // sees them lit rather than as a silhouette.
-    lantern.intensity = L.ambient ? 0.9 : mine ? 2.3 : n * 1.9 + (hollow ? 0.5 : 0);
+    lantern.intensity = L.ambient ? 0.9 : mine ? 2.3 : Math.max(L.city ? 0.8 : 0, n * 1.9) + (hollow ? 0.5 : 0);
     lantern.distance = R * 1.35 + 3;
     lantern.color.copy(col(hollow ? '#cdbcff' : '#ffc98a'));
     lantern.position.set(px - Math.cos(r.yaw) * 0.7, 2.3, pz - Math.sin(r.yaw) * 0.7);

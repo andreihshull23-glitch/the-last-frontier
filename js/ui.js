@@ -205,7 +205,7 @@ export function createUI(root, panelEl, api) {
     if (m.kind === 'story') tags.push(`Chapter ${m.chapter}`);
     if (m.faction) tags.push(FACTIONS[m.faction].short);
     if (m.kind === 'descent') tags.push('Roguelike run', `${m.floors} floors`, m.best ? `Best: floor ${m.best}` : 'Never finished');
-    else tags.push(m.gen === 'mine' ? 'Underground' : m.night ? 'After dark' : 'Canyon');
+    else tags.push(m.gen === 'mine' ? 'Underground' : m.night ? 'In lockdown' : 'District');
     if (m.kind === 'job' && m.tier) tags.push(`Danger ${m.tier}`);
     const rep = Object.entries(m.rep).map(([f, d]) => `${FACTIONS[f].short} ${signed(d)}`);
     return `<article class="bill ${m.faction || 'none'} ${m.kind === 'story' ? 'is-selected' : ''}">

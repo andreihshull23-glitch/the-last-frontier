@@ -3,8 +3,8 @@
 // promise in validateLevel() holds.
 import { TILE, PX, MACRO, SOLID, ROCK, GROUND, ENEMIES, LOOT_NAMES } from '../content.js';
 import { makeRng } from '../rng.js';
-import { createLevel, building, skinRock, place, box, cyl, paint, reserve, metres, centreM, tileCentre, addFlags, setTile, validateLevel, inb, WALL, buildNav, floodFrom, nearestNav } from '../level.js';
-import { scatter, trail, clearAround, DESERT_FLORA, DESERT_ROCKS, PEBBLES, HOLLOW_FLORA, TM } from './common.js';
+import { createLevel, building, skinRock, skinBlocks, place, box, cyl, paint, reserve, metres, centreM, tileCentre, addFlags, setTile, validateLevel, inb, WALL, buildNav, floodFrom, nearestNav } from '../level.js';
+import { scatter, trail, clearAround, DESERT_ROCKS, PEBBLES, HOLLOW_FLORA, STREET_CLUTTER, STREET_BULK, STREET_LITTER, TM } from './common.js';
 import { horse, wagon, coach, barrel, crate, hitchRail, lampPost, trough, well, waterTower, campfire, railTrack, counter, shelfWall, table, flag } from './props.js';
 
 const P = (m) => m * PX;
@@ -37,6 +37,8 @@ export function build(spec, seed) {
   L.seed = seed;
   L.rock.fill(1);
   const hollow = theme === 'hollow';
+  const city = !hollow;          // a district of the Spire; the Hollow keeps its rock
+  L.city = city;
 
   // ---- where things go -------------------------------------------------------
   const want = ['trailhead', ...(spec.pois || []), 'coach_stop'];
@@ -175,7 +177,7 @@ export function build(spec, seed) {
     p.tx = p.x * MACRO; p.ty = p.y * MACRO; p.tw = p.w * MACRO; p.th = p.h * MACRO;
     reserve(L, p.tx, p.ty, p.tx + p.tw - 1, p.ty + p.th - 1);
   }
-  skinRock(L, rng);
+  if (city) skinBlocks(L, rng); else skinRock(L, rng);
 
   // ---- ground ------------------------------------------------------------------
   const baseGround = hollow ? GROUND.hollow : GROUND.sand;
@@ -322,19 +324,20 @@ export function build(spec, seed) {
     scatter(L, rng, Math.round(area * 26), HOLLOW_FLORA);
     scatter(L, rng, Math.round(area * 7), DESERT_ROCKS);
   } else {
-    scatter(L, rng, Math.round(area * 40), DESERT_FLORA);
-    scatter(L, rng, Math.round(area * 6), DESERT_ROCKS, { near: 'open' });
-    scatter(L, rng, Math.round(area * 7), DESERT_ROCKS, { near: 'wall' });
+    scatter(L, rng, Math.round(area * 16), STREET_CLUTTER);
+    scatter(L, rng, Math.round(area * 7), STREET_BULK, { near: 'wall' });
+    scatter(L, rng, Math.round(area * 14), STREET_LITTER, { onKeep: true });
   }
-  scatter(L, rng, Math.round(area * 34), PEBBLES, { onKeep: true });
+  if (hollow) scatter(L, rng, Math.round(area * 34), PEBBLES, { onKeep: true });
   // spires on top of the rock
   for (let k = 0; k < area * 3; k++) {
     const mx = rng.int(0, mw - 1), my = rng.int(0, mh - 1);
     if (L.rock[my * mw + mx] !== 1) continue;
+    if (city) { place(L, ['cyber/ac', 'cyber/antenna-1', 'cyber/antenna-2', 'cyber/ac-side', 'scifi/prop-fan-small'][rng.int(0, 4)], (mx + 0.5) * 4 + rng.range(-1, 1), (my + 0.5) * 4 + rng.range(-1, 1), { y: 4.45, r: rng.next() * TAU, t: 'street', solid: false }); continue; }
     place(L, rng.chance(0.5) ? 'cave/template-detail' : 'nat/rock_tallB', (mx + 0.5) * 4 + rng.range(-1, 1), (my + 0.5) * 4 + rng.range(-1, 1), { y: 3.95, r: rng.next() * TAU, s: 0.8 + rng.next() * 0.7, solid: false });
   }
 
-  L.name = spec.name || 'The Red Country';
+  L.name = spec.name || 'The district';
   L.clock = spec.night ? { start: 'night' } : { start: 'day' };
   return L;
 }
@@ -382,7 +385,7 @@ const BUILDERS = {
     campfire(L, ...F.at(cx + 1.6, cz + 1.8), false);
     place(L, 'nat/bed_floor', ...F.at(cx + 3.4, cz + 2.2), { r: 0.8, s: 1.2, solid: false });
     place(L, 'nat/log', ...F.at(cx + 0.4, cz + 3.0), { r: 1.2, solid: false });
-    return { name: 'Trailhead', startAt: F.sim(cx + 0.4, cz + 0.2), exitAt: F.sim(cx - 2.2, cz - 0.1) };
+    return { name: 'Lift landing', startAt: F.sim(cx + 0.4, cz + 0.2), exitAt: F.sim(cx - 2.2, cz - 0.1) };
   },
   coach_stop({ L, rng }, p) {
     const F = frameOf(p);
@@ -393,7 +396,7 @@ const BUILDERS = {
     lampPost(L, ...F.at(cx - 3.2, cz + 1.4));
     place(L, 'nat/sign', ...F.at(cx - 2.6, cz + 2.8), { r: -0.3 });
     barrel(L, ...F.at(cx - 1.4, cz + 3.4)); crate(L, ...F.at(cx - 0.4, cz + 3.5), 0.3, 0.8);
-    return { name: 'Coach stop', exitAt: F.sim(cx, cz + 1.5) };
+    return { name: 'Tram stop', exitAt: F.sim(cx, cz + 1.5) };
   },
   bandit_camp(ctx, p) {
     const { L, rng } = ctx;
@@ -412,12 +415,12 @@ const BUILDERS = {
     flag(L, ...F.at(cx + 0.9, cz - 2.2), 1.3, 'tent_red');
     for (const [u, v] of [[cx - 2.4, cz + 1.4], [cx + 2.6, cz + 1.2], [cx + 0.4, cz - 3.2], [cx - 5.2, cz - 1.2], [cx + 4.6, cz + 0.2], [cx - 1, cz + 5.2], [cx + 8, cz - 5], [cx - 8.4, cz + 5.6]]) post(ctx, p, F, u, v, 'outlaw');
     cacheAt(ctx, F, cx - 7.6, cz - 2.2, 1); cacheAt(ctx, F, cx + 7.4, cz - 1.6, 0);
-    return { name: 'Bandit camp', objective: F.sim(cx - 4.6, cz - 2.6), boss: F.sim(cx + 1.4, cz + 2.4) };
+    return { name: 'Saints camp', objective: F.sim(cx - 4.6, cz - 2.6), boss: F.sim(cx + 1.4, cz + 2.4) };
   },
   homestead(ctx, p) {
     const { L, rng } = ctx;
     const F = frameOf(p);
-    const house = building(L, rng, { x: p.tx + 4, y: p.ty + 3, mw: 3, md: 2, style: 'wood', porch: 's', doors: [{ side: 's', at: 1 }, { side: 'e', at: 0 }], windows: 0.6, boarded: 0.35, name: 'Homestead' });
+    const house = building(L, rng, { x: p.tx + 4, y: p.ty + 3, mw: 3, md: 2, style: 'wood', porch: 's', doors: [{ side: 's', at: 1 }, { side: 'e', at: 0 }], windows: 0.6, boarded: 0.35, name: 'Squat' });
     const barn = building(L, rng, { x: p.tx + 27, y: p.ty + 5, mw: 2, md: 2, style: 'red', doors: [{ side: 's', at: 0, wide: true }], windows: 0 });
     // inside the house
     const hx = metres(house.in.x0), hz = metres(house.in.y0);
@@ -442,12 +445,12 @@ const BUILDERS = {
     barrel(L, ...F.at(1.2, 8.2));
     for (const [u, v] of [[6.6, 9.4], [9.5, 8.6], [14.4, 9.2], [17.2, 9.6], [5, 4.6], [16.6, 6.6]]) post(ctx, p, F, u, v, 'outlaw');
     cacheAt(ctx, F, hx - F.X + 7.6, hz - F.Z + 4.4, 1); cacheAt(ctx, F, bx - F.X + 2.8, bz - F.Z + 1.2, 0);
-    return { name: 'Abandoned homestead', objective: [P(hx + 2.9), P(hz + 3.0)], boss: F.sim(9, 10.5) };
+    return { name: 'Abandoned squat', objective: [P(hx + 2.9), P(hz + 3.0)], boss: F.sim(9, 10.5) };
   },
   rail_station(ctx, p) {
     const { L, rng } = ctx;
     const F = frameOf(p);
-    const B = building(L, rng, { x: p.tx + 9, y: p.ty + 3, mw: 4, md: 2, style: 'ochre', front: 's', sign: 'DRY FORK', porch: 's', doors: [{ side: 's', at: 1, wide: true }, { side: 'w', at: 0 }], windows: 0.6, boarded: 0.3, name: 'Dry Fork station' });
+    const B = building(L, rng, { x: p.tx + 9, y: p.ty + 3, mw: 4, md: 2, style: 'ochre', front: 's', sign: 'DRY FORK', porch: 's', doors: [{ side: 's', at: 1, wide: true }, { side: 'w', at: 0 }], windows: 0.6, boarded: 0.3, name: 'Dry Fork maglev stop' });
     paint(L, p.tx + 4, p.ty + 20, p.tx + p.tw - 5, p.ty + 23, GROUND.plank);
     paint(L, p.tx, p.ty + 25, p.tx + p.tw - 1, p.ty + 30, GROUND.gravel);
     railTrack(L, F.X - 2, F.Z + 13.9, F.X + F.W + 2, F.Z + 13.9);
@@ -466,7 +469,7 @@ const BUILDERS = {
     lampPost(L, ...F.at(5.2, 9.4)); lampPost(L, ...F.at(19.4, 9.4));
     for (const [u, v, f] of [[8, 11], [14, 11.2], [20, 11], [11, 15.2], [22, 15.6], [3.4, 8], [bx - F.X + 5.6, bz - F.Z + 3.6], [bx - F.X + 9, bz - F.Z + 2.6]]) post(ctx, p, F, u, v, ctx.spec.mix?.guard ? 'meridian' : 'outlaw');
     cacheAt(ctx, F, bx - F.X + 0.9, bz - F.Z + 4.4, 1); cacheAt(ctx, F, 22.4, 10.4, 0);
-    return { name: 'Dry Fork station', objective: [P(bx + 6.2), P(bz + 3.4)], boss: F.sim(13, 11.4) };
+    return { name: 'Dry Fork maglev stop', objective: [P(bx + 6.2), P(bz + 3.4)], boss: F.sim(13, 11.4) };
   },
   site9(ctx, p) {
     const { L, rng } = ctx;
@@ -535,7 +538,7 @@ const BUILDERS = {
     place(L, 'arena/block', ...F.at(cx + 5.6, cz - 0.4), { t, s: 0.9, r: 0.3 });
     post(ctx, p, F, cx - 1, cz + 0.6, 'any'); post(ctx, p, F, cx + 3.4, cz + 1.4, 'any'); post(ctx, p, F, cx + 0.6, cz + 3.6, 'hollow');
     cacheAt(ctx, F, cx + 0.2, cz - 1.2, 1);
-    return { name: hollow ? 'Drowned ruins' : 'Old ruins', objective: F.sim(cx - 1.4, cz - 0.6), boss: F.sim(cx, cz + 1.6) };
+    return { name: hollow ? 'Drowned block' : 'Collapsed block', objective: F.sim(cx - 1.4, cz - 0.6), boss: F.sim(cx, cz + 1.6) };
   },
   wreck(ctx, p) {
     const { L, rng } = ctx;
@@ -547,7 +550,7 @@ const BUILDERS = {
     L.pieces.push({ m: '@cyl', x: F.X + cx - 2.6, y: 0.1, z: F.Z + cz - 2.6, sx: 0.62, sy: 0.12, sz: 0.62, r: 0.4, c: '#a9794b', c2: '#5c3e2a', seg: 10, axis: 'x' });
     post(ctx, p, F, cx + 2.6, cz + 3.6, 'outlaw'); post(ctx, p, F, cx - 2.6, cz + 3.8, 'outlaw');
     cacheAt(ctx, F, cx - 3.6, cz - 0.4, 0);
-    return { name: 'Wrecked wagon', objective: F.sim(cx + 0.2, cz + 3.4), boss: F.sim(cx, cz + 4) };
+    return { name: 'Wrecked hauler', objective: F.sim(cx + 0.2, cz + 3.4), boss: F.sim(cx, cz + 4) };
   },
   depot(ctx, p) {
     const { L, rng } = ctx;

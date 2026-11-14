@@ -1,10 +1,14 @@
-// Compound props assembled from kit models and coloured boxes: horses,
-// wagons, lamp posts, graves. All positions are metres; `r` rotates about Y.
+// Compound props assembled from kit models and coloured boxes: lift pads,
+// freight haulers, street lights. The names are older than the setting. All positions are metres; `r` rotates about Y.
 import { box, cyl, place, addFlags, WALL } from '../level.js';
 import { SOLID, TILE, PX } from '../content.js';
 
 const TM = TILE / PX;
-const WOOD = '#8a623c', WOOD_D = '#5c3e2a', WOOD_L = '#a9794b', IRON = '#4a4a52', IRON_D = '#2e2e36';
+const STEEL = '#2a2d40', STEEL_D = '#1a1c2a', STEEL_L = '#3c4060';
+const glowBox = (L, ...a) => { const p = box(L, ...a); p.glow = true; return p; };
+const glowCyl = (L, ...a) => { const p = cyl(L, ...a); p.glow = true; return p; };
+const rgb = (h) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
+const neon = (L, x, y, z, c, r = 8) => L.lights.push({ x, y, z, c: rgb(c), r, kind: 'neon' });
 
 // local (a, b) -> world, for a prop at (x, z) rotated r
 function rot(x, z, r, a, b) {
@@ -23,24 +27,16 @@ function solidBox(L, x, z, r, sx, sz, tall = false, hgt = 10) {
   }
 }
 
-export function horse(L, x, z, r, coat = '#7a4e30', o = {}) {
-  const dark = '#3b2a20';
-  const b = (a, y, bb, sx, sy, sz, c, c2) => { const [wx, wz] = rot(x, z, r, a, bb); box(L, wx, y, wz, sx, sy, sz, c, { r, c2, to: o.to }); };
-  b(0, 0.95, 0, 0.62, 0.62, 1.55, coat, shadeHex(coat, 0.78));          // barrel
-  b(0, 1.35, 0.78, 0.36, 0.72, 0.42, coat, shadeHex(coat, 0.8));         // neck
-  b(0, 1.82, 1.06, 0.3, 0.34, 0.66, coat, shadeHex(coat, 0.85));         // head
-  b(0, 1.86, 1.36, 0.24, 0.2, 0.16, dark);                                // muzzle
-  b(0.1, 2.16, 0.86, 0.07, 0.16, 0.07, coat); b(-0.1, 2.16, 0.86, 0.07, 0.16, 0.07, coat); // ears
-  b(0, 1.5, 0.6, 0.1, 0.62, 0.34, dark);                                  // mane
-  for (const [la, lb] of [[0.2, 0.58], [-0.2, 0.58], [0.2, -0.58], [-0.2, -0.58]]) b(la, 0, lb, 0.17, 0.98, 0.19, shadeHex(coat, 0.86), dark);
-  b(0, 0.82, -0.86, 0.12, 0.66, 0.12, dark);                              // tail
-  if (o.saddle !== false) {
-    b(0, 1.57, -0.05, 0.66, 0.1, 0.62, '#5b3a26', '#3b2518');
-    b(0, 1.6, -0.34, 0.5, 0.16, 0.1, '#5b3a26');
-    b(0.34, 1.05, -0.05, 0.05, 0.5, 0.36, '#6a4630');                     // saddle bag
-    b(-0.34, 1.05, -0.05, 0.05, 0.5, 0.36, '#6a4630');
-  }
-  if (o.solid !== false) solidBox(L, x, z, r, 0.8, 2.1, false, 16);
+/** A personal lift pad: where a runner arrives and leaves. (Once a horse.) */
+export function horse(L, x, z, r, coat = '#ffd23f', o = {}) {
+  const c = coat.startsWith('#f') || coat.startsWith('#3') ? coat : '#ffd23f';
+  cyl(L, x, 0, z, 1.0, 0.08, STEEL, { c2: STEEL_D, seg: 14, to: o.to });
+  const ring = cyl(L, x, 0.08, z, 0.9, 0.03, c, { seg: 14, to: o.to }); ring.glow = true;
+  cyl(L, x, 0.1, z, 0.74, 0.03, '#20222e', { seg: 14, to: o.to });
+  const [px, pz] = rot(x, z, r, 0.0, -1.15);
+  box(L, px, 0, pz, 0.3, 1.25, 0.2, STEEL_L, { r, c2: STEEL_D, to: o.to });
+  const lamp = box(L, px, 1.25, pz, 0.34, 0.1, 0.24, c, { r, to: o.to }); lamp.glow = true;
+  if (!o.to) neon(L, x, 0.8, z, c, 6);
 }
 
 function shadeHex(hex, k) {
@@ -49,139 +45,159 @@ function shadeHex(hex, k) {
 }
 export { shadeHex };
 
+/** A freight hauler: a flatbed with containers on it. */
 export function wagon(L, x, z, r, o = {}) {
-  // a freight cart, or a covered wagon
-  place(L, o.covered ? 'west/cart-c' : 'west/cart-b', x, z, { r, centre: true, s: 1.05 });
+  box(L, x, 0.3, z, 1.9, 0.3, 3.6, STEEL_L, { r, c2: STEEL_D });
+  for (const [a, b] of [[-0.8, -1.3], [0.8, -1.3], [-0.8, 1.3], [0.8, 1.3]]) { const [wx, wz] = rot(x, z, r, a, b); cyl(L, wx, 0, wz, 0.32, 0.36, '#14151c', { seg: 8 }); }
+  const [cx, cz] = rot(x, z, r, 0, -0.5);
+  if (o.load !== false) place(L, o.covered ? 'station/container-flat' : 'station/container-wide', cx, cz, { y: 0.6, r, s: 0.8, t: 'deckprop', solid: false });
+  const [hx, hz] = rot(x, z, r, 0, 1.55);
+  box(L, hx, 0.6, hz, 1.7, 0.8, 0.5, STEEL, { r, c2: STEEL_D });
+  const [gx, gz] = rot(x, z, r, 0, 1.82);
+  glowBox(L, gx, 0.9, gz, 1.3, 0.12, 0.04, '#ffb43f', { r });
+  solidBox(L, x, z, r, 1.9, 3.6, true, 22);
 }
 
+/** A freight tram car waiting at its stop. */
 export function coach(L, x, z, r) {
-  place(L, 'west/stagecoach', x, z, { r, centre: true, s: 1.0 });
+  box(L, x, 0.35, z, 2.3, 2.2, 5.6, '#34384f', { r, c2: STEEL_D });
+  box(L, x, 2.55, z, 2.0, 0.16, 5.2, STEEL_D, { r });
+  for (const side of [-1.17, 1.17]) {
+    const [wx, wz] = rot(x, z, r, side, 0);
+    glowBox(L, wx, 1.5, wz, 0.04, 0.6, 4.4, '#ffe2a8', { r });
+    const [sx, sz] = rot(x, z, r, side, 0);
+    glowBox(L, sx, 0.5, sz, 0.05, 0.06, 5.4, '#3fe0ff', { r });
+  }
+  for (const b of [-2.82, 2.82]) { const [wx, wz] = rot(x, z, r, 0, b); glowBox(L, wx, 0.9, wz, 1.6, 0.14, 0.04, b > 0 ? '#ffe2a8' : '#ff5a3a', { r }); }
+  solidBox(L, x, z, r, 2.3, 5.6, true, 26);
+  neon(L, x, 1.6, z, '#ffe2a8', 9);
 }
 
 export function barrel(L, x, z, o = {}) {
-  place(L, o.c ? 'west/barrel-b' : 'west/barrel-a', x, z, { r: (x * 7 + z * 3) % 6.28, s: 0.92, solid: o.solid === false ? false : 'low', t: o.c ? 'tent_red' : null });
+  place(L, 'scifi/prop-barrel-large', x, z, { r: (x * 7 + z * 3) % 6.28, s: 0.95, solid: o.solid === false ? false : 'low', t: o.c ? 'machine' : 'deckprop' });
 }
 
 export function crate(L, x, z, r = 0, size = 0.9, o = {}) {
-  const sc = size / 0.83;
-  place(L, 'west/crate', x, z, { r, y: o.y || 0, s: [sc, sc * 1.9, sc], solid: o.solid !== false && !o.y ? 'low' : false });
+  const m = size > 0.82 ? 'scifi/prop-crate4' : 'scifi/prop-crate3';
+  const half = m === 'scifi/prop-crate4' ? 0.6 : 0.5, sc = size / (half * 2);
+  place(L, m, x, z, { r, y: (o.y || 0) + half * sc, s: sc, t: 'deckprop', solid: o.solid !== false && !o.y ? 'low' : false });
 }
 
+/** A low barrier with a strip of light along it. */
 export function hitchRail(L, x, z, r, len = 3) {
-  place(L, 'west/hitching-post', x, z, { r, s: [len / 1.6, 1.1, 1.2], solid: 'low' });
+  box(L, x, 0, z, len, 0.9, 0.22, STEEL, { r, c2: STEEL_D });
+  glowBox(L, x, 0.9, z, len, 0.04, 0.26, '#ffb43f', { r });
+  solidBox(L, x, z, r, len, 0.3, false, 9);
 }
 
 export function lampPost(L, x, z, o = {}) {
-  box(L, x, 0, z, 0.16, 3.0, 0.16, '#4a3a2e', { c2: '#2e241c' });
-  box(L, x + 0.28, 2.85, z, 0.6, 0.08, 0.08, '#4a3a2e');
-  box(L, x + 0.52, 2.42, z, 0.24, 0.36, 0.24, '#f2c46a', { c2: '#e0a040' });
-  box(L, x + 0.52, 2.78, z, 0.3, 0.06, 0.3, '#2e241c');
-  L.lights.push({ x: x + 0.52, y: 2.6, z, c: [1, 0.74, 0.38], r: o.r || 9, kind: 'lantern' });
+  place(L, 'cyber/light-street-1', x, z, { r: Math.PI / 2, s: 0.7, t: 'street', solid: false });
+  glowBox(L, x + 0.68, 3.66, z, 0.42, 0.05, 0.26, '#e8f4ff');
+  L.lights.push({ x: x + 0.7, y: 3.5, z, c: [0.78, 0.9, 1], r: o.r || 10, kind: 'lantern' });
   addFlags(L, Math.floor(x / TM), Math.floor(z / TM), SOLID, 30);
 }
 
+/** A run of pipe on stands. */
 export function trough(L, x, z, r = 0) {
-  place(L, 'west/trough-a', x, z, { r, s: 1.45, solid: 'low' });
+  place(L, 'scifi/prop-pipeholder', x, z, { r, s: 0.7, t: 'deckprop', solid: 'low' });
 }
 
+/** A coolant tank cluster. */
 export function well(L, x, z) {
-  cyl(L, x, 0, z, 1.0, 0.85, '#a09a92', { c2: '#77716b', seg: 10 });
-  cyl(L, x, 0.84, z, 0.78, 0.03, '#35596a', { seg: 10 });
-  box(L, x - 0.95, 0, z, 0.16, 2.5, 0.16, WOOD, { c2: WOOD_D });
-  box(L, x + 0.95, 0, z, 0.16, 2.5, 0.16, WOOD, { c2: WOOD_D });
-  box(L, x, 2.45, z, 2.5, 0.16, 1.5, '#7a4a34', { c2: '#5c3526' });
-  box(L, x, 1.9, z, 1.9, 0.1, 0.1, WOOD_D);
-  solidDisc(L, x, z, 1.05, false, 9);
+  cyl(L, x, 0, z, 1.0, 0.5, STEEL, { c2: STEEL_D, seg: 12 });
+  for (const [a, b, h] of [[-0.35, -0.25, 1.9], [0.4, -0.1, 1.5], [0, 0.42, 2.3]]) {
+    cyl(L, x + a, 0.5, z + b, 0.34, h, '#3a4660', { c2: '#222a3c', seg: 10 });
+    glowCyl(L, x + a, 0.5 + h * 0.6, z + b, 0.35, 0.06, '#3fe0ff', { seg: 10 });
+  }
+  solidDisc(L, x, z, 1.05, true, 24);
+  neon(L, x, 1.6, z, '#3fe0ff', 7);
 }
 
+/** A relay mast. */
 export function waterTower(L, x, z) {
-  place(L, 'west/water-tank', x, z, { s: 1.35 });
+  box(L, x, 0, z, 1.6, 1.4, 1.6, STEEL, { c2: STEEL_D });
+  box(L, x, 1.4, z, 0.3, 5.4, 0.3, STEEL_L, { c2: STEEL_D });
+  place(L, 'cyber/antenna-2', x + 0.3, z, { y: 5.2, s: 1.2, t: 'street', solid: false });
+  place(L, 'cyber/antenna-1', x, z, { y: 6.8, t: 'street', solid: false });
+  glowBox(L, x, 6.9, z, 0.2, 0.2, 0.2, '#ff5a3a');
+  L.lights.push({ x, y: 7, z, c: [1, 0.3, 0.2], r: 6, kind: 'neon' });
+  solidBox(L, x, z, 0, 1.6, 1.6, true, 40);
 }
 
 export function grave(L, x, z, r = 0, kind = 0) {
-  if (kind === 0) {
-    box(L, x, 0, z, 0.12, 1.15, 0.12, '#b9a98c', { r, c2: '#8a7a62' });
-    box(L, x, 0.72, z, 0.66, 0.12, 0.12, '#b9a98c', { r });
-  } else {
-    box(L, x, 0, z, 0.62, 0.8, 0.16, '#a09a92', { r, c2: '#77716b' });
-    box(L, x, 0.78, z, 0.5, 0.12, 0.16, '#a8a29a', { r });
-  }
-  // the mound
-  const [mx, mz] = rot(x, z, r, 0, 1.0);
-  box(L, mx, 0, mz, 0.9, 0.16, 1.8, '#b98a62', { r, c2: '#a5774f' });
+  box(L, x, 0, z, 0.62, 0.8, 0.16, STEEL, { r, c2: STEEL_D });
+  glowBox(L, x, 0.5, z + 0.09, 0.4, 0.08, 0.02, kind === 0 ? '#ffb43f' : '#5a7090', { r });
 }
 
 export function jobBoard(L, x, z, r) {
-  const b = (a, y, bb, sx, sy, sz, c, c2) => { const [wx, wz] = rot(x, z, r, a, bb); box(L, wx, y, wz, sx, sy, sz, c, { r, c2 }); };
-  b(-0.9, 0, 0, 0.14, 2.3, 0.14, WOOD, WOOD_D);
-  b(0.9, 0, 0, 0.14, 2.3, 0.14, WOOD, WOOD_D);
-  b(0, 1.0, 0, 1.9, 1.15, 0.08, '#6e4a30', '#5c3e2a');
-  b(0, 2.2, 0, 2.2, 0.12, 0.3, '#5c3e2a');
-  const notes = [[-0.55, 1.5, '#ece2c8'], [0.05, 1.62, '#e4d2a0'], [0.55, 1.42, '#ece2c8'], [-0.3, 1.12, '#d8c39a'], [0.4, 1.08, '#ece2c8']];
-  for (const [a, y, c] of notes) b(a, y, 0.06, 0.4, 0.34, 0.02, c);
-  solidBox(L, x, z, r, 2.0, 0.3, false, 23);
+  place(L, 'cyber/computer-large', x, z, { r, s: 0.62, t: 'street' });
 }
 
 export function archGate(L, x, z, r, span = 7, text = 'MERCY') {
   const [ax, az] = rot(x, z, r, -span / 2, 0), [bx, bz] = rot(x, z, r, span / 2, 0);
-  box(L, ax, 0, az, 0.4, 5.2, 0.4, WOOD, { c2: WOOD_D });
-  box(L, bx, 0, bz, 0.4, 5.2, 0.4, WOOD, { c2: WOOD_D });
-  box(L, x, 4.9, z, span + 1.2, 0.36, 0.36, WOOD_L, { r, c2: WOOD });
+  box(L, ax, 0, az, 0.4, 5.2, 0.4, STEEL, { c2: STEEL_D });
+  box(L, bx, 0, bz, 0.4, 5.2, 0.4, STEEL, { c2: STEEL_D });
+  box(L, x, 4.9, z, span + 1.2, 0.36, 0.36, STEEL_L, { r, c2: STEEL });
   addFlags(L, Math.floor(ax / TM), Math.floor(az / TM), WALL, 52);
   addFlags(L, Math.floor(bx / TM), Math.floor(bz / TM), WALL, 52);
   const nx = Math.sin(r), nz = Math.cos(r);
-  L.signs.push({ text, x: x + nx * 0.22, y: 4.2, z: z + nz * 0.22, nx, nz, w: 4.2, h: 1.1 });
-  L.signs.push({ text, x: x - nx * 0.22, y: 4.2, z: z - nz * 0.22, nx: -nx, nz: -nz, w: 4.2, h: 1.1 });
+  L.signs.push({ text, x: x + nx * 0.22, y: 4.2, z: z + nz * 0.22, nx, nz, w: 4.2, h: 1.1, glow: true, bg: '#0a0b14', fg: '#3fe0ff' });
+  L.signs.push({ text, x: x - nx * 0.22, y: 4.2, z: z - nz * 0.22, nx: -nx, nz: -nz, w: 4.2, h: 1.1, glow: true, bg: '#0a0b14', fg: '#3fe0ff' });
 }
 
-/** A flag on a pole. Only the pole is solid, not the cloth. */
+/** A standing light bar in a faction's colour. Only the pole is solid. */
 export function flag(L, x, z, s = 1.5, t = null) {
-  place(L, 'forest/flag', x, z, { s, t, solid: false });
+  const c = t === 'tent_red' ? '#ff5a3a' : '#3fe0ff';
+  box(L, x, 0, z, 0.12, 2.2 * s, 0.12, STEEL_L, { c2: STEEL_D });
+  glowBox(L, x, 1.3 * s, z + 0.3, 0.05, 0.8 * s, 0.6, c);
+  L.lights.push({ x, y: 1.8 * s, z, c: rgb(c), r: 6, kind: 'neon' });
   addFlags(L, Math.floor(x / TM), Math.floor(z / TM), SOLID, 20);
 }
 
+/** A fire in a drum: what people warm their hands at down here. */
 export function campfire(L, x, z, lit = true) {
-  place(L, 'nat/campfire_stones', x, z, { solid: false });
-  place(L, 'nat/campfire_logs', x, z, { solid: false, y: 0.05 });
-  if (lit) L.lights.push({ x, y: 0.7, z, c: [1, 0.55, 0.22], r: 11, kind: 'fire' });
-  solidDisc(L, x, z, 0.5, false, 4);
+  cyl(L, x, 0, z, 0.38, 0.8, '#3a3230', { c2: '#1c1818', seg: 10 });
+  if (lit) {
+    glowCyl(L, x, 0.78, z, 0.32, 0.05, '#ff9a3a', { seg: 10 });
+    L.lights.push({ x, y: 1.0, z, c: [1, 0.55, 0.22], r: 11, kind: 'fire' });
+  }
+  solidDisc(L, x, z, 0.5, false, 8);
 }
 
+/** Maglev rail: a dark bed with a guide light down the middle. */
 export function railTrack(L, x0, z0, x1, z1) {
   const len = Math.hypot(x1 - x0, z1 - z0), r = Math.atan2(x1 - x0, z1 - z0);
   const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
-  for (const off of [-0.6, 0.6]) {
+  box(L, cx, 0, cz, 1.9, 0.1, len, '#20222e', { r, c2: '#14151c' });
+  for (const off of [-0.7, 0.7]) {
     const [rx, rz] = rot(cx, cz, r, off, 0);
-    box(L, rx, 0.12, rz, 0.1, 0.1, len, '#5a5a62', { r, c2: '#3a3a42' });
+    box(L, rx, 0.1, rz, 0.14, 0.1, len, '#5a6078', { r, c2: '#3a3e52' });
   }
-  for (let t = -len / 2 + 0.4; t < len / 2; t += 0.8) {
-    const [sx, sz] = rot(cx, cz, r, 0, t);
-    box(L, sx, 0, sz, 1.9, 0.12, 0.26, '#6a4a30', { r, c2: '#4a3220' });
-  }
+  glowBox(L, cx, 0.1, cz, 0.08, 0.03, len, '#3fe0ff', { r });
 }
 
 export function table(L, x, z, o = {}) {
-  cyl(L, x, 0, z, 0.12, 0.8, WOOD_D, { seg: 6 });
-  cyl(L, x, 0.8, z, 0.75, 0.08, WOOD_L, { c2: WOOD, seg: 10 });
+  cyl(L, x, 0, z, 0.12, 0.8, STEEL_D, { seg: 6 });
+  cyl(L, x, 0.8, z, 0.75, 0.08, STEEL_L, { c2: STEEL, seg: 10 });
   if (o.stools !== false) {
     for (let k = 0; k < 3; k++) {
       const a = (k / 3) * Math.PI * 2 + (o.turn || 0);
-      cyl(L, x + Math.cos(a) * 1.15, 0, z + Math.sin(a) * 1.15, 0.24, 0.5, WOOD, { c2: WOOD_D, seg: 8 });
+      cyl(L, x + Math.cos(a) * 1.15, 0, z + Math.sin(a) * 1.15, 0.24, 0.5, STEEL, { c2: STEEL_D, seg: 8 });
     }
   }
   solidDisc(L, x, z, 0.72, false, 9);
 }
 
 export function counter(L, x, z, r, len, o = {}) {
-  box(L, x, 0, z, len, 1.02, 0.78, o.c || '#9a6e44', { r, c2: '#6e4a30' });
-  box(L, x, 1.02, z, len + 0.12, 0.08, 0.9, o.top || '#b98a5c', { r });
+  box(L, x, 0, z, len, 1.02, 0.78, STEEL, { r, c2: STEEL_D });
+  box(L, x, 1.02, z, len + 0.12, 0.08, 0.9, STEEL_L, { r });
   solidBox(L, x, z, r, len, 0.8, false, 11);
 }
 
 export function shelfWall(L, x, z, r, len, o = {}) {
-  // a tall goods shelf against a wall, with coloured stock
-  box(L, x, 0, z, len, 2.3, 0.45, '#7a5236', { r, c2: '#5c3e2a' });
-  const cols = o.stock || ['#b5483a', '#d9a83a', '#5b7f4b', '#3f6e8c', '#d8c39a', '#8b6fb5'];
+  // a tall goods rack against a wall, with coloured stock
+  box(L, x, 0, z, len, 2.3, 0.45, STEEL_D, { r });
+  const cols = o.stock && o.stock[0] !== '#8a623c' && o.stock[0] !== '#ece2c8' ? o.stock : ['#b5483a', '#d9a83a', '#5b7f4b', '#3f7f9a', '#d8d2c4', '#8b6fb5'];
   const n = Math.floor(len / 0.42);
   for (let row = 0; row < 3; row++) for (let k = 0; k < n; k++) {
     if ((k * 7 + row * 3) % 5 === 0) continue;
@@ -191,16 +207,18 @@ export function shelfWall(L, x, z, r, len, o = {}) {
   solidBox(L, x, z, r, len, 0.5, true, 23);
 }
 
-/** A wind pump: the tallest thing in any frontier town. */
+/** A big extractor fan on a stand. */
 export function windmill(L, x, z, r = 0) {
-  place(L, 'west/windmill', x, z, { r, s: 1.15 });
+  box(L, x, 0, z, 1.4, 3.2, 1.4, STEEL, { c2: STEEL_D });
+  place(L, 'scifi/prop-fan-small', x, z, { y: 3.3, s: 1.3, t: 'deckprop', solid: false });
+  solidBox(L, x, z, 0, 1.4, 1.4, true, 34);
 }
 export function gallows(L, x, z, r = 0) {
-  place(L, 'west/gallows', x, z, { r, centre: true });
+  place(L, 'cyber/tv-3', x, z, { r, s: 0.8, t: 'street' });
 }
 export function cactus(L, x, z, kind = 0, s = 1) {
-  place(L, ['west/cactus-a', 'west/cactus-b', 'west/cactus-c', 'west/cactus-d'][kind % 4], x, z, { r: (x * 5 + z * 11) % 6.28, s: 1.2 * s });
+  place(L, ['cyber/tank', 'scifi/prop-barrel-large', 'cyber/light-square', 'scifi/prop-crate3'][kind % 4], x, z, { r: (x * 5 + z * 11) % 6.28, s, t: 'street', y: kind % 4 === 3 ? 0.5 * s : 0 });
 }
 export function tumbleweed(L, x, z) {
-  place(L, 'west/tumbleweed', x, z, { r: (x + z) % 6.28, solid: false });
+  place(L, 'scifi/prop-cable-1', x, z, { r: (x + z) % 6.28, solid: false, t: 'deckprop' });
 }

@@ -1,30 +1,30 @@
 <title>The Last Frontier</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="A third-person Western extraction roguelike. Walk the town of Mercy, gear up, ride out, and get back before dark.">
+<meta name="description" content="A third-person cyberpunk roguelike. Walk Mercy Deck, fit a plug-in, take the lift, and get back before lockdown.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800;900&family=IBM+Plex+Mono:wght@400;500;600;700&family=Spectral:ital,wght@0,400;0,600;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jersey+15&family=Pixelify+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
   /* Layout: a full-bleed 3D canvas for the town and the rides; menus are one centred column, shop panels are sheets over the town. */
-  /* One deliberate visual world: the frontier at night. Single dark theme by choice. */
+  /* One deliberate visual world: an old console under neon. Single dark theme by choice. */
   :root {
-    --night: #121318;
-    --panel: #1a1b21;
-    --panel-raised: #22232a;
-    --rule: #34353d;
-    --ink: #ece1cb;
-    --dust: #a89a84;
-    --lamp: #e8a33d;
-    --lamp-ink: #1d1407;
-    --blood: #e2735c;
-    --sage: #a9c98f;
-    --hollow: #9b8cff;
-    --steel: #8ea3c0;
-    --tape: #e7dcc1;
-    --tape-ink: #2a2118;
-    --f-display: "Big Shoulders Display", "Arial Narrow", Impact, sans-serif;
-    --f-body: Spectral, Georgia, "Times New Roman", serif;
+    --night: #0b0a16;
+    --panel: #14132a;
+    --panel-raised: #1d1c3a;
+    --rule: #37365e;
+    --ink: #e8ecff;
+    --dust: #9a9fca;
+    --lamp: #ff3fa4;
+    --lamp-ink: #1c0412;
+    --blood: #ff5a4a;
+    --sage: #5dff9a;
+    --hollow: #a070ff;
+    --steel: #3fe0ff;
+    --tape: #0c1820;
+    --tape-ink: #8fffe0;
+    --f-display: "Jersey 15", "Arial Narrow", Impact, sans-serif;
+    --f-body: "Pixelify Sans", "Trebuchet MS", Verdana, sans-serif;
     --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
     color-scheme: dark;
   }
@@ -356,6 +356,30 @@
   .padrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .btn.small { padding: 6px 10px; min-width: 104px; font-size: 13px; }
   button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--lamp); outline-offset: 2px; }
+
+  /* ---- the 8-bit pass: square corners, hard shadows, pixel type, a trace of scanline ---- */
+  * { border-radius: 0 !important; font-synthesis: none; }
+  h1, h2, h3, h4, .btn { font-weight: 400; letter-spacing: .03em; }
+  h1, h2, h3, h4 { line-height: .9; }
+  .title { color: var(--ink); text-shadow: 4px 4px 0 var(--lamp), -3px -3px 0 var(--steel); }
+  .h-screen { text-shadow: 3px 3px 0 var(--lamp); }
+  .btn { border-width: 2px; box-shadow: 4px 4px 0 #000; font-size: 22px; padding: 11px 18px 10px; transition: transform .05s, box-shadow .05s; }
+  .btn:hover { filter: none; transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--steel); }
+  .btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 #000; }
+  .btn.ghost { border-color: var(--steel); color: var(--steel); }
+  .btn.ghost:hover { border-color: var(--ink); color: var(--ink); }
+  .btn.small { font-size: 16px; box-shadow: 3px 3px 0 #000; }
+  .btn:disabled { transform: none; box-shadow: 4px 4px 0 #000; }
+  .eyebrow { color: var(--steel); }
+  .sheet { border: 2px solid var(--steel); box-shadow: 6px 6px 0 #000, inset 0 0 0 2px var(--night), inset 0 0 0 4px var(--rule); }
+  #ui::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 5;
+    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .16) 0 1px, transparent 1px 3px);
+  }
+  #ui.over-town { background: linear-gradient(90deg, rgba(8, 7, 20, .95) 0%, rgba(8, 7, 20, .84) 42%, rgba(8, 7, 20, .25) 100%); }
+  .loadbar { height: 10px; border: 2px solid var(--steel); }
+  canvas { image-rendering: auto; }
+  @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
 </style>
 
 <div id="stage" hidden>

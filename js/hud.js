@@ -3,14 +3,14 @@
 import { TILE as TS, PX, MACRO, ENEMIES, GUNS, GUN_ORDER, ITEMS, SOLID, ROCK, WATER, INDOOR, GROUND, RELICS } from './content.js';
 import { PLAYER, CLOCK, clockTime, nightFactor, objectiveList, objectiveDone, unsecuredValue, focusPrompt, bossState, currentGun, angleDiff } from './sim.js';
 
-export const FONT_DISPLAY = '"Big Shoulders Display", "Arial Narrow", "Helvetica Neue", sans-serif';
+export const FONT_DISPLAY = '"Jersey 15", "Arial Narrow", "Helvetica Neue", sans-serif';
 export const FONT_MONO = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
 const U = 1 / PX;
 const TAU = Math.PI * 2;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const SHORT = { revolver: 'REV', rifle: 'RIF', shotgun: 'SHG', smg: 'SMG', longrifle: 'LNG', pulse: 'PLS', arc: 'ARC', scatter: 'SCT', bouncer: 'RIC', thumper: 'THM', rail: 'RAIL' };
-const TONE = { story: '#e8a33d', good: '#a9c98f', bad: '#e2735c', warn: '#e8a33d', info: '#ece1cb' };
-const INK = '#ece1cb', DUST = '#a89a84', LAMP = '#e8a33d', BLOOD = '#e2735c', SAGE = '#a9c98f', HOLLOW = '#b9a8ff';
+const TONE = { story: '#ff3fa4', good: '#5dff9a', bad: '#ff5a4a', warn: '#ffb43f', info: '#e8ecff' };
+const INK = '#e8ecff', DUST = '#9a9fca', LAMP = '#3fe0ff', BLOOD = '#ff5a4a', SAGE = '#5dff9a', HOLLOW = '#b9a8ff';
 
 export function toast(r, text, tone = 'story', long = false) {
   if (!text) return;
@@ -20,9 +20,9 @@ export function toast(r, text, tone = 'story', long = false) {
 }
 
 function panel(ctx, x, y, w, h) {
-  ctx.fillStyle = 'rgba(14,12,11,0.72)';
+  ctx.fillStyle = 'rgba(10,9,24,0.72)';
   ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = 'rgba(236,225,203,0.12)';
+  ctx.strokeStyle = 'rgba(232,236,255,0.12)';
   ctx.lineWidth = 1;
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
@@ -66,13 +66,15 @@ function baseMap(r, sim) {
   for (let i = 0; i < L.w * L.h; i++) {
     const f = L.flags[i], gr = L.ground[i];
     let col;
-    if (f & ROCK) col = dark ? [30, 26, 30] : [92, 58, 44];
+    if (f & ROCK) col = dark ? [30, 26, 30] : [20, 22, 36];
     else if (f & WATER) col = [70, 130, 150];
-    else if (f & SOLID && L.hgt[i] >= 20) col = dark ? [120, 104, 96] : [70, 52, 40];
-    else if (f & INDOOR) col = [176, 132, 92];
-    else if (gr === GROUND.trail || gr === GROUND.plank || gr === GROUND.gravel) col = dark ? [120, 104, 110] : [226, 196, 150];
-    else if (gr === GROUND.grass) col = dark ? [90, 84, 120] : [190, 176, 118];
-    else col = dark ? [98, 86, 104] : [206, 172, 128];
+    else if (f & SOLID && L.hgt[i] >= 20) col = dark ? [120, 104, 96] : [34, 38, 60];
+    else if (f & INDOOR) col = [120, 108, 160];
+    else if (gr === GROUND.trail || gr === GROUND.plank || gr === GROUND.gravel) col = dark ? [120, 104, 110] : [112, 128, 176];
+    else if (gr === GROUND.glow) col = [70, 215, 235];
+    else if (gr === GROUND.paving) col = [124, 110, 168];
+    else if (gr === GROUND.grass) col = dark ? [90, 84, 120] : [86, 100, 130];
+    else col = dark ? [98, 86, 104] : [82, 92, 136];
     img.data[i * 4] = col[0]; img.data[i * 4 + 1] = col[1]; img.data[i * 4 + 2] = col[2]; img.data[i * 4 + 3] = 255;
   }
   g.putImageData(img, 0, 0);
@@ -115,7 +117,7 @@ function drawMapMarkers(ctx, sim, x, y, sc, big, ui) {
       ctx.fillStyle = LAMP;
       ctx.beginPath(); ctx.moveTo(mx, my - k); ctx.lineTo(mx + k, my); ctx.lineTo(mx, my + k); ctx.lineTo(mx - k, my); ctx.closePath(); ctx.fill();
     } else if (it.kind === 'cache' && (it.seen || big)) {
-      ctx.fillStyle = 'rgba(232,163,61,0.7)';
+      ctx.fillStyle = 'rgba(63,224,255,0.7)';
       ctx.fillRect(mx - 1.5, my - 1.5, 3, 3);
     } else if (it.kind === 'shop' || it.kind === 'board') {
       ctx.fillStyle = LAMP;
@@ -317,7 +319,7 @@ function drawClock(ctx, s, x, y, compact, align) {
   const w = compact ? 96 : 150;
   const x0 = align === 'right' ? x - w : x - w / 2;
   const t = clamp(tt / night, 0, 1);
-  ctx.strokeStyle = 'rgba(236,225,203,0.3)'; ctx.lineWidth = 1;
+  ctx.strokeStyle = 'rgba(232,236,255,0.3)'; ctx.lineWidth = 1;
   ctx.beginPath(); ctx.moveTo(x0, y + 10); ctx.lineTo(x0 + w, y + 10); ctx.stroke();
   ctx.fillStyle = n >= 1 ? '#c9cfe8' : t > 0.7 ? '#ff7a4a' : '#ffd27a';
   ctx.beginPath(); ctx.arc(x0 + w * t, y + 10 - Math.sin(Math.PI * (1 - t * 0.5)) * 6, n >= 1 ? 3.5 : 4.5, 0, TAU); ctx.fill();
@@ -345,7 +347,7 @@ function drawWeapons(r, ctx, sim, right, bottom, compact) {
   const mag = Math.floor(p.mags[p.gun]);
   const n = g.mag, pipW = Math.min(9, (W - 20 - (compact ? 40 : 52)) / n);
   for (let i = 0; i < n; i++) {
-    ctx.fillStyle = i < mag ? (energy ? (g.bolt || '#6fd6ff') : g.ammo === 'shells' ? '#d0573f' : '#d6a84a') : 'rgba(236,225,203,0.14)';
+    ctx.fillStyle = i < mag ? (energy ? (g.bolt || '#6fd6ff') : g.ammo === 'shells' ? '#d0573f' : '#d6a84a') : 'rgba(232,236,255,0.14)';
     ctx.fillRect(x + 10 + i * pipW, y + 27, Math.max(1, pipW - (pipW > 4 ? 2 : 1)), 9);
   }
   const reserve = energy ? 'CELL' : town ? '∞' : `+${p.ammo[g.ammo]}`;
@@ -364,7 +366,7 @@ function drawWeapons(r, ctx, sim, right, bottom, compact) {
       const cur = k === p.gun;
       const text = `${owned.indexOf(k) + 1} ${SHORT[k] || k.slice(0, 3).toUpperCase()}${owned.length <= 3 ? ' ' + Math.floor(p.mags[k]) : ''}`;
       const tw = ctx.measureText(text).width + 10;
-      ctx.fillStyle = cur ? 'rgba(232,163,61,0.22)' : 'rgba(236,225,203,0.06)';
+      ctx.fillStyle = cur ? 'rgba(63,224,255,0.22)' : 'rgba(232,236,255,0.06)';
       ctx.fillRect(sx, y + H - 21, tw, 15);
       ctx.fillStyle = cur ? LAMP : DUST;
       ctx.fillText(text, sx + 5, y + H - 10);
@@ -372,7 +374,7 @@ function drawWeapons(r, ctx, sim, right, bottom, compact) {
     }
     if (!town) {
       ctx.textAlign = 'right';
-      ctx.fillStyle = p.dynamite > 0 ? '#e2735c' : 'rgba(236,225,203,0.3)';
+      ctx.fillStyle = p.dynamite > 0 ? '#e2735c' : 'rgba(232,236,255,0.3)';
       ctx.fillText(`CHG ${p.dynamite}`, x + W - 10, y + H - 10);
     }
   }
@@ -407,15 +409,15 @@ function drawCrosshair(ctx, c, r, sim) {
 
 function drawTouchUI(ctx, ui) {
   for (const st of ui.sticks) {
-    ctx.strokeStyle = 'rgba(236,225,203,0.35)'; ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(232,236,255,0.35)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(st.ox, st.oy, st.radius, 0, TAU); ctx.stroke();
-    ctx.fillStyle = 'rgba(236,225,203,0.4)';
+    ctx.fillStyle = 'rgba(232,236,255,0.4)';
     ctx.beginPath(); ctx.arc(st.x, st.y, 22, 0, TAU); ctx.fill();
   }
   for (const b of ui.buttons) {
-    ctx.fillStyle = b.active ? 'rgba(232,163,61,0.55)' : 'rgba(14,12,11,0.55)';
+    ctx.fillStyle = b.active ? 'rgba(63,224,255,0.55)' : 'rgba(10,9,24,0.55)';
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
-    ctx.strokeStyle = b.highlight ? LAMP : 'rgba(236,225,203,0.45)';
+    ctx.strokeStyle = b.highlight ? LAMP : 'rgba(232,236,255,0.45)';
     ctx.lineWidth = b.highlight ? 2.5 : 1.5;
     ctx.stroke();
     ctx.fillStyle = INK;
@@ -423,7 +425,7 @@ function drawTouchUI(ctx, ui) {
     ctx.textAlign = 'center';
     ctx.fillText(b.label, b.x, b.y + 4);
   }
-  if (ui.hint) { ctx.font = `500 11px ${FONT_MONO}`; ctx.fillStyle = 'rgba(236,225,203,0.6)'; ctx.textAlign = 'center'; ctx.fillText(ui.hint.text, ui.hint.x, ui.hint.y); }
+  if (ui.hint) { ctx.font = `500 11px ${FONT_MONO}`; ctx.fillStyle = 'rgba(232,236,255,0.6)'; ctx.textAlign = 'center'; ctx.fillText(ui.hint.text, ui.hint.x, ui.hint.y); }
 }
 
 // ---- the frame ---------------------------------------------------------------------
@@ -485,7 +487,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     ctx.font = `500 ${compact ? 10.5 : 11.5}px ${FONT_MONO}`;
     objs.forEach((o, i) => {
       const y = top + 38 + i * lineH;
-      ctx.strokeStyle = o.done ? SAGE : 'rgba(236,225,203,0.6)'; ctx.lineWidth = 1.2;
+      ctx.strokeStyle = o.done ? SAGE : 'rgba(232,236,255,0.6)'; ctx.lineWidth = 1.2;
       ctx.strokeRect(left + 10.5, y - 8.5, 8, 8);
       if (o.done) { ctx.fillStyle = SAGE; ctx.fillRect(left + 12, y - 7, 5, 5); }
       ctx.fillStyle = o.done ? SAGE : o.optional || o.dim ? DUST : INK;
@@ -551,7 +553,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     const bh = lines.length * 17 + 10;
     ctx.globalAlpha = a;
     const bw = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 24;
-    ctx.fillStyle = 'rgba(14,12,11,0.82)'; ctx.fillRect(w / 2 - bw / 2, ty, bw, bh);
+    ctx.fillStyle = 'rgba(10,9,24,0.82)'; ctx.fillRect(w / 2 - bw / 2, ty, bw, bh);
     ctx.fillStyle = TONE[t.tone] ?? TONE.story; ctx.fillRect(w / 2 - bw / 2, ty, 3, bh);
     ctx.fillStyle = INK;
     lines.forEach((l, i) => ctx.fillText(l, w / 2, ty + 18 + i * 17));
@@ -575,7 +577,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     panel(ctx, vitalsX, vitalsY, barW + 20, 58);
     ctx.fillStyle = 'rgba(226,115,92,0.2)'; ctx.fillRect(vitalsX + 10, vitalsY + 10, barW, 9);
     ctx.fillStyle = p.hp < p.maxHp * 0.3 ? '#ff6a4a' : '#d0573f'; ctx.fillRect(vitalsX + 10, vitalsY + 10, barW * clamp(p.hp / p.maxHp, 0, 1), 9);
-    ctx.fillStyle = 'rgba(232,163,61,0.2)'; ctx.fillRect(vitalsX + 10, vitalsY + 23, barW, 4);
+    ctx.fillStyle = 'rgba(63,224,255,0.2)'; ctx.fillRect(vitalsX + 10, vitalsY + 23, barW, 4);
     ctx.fillStyle = p.sprinting ? '#ffd27a' : LAMP; ctx.fillRect(vitalsX + 10, vitalsY + 23, barW * (p.stamina / PLAYER.stamina), 4);
     ctx.font = `600 ${compact ? 10 : 11}px ${FONT_MONO}`;
     ctx.textAlign = 'left'; ctx.fillStyle = INK;
@@ -630,7 +632,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     ctx.font = `600 13px ${FONT_MONO}`;
     const tw = ctx.measureText(text).width + 18;
     const y = h * 0.63;
-    ctx.fillStyle = 'rgba(14,12,11,0.82)'; ctx.fillRect(w / 2 - tw / 2, y - 14, tw, 22);
+    ctx.fillStyle = 'rgba(10,9,24,0.82)'; ctx.fillRect(w / 2 - tw / 2, y - 14, tw, 22);
     ctx.textAlign = 'center'; ctx.fillStyle = INK; ctx.fillText(text, w / 2, y + 1);
     if (fp.progress > 0 && fp.kind !== 'extracting') {
       ctx.strokeStyle = LAMP; ctx.lineWidth = 3;
@@ -657,7 +659,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     const text = 'CLICK TO LOOK AROUND';
     const tw = ctx.measureText(text).width + 30;
     const y = h * 0.82;
-    ctx.fillStyle = 'rgba(14,12,11,0.8)'; ctx.fillRect(w / 2 - tw / 2, y - 23, tw, 34);
+    ctx.fillStyle = 'rgba(10,9,24,0.8)'; ctx.fillRect(w / 2 - tw / 2, y - 23, tw, 34);
     ctx.textAlign = 'center'; ctx.fillStyle = LAMP; ctx.fillText(text, w / 2, y);
   }
   if (r.mapOpen) drawBigMap(r, ctx, sim, ui);

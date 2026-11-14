@@ -15,18 +15,20 @@ function paintWalls(h, s, lMul, trim = null) {
 export function registerTints(assets) {
   const T = (name, fn) => assets.registerTint(name, fn);
   // buildings
-  T('wood', paintWalls(0.068, 0.4, 1.02));
-  T('wood_dark', paintWalls(0.06, 0.36, 0.78));
-  T('adobe', paintWalls(0.075, 0.42, 1.3, { h: 0.09, s: 0.3, l: 0.95 }));
-  T('red', paintWalls(0.012, 0.46, 0.96));
-  T('sage', paintWalls(0.27, 0.2, 1.08));
-  T('blue', paintWalls(0.57, 0.26, 1.18));
-  T('cream', paintWalls(0.11, 0.36, 1.42));
-  T('ochre', paintWalls(0.105, 0.5, 1.12));
-  T('teal', paintWalls(0.47, 0.24, 1.0));
-  T('company', remap([{ hue: SLATE, lit: [0, 0.74], sMul: 0.7, lMul: 0.82 }]));
-  T('roof', paintWalls(0.07, 0.3, 0.62, { h: 0.08, s: 0.28, l: 0.62 }));
-  T('ruin', paintWalls(0.07, 0.22, 0.86, { h: 0.08, s: 0.15, l: 0.8 }));
+  // buildings: the style names are older than the setting. Everything is plate and poured stone now,
+  // told apart by a wash of colour and the trim.
+  T('wood', paintWalls(0.64, 0.16, 0.36, { h: 0.52, s: 0.5, l: 0.8 }));
+  T('wood_dark', paintWalls(0.66, 0.14, 0.3, { h: 0.9, s: 0.5, l: 0.8 }));
+  T('adobe', paintWalls(0.6, 0.1, 0.42, { h: 0.1, s: 0.5, l: 0.85 }));
+  T('red', paintWalls(0.93, 0.2, 0.3, { h: 0.9, s: 0.7, l: 0.85 }));
+  T('sage', paintWalls(0.45, 0.16, 0.34, { h: 0.4, s: 0.6, l: 0.8 }));
+  T('blue', paintWalls(0.6, 0.24, 0.38, { h: 0.52, s: 0.7, l: 0.85 }));
+  T('cream', paintWalls(0.62, 0.08, 0.46, { h: 0.52, s: 0.6, l: 0.8 }));
+  T('ochre', paintWalls(0.08, 0.2, 0.32, { h: 0.1, s: 0.75, l: 0.85 }));
+  T('teal', paintWalls(0.5, 0.22, 0.34, { h: 0.5, s: 0.7, l: 0.85 }));
+  T('company', remap([{ hue: SLATE, lit: [0.74, 1], h: 0.58, s: 0.3, lMul: 1.0 }, { hue: SLATE, lit: [0, 0.74], h: 0.62, s: 0.12, lMul: 0.6 }]));
+  T('roof', paintWalls(0.66, 0.14, 0.3, { h: 0.66, s: 0.14, l: 0.34 }));
+  T('ruin', paintWalls(0.64, 0.1, 0.42, { h: 0.64, s: 0.1, l: 0.5 }));
   // guns: bright plastic -> walnut, grey -> blued steel
   T('gun', remap([
     { sat: [0.38, 1], lit: [0.2, 0.9], h: 0.065, s: 0.5, lMul: 0.62 },
@@ -56,9 +58,9 @@ export function registerTints(assets) {
   T('hollow', remap([{ sat: [0, 1], h: 0.74, s: 0.28, lMul: 0.62 }]));
   T('hollow_glow', remap([{ sat: [0, 1], h: 0.72, s: 0.6, lMul: 1.15 }]));
   T('dark', multiply(0.62, 0.6, 0.62));
-  T('timber', remap([{ sat: [0, 1], h: 0.07, s: 0.42, lMul: 0.82 }]));
-  T('canvas', remap([{ hue: [0.5, 0.75], h: 0.1, s: 0.3, lMul: 1.25 }]));
-  T('tent_red', remap([{ hue: [0.5, 0.75], h: 0.015, s: 0.5, lMul: 0.95 }]));
-  T('stone', remap([{ hue: SLATE, h: 0.09, s: 0.13, lMul: 1.12 }, { sat: [0.12, 1], hue: [0, 0.2], h: 0.09, s: 0.16, lMul: 1.0 }]));
+  T('timber', remap([{ sat: [0, 1], h: 0.64, s: 0.14, lMul: 0.55 }]));
+  T('canvas', remap([{ hue: [0.5, 0.75], h: 0.6, s: 0.12, lMul: 0.7 }]));
+  T('tent_red', remap([{ hue: [0.5, 0.75], h: 0.95, s: 0.55, lMul: 0.75 }]));
+  T('stone', remap([{ sat: [0, 1], h: 0.66, s: 0.1, lMul: 0.5 }]));
   T('shopwood', remap([{ hue: SLATE, sat: [0, 0.7], h: 0.07, s: 0.4, lMul: 0.95 }, { hue: [0.3, 0.5], h: 0.07, s: 0.45, lMul: 0.8 }]));
 }

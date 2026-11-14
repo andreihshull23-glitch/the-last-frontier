@@ -202,6 +202,63 @@ export function skinRock(L, rng, o = {}) {
   }
 }
 
+const BLOCK_NEON = ['#ff3fa4', '#3fe0ff', '#a070ff', '#ffb43f', '#5dff9a'];
+const BLOCK_SIGNS = ['cyber/sign-small-1', 'cyber/sign-small-2', 'cyber/sign-small-3', 'cyber/sign-4', 'cyber/sign-1', 'cyber/sign-2', 'cyber/sign-3'];
+/**
+ * City blocks: the same macro mask as skinRock, built instead of grown. Plated walls with a line of
+ * neon along the top, signs and lit windows, and taller towers where the block is deep.
+ */
+export function skinBlocks(L, rng, o = {}) {
+  const { mw, mh } = L;
+  const M = MACRO * TM, LOW = 4.4, HIGH = 8.2;
+  for (let my = 0; my < mh; my++) for (let mx = 0; mx < mw; mx++) {
+    if (!L.rock[my * mw + mx]) continue;
+    let deep = true;
+    for (let dy = -1; dy <= 1 && deep; dy++) for (let dx = -1; dx <= 1; dx++) if (!isRock(L, mx + dx, my + dy)) { deep = false; break; }
+    if (deep && rng.chance(0.8)) L.rock[my * mw + mx] = 2;
+  }
+  const glow = (...a) => { const p = box(L, ...a); p.glow = true; return p; };
+  for (let my = 0; my < mh; my++) for (let mx = 0; mx < mw; mx++) {
+    const tier = L.rock[my * mw + mx];
+    if (!tier) continue;
+    for (let ty = my * MACRO; ty < (my + 1) * MACRO; ty++) for (let tx = mx * MACRO; tx < (mx + 1) * MACRO; tx++) setTile(L, tx, ty, WALL | ROCK, tier === 2 ? HIGH * 10 : LOW * 10);
+    const cx = (mx + 0.5) * M, cz = (my + 0.5) * M;
+    const neon = BLOCK_NEON[((mx >> 2) * 7 + (my >> 2) * 13) % BLOCK_NEON.length];
+    for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]) {
+      const nx = mx + dx, ny = my + dy;
+      if (nx < 0 || ny < 0 || nx >= mw || ny >= mh) continue;
+      const other = L.rock[ny * mw + nx];
+      const along = dx === 0;
+      const ex = cx + dx * (M / 2 - 0.12), ez = cz + dy * (M / 2 - 0.12);
+      if (other === 0) {
+        const roll = rng.next();
+        const kind = roll < 0.12 ? 'scifi/wallband-straight-broken' : roll < 0.4 ? 'scifi/wallastra-straight-flat' : 'scifi/wallband-straight';
+        place(L, kind, cx + dx * M, cz + dy * M, { r: Math.atan2(-dy, dx), s: [1, 1.47, 1], t: o.tint || 'deckwall', solid: false, shade: 0.9 + rng.next() * 0.2 });
+        box(L, ex, 0, ez, along ? M : 0.2, LOW, along ? 0.2 : M, '#0e0f18');
+        if (rng.chance(0.7)) glow(ex + dx * 0.16, LOW - 0.16, ez + dy * 0.16, along ? M : 0.07, 0.07, along ? 0.07 : M, neon);
+        const fx = cx + dx * (M / 2 + 0.26), fz = cz + dy * (M / 2 + 0.26), face = Math.atan2(dx, dy);
+        const pick = rng.next();
+        if (pick < 0.13) {
+          const m = BLOCK_SIGNS[rng.int(0, BLOCK_SIGNS.length - 1)];
+          const p = place(L, m, fx, fz, { y: 2.2 + rng.next() * 0.9, r: face, t: 'neonsign', solid: false }); p.glow = true;
+          L.lights.push({ x: fx + dx * 0.6, y: 2.6, z: fz + dy * 0.6, c: [[1, 0.25, 0.64], [0.25, 0.88, 1], [0.63, 0.44, 1]][rng.int(0, 2)], r: 8, kind: 'neon' });
+        } else if (pick < 0.2) place(L, 'cyber/ac-stacked', fx + dx * 0.3, fz + dy * 0.3, { y: 2.6, r: face, t: 'street', solid: false, s: 0.8 });
+        else if (pick < 0.26) place(L, 'cyber/cable-small', fx, fz, { y: LOW, r: face, t: 'street', solid: false });
+      }
+      if (tier === 2 && other !== 2) {
+        // the tower above the street wall
+        box(L, ex, LOW, ez, along ? M : 0.2, HIGH - LOW, along ? 0.2 : M, '#12131d');
+        for (let row = 0; row < 2; row++) for (let k = 0; k < 3; k++) {
+          if (!rng.chance(0.3)) continue;
+          const off = (k - 1) * 1.2, wy = LOW + 0.7 + row * 1.6;
+          glow(ex + dx * 0.12 + (along ? off : 0), wy, ez + dy * 0.12 + (along ? 0 : off), along ? 0.7 : 0.05, 0.9, along ? 0.05 : 0.7, rng.chance(0.7) ? '#ffcf7a' : rng.chance(0.5) ? '#7fe6ff' : '#ff7ac0');
+        }
+        if (rng.chance(0.5)) glow(ex + dx * 0.14, HIGH - 0.14, ez + dy * 0.14, along ? M : 0.07, 0.07, along ? 0.07 : M, neon);
+      }
+    }
+  }
+}
+
 function roundCorner(L, mx, my, r, rng) {
   const M = MACRO * TM;
   const cx = (mx + 0.5) * M, cz = (my + 0.5) * M;
@@ -305,7 +362,7 @@ export function building(L, rng, o) {
     if (o.glass !== false) L.glass.push({ m: 'bk/wall-window-square#glass', x: mx, y: 0, z: mz, r: S.r });
     if (o.boarded && rng.chance(o.boarded)) place(L, 'bk/barricade-window-b', mx + S.nx * 0.1, mz + S.ny * 0.1, { r: S.r + Math.PI, y: 1.1, solid: false });
     else for (let k = -1; k <= 1; k++) setTile(L, cx + S.dx * k, cy + S.dy * k, SOLID, 11, floor); // see and shoot through
-    if (o.lit) L.lights.push({ x: mx + S.nx * 0.4, y: 1.9, z: mz + S.ny * 0.4, c: [1, 0.72, 0.36], r: 5, kind: 'window' });
+    if (o.lit) L.lights.push({ x: mx + S.nx * 0.4, y: 1.9, z: mz + S.ny * 0.4, c: [1, 0.78, 0.5], r: 5, kind: 'window' });
   }
   for (const s of ['n', 's', 'e', 'w']) for (let at = 0; at < sideLen(s); at++) {
     if (used.has(s + at)) continue;
@@ -336,7 +393,7 @@ export function building(L, rng, o) {
       }
       if (o.sign) {
         const mid = modulePos(o.front, (len - 1) / 2);
-        L.signs.push({ text: o.sign, x: mid.mx + S.nx * 0.14, y: H + 0.95, z: mid.mz + S.ny * 0.14, nx: S.nx, nz: S.ny, w: Math.min(len * 3 - 1.2, 2 + o.sign.length * 0.62), h: 1.25, roof: roof.id });
+        L.signs.push({ text: o.sign, x: mid.mx + S.nx * 0.14, y: H + 0.95, z: mid.mz + S.ny * 0.14, nx: S.nx, nz: S.ny, w: Math.min(len * 3 - 1.2, 2 + o.sign.length * 0.62), h: 1.25, roof: roof.id, glow: true, bg: '#0a0b14', fg: o.signColor || (style === 'company' ? '#dfe8ff' : '#ff3fa4') });
       }
     }
   }
@@ -347,10 +404,10 @@ export function building(L, rng, o) {
     const mid = modulePos(o.porch, (sideLen(o.porch) - 1) / 2);
     const px = mid.mx + S.nx * (depth / 2 + 0.1), pz = mid.mz + S.ny * (depth / 2 + 0.1);
     const along = S.dx ? [len + 0.6, depth] : [depth, len + 0.6];
-    box(L, px, 2.95, pz, along[0], 0.14, along[1], '#7a5236', { c2: '#5c3e2a', to: roof ? roof.porch = roof.porch || [] : L.pieces });
+    box(L, px, 2.95, pz, along[0], 0.14, along[1], '#2a2d40', { c2: '#1a1c2a', to: roof ? roof.porch = roof.porch || [] : L.pieces });
     for (let k = 0; k <= sideLen(o.porch); k++) {
       const t = -len / 2 + k * 3;
-      box(L, mid.mx + S.dx * t + S.nx * (depth + 0.05), 0, mid.mz + S.dy * t + S.ny * (depth + 0.05), 0.18, 2.95, 0.18, '#8a623c', { c2: '#5c3e2a' });
+      box(L, mid.mx + S.dx * t + S.nx * (depth + 0.05), 0, mid.mz + S.dy * t + S.ny * (depth + 0.05), 0.18, 2.95, 0.18, '#3c4060', { c2: '#1a1c2a' });
     }
     const tx0 = Math.floor((mid.mx - (S.dx ? len / 2 : 0) + (S.nx < 0 ? -depth : S.nx > 0 ? 0.25 : 0)) / TM);
     const ty0 = Math.floor((mid.mz - (S.dy ? len / 2 : 0) + (S.ny < 0 ? -depth : S.ny > 0 ? 0.25 : 0)) / TM);

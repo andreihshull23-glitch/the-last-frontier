@@ -102,6 +102,30 @@ export const PEBBLES = [
   ['nat/rock_smallD', 2, { solid: false, s: [0.6, 1.2] }],
   ['nat/rock_smallE', 1.5, { solid: false, s: [0.5, 0.9] }],
 ];
+// what a district leaves lying about
+export const STREET_CLUTTER = [
+  ['scifi/prop-barrel-large', 5, { s: [0.85, 1.05], clear: 2, tint: 'deckprop', solid: 'low' }],
+  ['cyber/tank', 2, { s: [0.7, 0.9], clear: 2, tint: 'street' }],
+  ['cyber/light-square', 3, { s: [0.9, 1.1], clear: 2, tint: 'street', solid: 'low' }],
+  ['cyber/computer', 1.2, { s: [0.9, 1.0], clear: 2, tint: 'street' }],
+  ['scifi/prop-itemholder', 2, { s: [1, 1.4], clear: 2, tint: 'deckprop', solid: 'low' }],
+  ['scifi/prop-chest', 1.5, { s: [0.9, 1.1], clear: 2, tint: 'deckprop', solid: 'low' }],
+  ['station/container', 2, { s: [0.6, 0.75], clear: 3, tint: 'deckprop' }],
+];
+export const STREET_BULK = [
+  ['station/container-flat', 3, { s: [0.7, 0.85], clear: 4, tint: 'deckprop' }],
+  ['station/container-tall', 2, { s: [0.7, 0.85], clear: 3, tint: 'deckprop' }],
+  ['station/container-wide', 3, { s: [0.7, 0.85], clear: 3, tint: 'deckprop' }],
+  ['station/skip', 2, { s: [0.7, 0.85], clear: 4, tint: 'deckprop' }],
+  ['cyber/computer-large', 1, { s: [0.6, 0.7], clear: 3, tint: 'street' }],
+];
+export const STREET_LITTER = [
+  ['scifi/prop-cable-1', 4, { solid: false, tint: 'deckprop' }],
+  ['scifi/prop-cable-3', 2, { solid: false, tint: 'deckprop' }],
+  ['scifi/prop-vent-small', 3, { solid: false, tint: 'deckprop' }],
+  ['scifi/prop-vent-big', 2, { solid: false, tint: 'deckprop' }],
+  ['scifi/prop-clamp', 2, { solid: false, tint: 'deckprop' }],
+];
 export const HOLLOW_FLORA = [
   ['nat/mushroom_redGroup', 4, { solid: false, s: [1, 2.2], tint: 'hollow_glow' }],
   ['nat/mushroom_tanTall', 3, { solid: false, s: [1.2, 2.6], tint: 'hollow_glow' }],
