@@ -164,9 +164,9 @@ export function createSim(config, level) {
     for (const e of state.enemies) if (e.kind === 'bounty' || e.target) e.known = true;
   }
   if (!town) {
-    emit(sim, 'toast', { text: config.intro || 'Ride out.', tone: 'story', long: true });
-    if (clockStart === 'night') emit(sim, 'toast', { text: 'It is already dark. They will be moving soon.', tone: 'warn' });
-    if (level.dark) emit(sim, 'toast', { text: 'No daylight down here. Watch the edges of the lamp.', tone: 'warn' });
+    emit(sim, 'toast', { text: config.intro || 'Go.', tone: 'story', long: true });
+    if (clockStart === 'night') emit(sim, 'toast', { text: 'The district is already in lockdown. They will be moving soon.', tone: 'warn' });
+    if (level.dark) emit(sim, 'toast', { text: 'No power down here. Watch the edges of the lamp.', tone: 'warn' });
   }
   markExplored(sim);
   return sim;
@@ -352,7 +352,7 @@ function updateRooms(sim) {
         if (a) dropItem(sim, cx - 46, cy, { relic: a });
         if (b) dropItem(sim, cx + 46, cy, { gun: b });
         p.pulses += 1;
-        emit(sim, 'toast', { text: 'Floor cleared. Take what it dropped, then ride the lift down.', tone: 'good', long: true });
+        emit(sim, 'toast', { text: 'Floor cleared. Take what it dropped, then take the lift down.', tone: 'good', long: true });
       } else {
         for (let k = 0; k < 3; k++) s.pickups.push({ id: s.nextId++, kind: 'cash', x: cx + sim.rng.range(-30, 30), y: cy + sim.rng.range(-30, 30), amount: sim.rng.int(4, 9) });
         if (sim.rng.chance(Math.min(0.6, 0.22 * luck))) s.pickups.push({ id: s.nextId++, kind: 'heart', x: cx, y: cy + 24, amount: 20 });
@@ -891,7 +891,7 @@ function updatePlayer(sim, dt, input) {
   if (input.heal) {
     if (p.healT > 0 || p.dodgeT > 0) {
       // already busy
-    } else if (p.bandages <= 0) emit(sim, 'toast', { text: 'No bandages left.', tone: 'bad' });
+    } else if (p.bandages <= 0) emit(sim, 'toast', { text: 'No dressings left.', tone: 'bad' });
     else if (p.hp >= p.maxHp) emit(sim, 'toast', { text: 'You are not hurt.' });
     else {
       p.bandages -= 1;
@@ -1034,7 +1034,7 @@ function updateWeapon(sim, dt, input) {
   }
 
   if (input.throw && p.throwCd <= 0 && p.healT <= 0 && p.dodgeT <= 0 && s.mode !== 'town') {
-    if (p.dynamite <= 0) emit(sim, 'toast', { text: 'No dynamite.', tone: 'bad' });
+    if (p.dynamite <= 0) emit(sim, 'toast', { text: 'No charges.', tone: 'bad' });
     else {
       p.dynamite -= 1;
       p.throwCd = 0.8;
@@ -1184,7 +1184,7 @@ function completeInteract(sim, it) {
     const mult = s.config.character.trait === 'scavenger' ? 1.3 : 1;
     const found = it.loot.map((l) => ({ name: l.name, value: Math.round(l.value * mult) }));
     s.carried.loot.push(...found);
-    const bits = found.map((l) => `${l.name} ($${l.value})`);
+    const bits = found.map((l) => `${l.name} (¢${l.value})`);
     if (it.cartridges) { const n = addAmmo(sim, 'cartridges', it.cartridges); if (n) bits.push(`${n} cartridges`); }
     if (it.shells) { const n = addAmmo(sim, 'shells', it.shells); if (n) bits.push(`${n} shells`); }
     if (it.bandage && p.bandages < CARRY.bandages) { p.bandages += 1; bits.push('a bandage'); }
@@ -1210,7 +1210,7 @@ function completeInteract(sim, it) {
         if (it.item === 'relay') {
           toast(`Relay overloaded (${Math.min(s.burned, obj.count ?? 3)}/${obj.count ?? 3}). Machines nearby lock up, and the rest know where you are.`);
           for (const e of s.enemies) if (!e.dead && ENEMIES[e.kind].robot && Math.hypot(e.x - it.x, e.y - it.y) < 520) e.stunT = Math.max(e.stunT || 0, 5);
-        } else toast(`Survey stake burning (${Math.min(s.burned, obj.count ?? 3)}/${obj.count ?? 3}). The smoke can be seen for miles.`);
+        } else toast(`Survey beacon burning (${Math.min(s.burned, obj.count ?? 3)}/${obj.count ?? 3}). The smoke is tripping alarms.`);
         break;
       }
       case 'shard': {
@@ -1225,15 +1225,15 @@ function completeInteract(sim, it) {
       }
       case 'strongbox':
         s.carried.items.push('strongbox');
-        toast('Strongbox on your shoulder. It is heavy: no sprinting. Get it to the horse or the coach.', 'story', true);
+        toast('Freight case on your shoulder. It is heavy: no sprinting. Get it to the lift or the tram stop.', 'story', true);
         break;
       case 'payroll':
         s.carried.items.push('payroll');
-        toast('Payroll chest on your shoulder. It slows you down.', 'story');
+        toast('Payroll case on your shoulder. It slows you down.', 'story');
         break;
       case 'ledger':
         s.carried.items.push('ledger');
-        toast('The Site 9 ledger. Names, dates, and a shaft they dug too deep. Get it home.', 'story', true);
+        toast('The Site 9 ledger. Unit numbers, dates, and a column of names headed INTAKE. Get it home.', 'story', true);
         break;
       case 'borekey':
         s.carried.items.push('borekey');
@@ -1251,7 +1251,7 @@ function completeInteract(sim, it) {
         s.carried.items.push(it.item);
         toast(`${ITEMS[it.item]?.label ?? 'Item'} recovered.`);
     }
-    if (objectiveDone(s) && it.item !== 'shard' && it.item !== 'borekey') toast('Job done. Reach an exit: the horse where you rode in, or the coach stop.', 'good');
+    if (objectiveDone(s) && it.item !== 'shard' && it.item !== 'borekey') toast('Job done. Reach an exit: the lift you came in by, or the tram stop.', 'good');
   }
   emit(sim, 'interact_done', { kind: it.kind, item: it.item, x: it.x, y: it.y, id: it.id });
 }
@@ -1267,10 +1267,10 @@ export function objectiveDone(s) {
 }
 
 const EXIT_TEXT = {
-  horse: 'Saddling up. Stay inside the circle.',
-  coach: 'Signal fire lit. The coach is coming. Stay inside the circle.',
+  horse: 'Calling the lift. Stay inside the circle.',
+  coach: 'Tram signalled. It is coming. Stay inside the circle.',
   lift: 'Ringing for the lift. Stay on the platform.',
-  ladder: 'Climbing for daylight. Hold on.',
+  ladder: 'Climbing the vent shaft. Hold on.',
 };
 
 function startExtraction(sim, it) {
@@ -1333,8 +1333,8 @@ function updatePickups(sim) {
     if (k.kind === 'effects') {
       const victims = s.config.bounty?.victims ?? [];
       s.carried.effects = { victims };
-      emit(sim, 'pickup', { x: k.x, y: k.y, text: 'Effects recovered', what: 'effects' });
-      emit(sim, 'toast', { text: `You have ${victims.join(' and ') || 'the fallen'}'s effects. Get them home.`, tone: 'good' });
+      emit(sim, 'pickup', { x: k.x, y: k.y, text: 'Kit recovered', what: 'effects' });
+      emit(sim, 'toast', { text: 'You have your kit back. Get it home.', tone: 'good' });
       return false;
     }
     return true;
@@ -1727,7 +1727,7 @@ function engage(sim, e, def, dt) {
           n++;
         }
         emit(sim, 'boss_phase', { phase: e.summons, x: e.x, y: e.y });
-        emit(sim, 'toast', { text: e.kind === 'foreman' ? (n ? 'Voss bellows for his guns. More are coming.' : 'Voss is bleeding, and angrier for it.') : (n ? 'The Overseer calls units off the line. More are coming.' : 'The Overseer is sparking, and faster for it.'), tone: 'bad' });
+        emit(sim, 'toast', { text: e.kind === 'foreman' ? (n ? 'Voss calls units down. More are coming.' : 'Voss is leaking coolant, and angrier for it.') : (n ? 'The Overseer calls units off the line. More are coming.' : 'The Overseer is sparking, and faster for it.'), tone: 'bad' });
       }
       if (!sees || d > 300) move = chase(sim, e);
       else if (d < 120) { move = strafe(sim, e, dx, dy, d, dt); speed = def.speed; }
@@ -1833,7 +1833,7 @@ function fireFlare(sim, e) {
   const s = sim.state, p = s.player;
   s.lights.push({ x: e.x, y: e.y, kind: 'flare', r: 320, t: 5 });
   emit(sim, 'flare', { x: e.x, y: e.y });
-  emit(sim, 'toast', { text: 'A flare! Every gun nearby knows where you are.', tone: 'bad' });
+  emit(sim, 'toast', { text: 'A flare! Every unit nearby knows where you are.', tone: 'bad' });
   for (const o of s.enemies) {
     if (o === e || o.dead || o.state === 'dormant') continue;
     const ai = ENEMIES[o.kind].ai;
@@ -1893,7 +1893,7 @@ function killEnemy(sim, e, ang) {
   if (e.kind === 'bounty') {
     s.bountyKilled = true;
     s.pickups.push({ id: s.nextId++, kind: 'effects', x: e.x, y: e.y });
-    emit(sim, 'toast', { text: `${e.name || 'The outlaw'} is dead. Take what they carried.`, tone: 'good' });
+    emit(sim, 'toast', { text: `${e.name || 'The ganger'} is dead. Take back what they took.`, tone: 'good' });
   }
   if (e.target) {
     s.targetKilled = true;
@@ -2159,7 +2159,7 @@ function hurtBuddy(sim, dmg) {
   const b = sim.state.buddy;
   if (!b || b.downT > 0) return;
   b.hp -= dmg;
-  if (b.hp <= 0) { b.downT = BUDDY.offline; emit(sim, 'buddy_down', { x: b.x, y: b.y }); emit(sim, 'toast', { text: 'Deputy Tin is offline. It will reboot.', tone: 'bad' }); }
+  if (b.hp <= 0) { b.downT = BUDDY.offline; emit(sim, 'buddy_down', { x: b.x, y: b.y }); emit(sim, 'toast', { text: 'TIN is offline. It will reboot.', tone: 'bad' }); }
 }
 
 function updateEcho(sim) {
@@ -2208,12 +2208,12 @@ function updateNight(sim) {
   const dusk = CLOCK.dusk + bonus, night = CLOCK.night + bonus;
   if (!s.warned.dusk && tt >= dusk - 40) {
     s.warned.dusk = true;
-    emit(sim, 'toast', { text: 'The sun is getting low. Finish up and get out.', tone: 'warn' });
+    emit(sim, 'toast', { text: 'Lockdown in under a minute. Finish up and get out.', tone: 'warn' });
   }
   if (!s.warned.night && tt >= night) {
     s.warned.night = true;
     s.nextWaveT = s.t + 6;
-    emit(sim, 'toast', { text: 'Sundown. Something is moving in the dark.', tone: 'bad' });
+    emit(sim, 'toast', { text: 'Lockdown. The lights go red, and something is moving.', tone: 'bad' });
     emit(sim, 'nightfall');
   }
   if (s.warned.night && s.t >= s.nextWaveT) {
@@ -2369,7 +2369,7 @@ export function abandon(sim) {
 
 // ------------------------------------------------------------------ HUD helpers
 
-const EXIT_LABEL = { horse: 'Ride for Mercy', coach: 'Signal the coach', lift: 'Ring for the lift', ladder: 'Climb the air shaft' };
+const EXIT_LABEL = { horse: 'Call the lift home', coach: 'Signal the freight tram', lift: 'Call the lift', ladder: 'Climb the vent shaft' };
 
 export function focusPrompt(sim) {
   const s = sim.state;
@@ -2388,8 +2388,8 @@ export function focusPrompt(sim) {
   else if (it.kind === 'shop') label = s.config.shopVerbs?.[it.shop] ?? 'Trade';
   else if (it.kind === 'talk') label = `Talk to ${it.name}`;
   else if (it.kind === 'board') label = 'Read the job board';
-  else if (it.kind === 'ride') label = 'Ride out';
-  else if (it.kind === 'grave') label = 'Read the marker';
+  else if (it.kind === 'ride') label = 'Take the lift out';
+  else if (it.kind === 'grave') label = 'Read the name';
   else label = 'Use';
   return {
     kind: it.kind, label, hold: it.duration > 0,
@@ -2408,14 +2408,14 @@ export function objectiveList(sim) {
   else if (o.kind === 'collect') {
     const have = s.carried.items.filter((k) => k === o.item).length;
     list.push({ text: `${ITEMS[o.item].label}s ${Math.min(have, o.count)}/${o.count}`, done: have >= o.count });
-  } else if (o.kind === 'burn') list.push({ text: `${o.item === 'relay' ? 'Overload signal relays' : 'Burn survey stakes'} ${Math.min(s.burned, o.count)}/${o.count}`, done: s.burned >= o.count });
+  } else if (o.kind === 'burn') list.push({ text: `${o.item === 'relay' ? 'Overload signal relays' : 'Burn survey beacons'} ${Math.min(s.burned, o.count)}/${o.count}`, done: s.burned >= o.count });
   else if (o.kind === 'kill') list.push({ text: `${o.label || 'Kill the target'}${where}`, done: s.targetKilled });
   list.push({ text: objectiveDone(s) ? 'Reach an exit' : 'Then reach an exit', done: false, dim: !objectiveDone(s) });
   const bounty = s.config.bounty;
   if (bounty && o.enemy !== 'bounty' && s.enemies.some((e) => e.kind === 'bounty') || (bounty && s.bountyKilled && o.enemy !== 'bounty')) {
     list.push({ text: `Optional: kill ${bounty.name}`, done: s.bountyKilled, optional: true });
   }
-  if (s.bountyKilled) list.push({ text: 'Carry their effects home', done: Boolean(s.carried.effects), optional: o.enemy !== 'bounty' });
+  if (s.bountyKilled) list.push({ text: 'Carry your kit home', done: Boolean(s.carried.effects), optional: o.enemy !== 'bounty' });
   return list;
 }
 

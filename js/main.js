@@ -162,12 +162,12 @@ function townUI() {
   const ch = R.currentChapter(c);
   const who = `${c.character.name} · ${c.character.hp}/${R.maxHp(c.character)} health`;
   let hint, giver = null, flag = null;
-  if (c.pendingChoice) { hint = 'The ledger is in your saddlebag. Talk to the marshal on the Town Hall porch.'; giver = 'marshal'; }
+  if (c.pendingChoice) { hint = 'The ledger is in your pack. Talk to the marshal outside the customs hall.'; giver = 'marshal'; }
   else if (ch) {
-    const name = ch.giver === 'rider' ? 'Nell Dunmore, outside the saloon' : 'the marshal, outside the Town Hall';
+    const name = ch.giver === 'rider' ? 'Nell Dunmore, outside the Low Tide' : 'the marshal, outside the customs hall';
     hint = `Chapter ${c.chapter + 1} of ${CHAPTERS.length}: ${ch.goal} Talk to ${name}. Press J for the story so far.`;
     giver = ch.giver;
-  } else hint = 'The story is finished. There is always work on the job board.';
+  } else hint = 'The story is finished. There is always work on the board.';
   return { cash: c.cash, who, hint, giver, flag, canRide: R.availableMissions(c).length > 0 };
 }
 
@@ -201,7 +201,7 @@ function startRide(missionId) {
   } catch (err) {
     console.error(err);
     R.abortExpedition(c, begun.config.expeditionId);
-    ui.flash('The trail washed out before you left. Try that job again.');
+    ui.flash('The lift jammed before you left. Try that job again.');
     return false;
   }
   persist();

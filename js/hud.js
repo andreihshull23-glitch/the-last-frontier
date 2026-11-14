@@ -263,7 +263,7 @@ function drawWorldOverlays(r, ctx, sim, dt, b, ui) {
       const lab = mark?.kind ?? (e.state === 'investigate' || e.state === 'search' ? '?' : null);
       if (lab) label(ctx, lab, q.x, top - 2, lab === '!' ? BLOOD : LAMP, `900 22px ${FONT_DISPLAY}`);
     }
-    if ((e.kind === 'bounty' || e.target) && visible && !def.boss) label(ctx, e.name ?? (e.kind === 'brute' ? 'Rustler boss' : 'Outlaw'), q.x, top - 22, BLOOD, `700 11px ${FONT_MONO}`);
+    if ((e.kind === 'bounty' || e.target) && visible && !def.boss) label(ctx, e.name ?? (e.kind === 'brute' ? 'The Saint' : 'Ganger'), q.x, top - 22, BLOOD, `700 11px ${FONT_MONO}`);
   }
   // people in town
   if (town) {
@@ -323,8 +323,8 @@ function drawClock(ctx, s, x, y, compact, align) {
   ctx.beginPath(); ctx.arc(x0 + w * t, y + 10 - Math.sin(Math.PI * (1 - t * 0.5)) * 6, n >= 1 ? 3.5 : 4.5, 0, TAU); ctx.fill();
   const remain = night - tt;
   let text;
-  if (remain > 0) text = `SUNDOWN ${Math.floor(remain / 60)}:${String(Math.floor(remain % 60)).padStart(2, '0')}`;
-  else text = 'NIGHT';
+  if (remain > 0) text = `LOCKDOWN ${Math.floor(remain / 60)}:${String(Math.floor(remain % 60)).padStart(2, '0')}`;
+  else text = 'LOCKDOWN';
   label(ctx, text, align === 'right' ? x0 + w : x0 + w / 2, y + 26, remain <= 0 ? HOLLOW : remain < 60 ? LAMP : INK, `600 ${compact ? 9.5 : 10.5}px ${FONT_MONO}`, align === 'right' ? 'right' : 'center');
 }
 
@@ -373,7 +373,7 @@ function drawWeapons(r, ctx, sim, right, bottom, compact) {
     if (!town) {
       ctx.textAlign = 'right';
       ctx.fillStyle = p.dynamite > 0 ? '#e2735c' : 'rgba(236,225,203,0.3)';
-      ctx.fillText(`DYN ${p.dynamite}`, x + W - 10, y + H - 10);
+      ctx.fillText(`CHG ${p.dynamite}`, x + W - 10, y + H - 10);
     }
   }
   return { x, y, w: W, h: H };
@@ -467,7 +467,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     ctx.fillStyle = LAMP; ctx.font = `800 ${compact ? 15 : 17}px ${FONT_DISPLAY}`;
     ctx.fillText('MERCY', left + 10, top + 20);
     ctx.textAlign = 'right'; ctx.fillStyle = SAGE; ctx.font = `700 ${compact ? 12 : 14}px ${FONT_MONO}`;
-    ctx.fillText(`$${t.cash ?? 0}`, left + panelW - 10, top + 20);
+    ctx.fillText(`¢${t.cash ?? 0}`, left + panelW - 10, top + 20);
     ctx.textAlign = 'left'; ctx.fillStyle = INK; ctx.font = `500 ${compact ? 10.5 : 11.5}px ${FONT_MONO}`;
     ctx.fillText(truncate(ctx, t.who || '', panelW - 20), left + 10, top + 38);
     ctx.fillStyle = DUST;
@@ -493,7 +493,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     });
     if (extra) {
       const bits = [];
-      if (value > 0) bits.push(`$${value}`);
+      if (value > 0) bits.push(`¢${value}`);
       bits.push(...names.map((n) => n.toLowerCase()));
       if (s.carried.effects) bits.push('effects');
       ctx.fillStyle = LAMP;
@@ -581,7 +581,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     ctx.textAlign = 'left'; ctx.fillStyle = INK;
     ctx.fillText(`${Math.ceil(p.hp)}/${p.maxHp}`, vitalsX + 10, vitalsY + 44);
     ctx.fillStyle = SAGE; ctx.textAlign = 'right';
-    ctx.fillText(`${p.bandages} bandage${p.bandages === 1 ? '' : 's'}${r.keyHints && !r.touch ? ` [${r.pad ? r.pad.heal : 'Q'}]` : ''}`, vitalsX + 10 + barW, vitalsY + 44);
+    ctx.fillText(`${p.bandages} dressing${p.bandages === 1 ? '' : 's'}${r.keyHints && !r.touch ? ` [${r.pad ? r.pad.heal : 'Q'}]` : ''}`, vitalsX + 10 + barW, vitalsY + 44);
   }
 
   // the run: pulse charges, coin, and the relics picked up so far
@@ -645,10 +645,10 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     const hint = P
       ? (town
         ? `Left stick walk · Right stick look · ${P.sprint} sprint · ${P.use} talk and trade · ${P.journal} journal · ${P.map} map · ${P.menu} menu`
-        : `Left stick move · ${P.fire} fire · ${P.dodge} dodge · ${P.jump} jump · ${P.pulse} pulse · ${P.reload} reload · ${P.next} next gun · ${P.throw} dynamite · ${P.heal} bandage · ${P.use} use · ${P.camera} camera`)
+        : `Left stick move · ${P.fire} fire · ${P.dodge} dodge · ${P.jump} jump · ${P.pulse} pulse · ${P.reload} reload · ${P.next} next gun · ${P.throw} charge · ${P.heal} dressing · ${P.use} use · ${P.camera} camera`)
       : town
       ? 'WASD walk · Mouse look · Shift sprint · E talk and trade · J journal · M map · Esc menu'
-      : 'WASD move · Space dodge · C jump · B pulse · Click fire · Right-click alt · 1-9 guns · R reload · G dynamite · Q bandage · E use · V camera';
+      : 'WASD move · Space dodge · C jump · B pulse · Click fire · Right-click alt · 1-9 guns · R reload · G charge · Q dressing · E use · V camera';
     label(ctx, hint, w / 2, bottom - (town ? 6 : 4), INK, `500 11px ${FONT_MONO}`);
     ctx.globalAlpha = 1;
   }

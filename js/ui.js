@@ -51,9 +51,9 @@ export function createUI(root, panelEl, api) {
     loading() {
       const pct = Math.round((data.progress ?? 0) * 100);
       return `<section class="title-copy">
-        <p class="eyebrow">A sci-fi Western roguelike</p>
+        <p class="eyebrow">A cyberpunk roguelike</p>
         <h1 class="title">The Last<br>Frontier</h1>
-        <p class="lede">${data.error ? esc(data.error) : 'Loading the Red Country…'}</p>
+        <p class="lede">${data.error ? esc(data.error) : 'Booting Mercy Deck…'}</p>
         <div class="loadbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>
       </section>`;
     },
@@ -62,46 +62,46 @@ export function createUI(root, panelEl, api) {
       const ch = camp?.character;
       let cont = '';
       if (camp) {
-        const sub = data.resume ? 'Back to the ride in progress'
-          : R.needsSuccessor(camp) ? 'Mercy needs another gun'
-            : `${esc(ch.name)} · ${R.storyDone(camp) ? 'story finished' : `chapter ${camp.chapter + 1} of ${CHAPTERS.length}`} · $${camp.cash}`;
+        const sub = data.resume ? 'Back to the run in progress'
+          : R.needsSuccessor(camp) ? 'Back on the deck'
+            : `${esc(ch.name)} · ${R.storyDone(camp) ? 'story finished' : `chapter ${camp.chapter + 1} of ${CHAPTERS.length}`} · ¢${camp.cash}`;
         cont = `<button class="btn" data-act="continue">Continue<span class="btn-sub">${sub}</span></button>`;
       }
       return `<section class="title-copy">
-        <p class="eyebrow">A Western extraction roguelike</p>
+        <p class="eyebrow">A cyberpunk roguelike</p>
         <h1 class="title">The Last<br>Frontier</h1>
-        <p class="lede">Something fell from the sky and the Meridian Company is building machines out of it. Ride out from Mercy, do the job, get back before dark, and spend what you earn in town.</p>
+        <p class="lede">A sealed tower. A corporation that lost control of its own machines. Something older waking under the foundations. Take the job, get out before lockdown, and spend what you earn on the deck.</p>
         <div class="actions">
           ${cont}
-          <button class="btn ${camp ? 'ghost' : ''}" data-act="new">${camp ? 'New campaign' : 'Ride into Mercy'}${camp ? '' : '<span class="btn-sub">Start a new campaign</span>'}</button>
+          <button class="btn ${camp ? 'ghost' : ''}" data-act="new">${camp ? 'New campaign' : 'Jack in'}${camp ? '' : '<span class="btn-sub">Start a new campaign</span>'}</button>
           <button class="btn ghost" data-act="howto">How to play</button>
           <button class="btn ghost" data-act="settings">Settings</button>
         </div>
-        ${confirmNew ? `<div class="confirm"><p><strong>Start over?</strong> This erases the campaign with ${esc(ch?.name ?? 'your drifter')}: cash, guns, town and story.</p>
+        ${confirmNew ? `<div class="confirm"><p><strong>Start over?</strong> This erases the campaign: creds, plug-ins, unlocked guns, the deck and the story.</p>
           <div class="row"><button class="btn danger" data-act="new-yes">Erase and start over</button><button class="btn ghost" data-act="new-no">Keep playing</button></div></div>` : ''}
-        <p class="save-note"><span>${esc(saveLine())}</span>${data.migrated ? '<span>Your earlier campaign was carried over: cash, town and story progress.</span>' : ''}</p>
+        <p class="save-note"><span>${esc(saveLine())}</span>${data.migrated ? '<span>Your earlier campaign was carried over: creds, deck and story progress.</span>' : ''}</p>
       </section>`;
     },
     howto() {
       return `<section class="result">
         <p class="eyebrow">How to play</p>
-        <h1 class="h-screen">Ride out. Come back.</h1>
+        <h1 class="h-screen">Go out. Come back.</h1>
         <div class="rules">
-          <div><h3>The loop</h3><p>Walk Mercy. Buy supplies, guns and kit. Take a job at the board or from the marshal, then ride out by the trail at the west end of the street.</p></div>
-          <div><h3>The ride</h3><p>Reach the objective, then reach an exit: your horse at the trailhead, or the coach stop. Hold still in the circle for six seconds. Everything you picked up is unsecured until you do.</p></div>
-          <div><h3>Sundown</h3><p>The clock at the top is the sun. After dark you see less, and Hollow walkers hunt in growing packs.</p></div>
-          <div><h3>Dying</h3><p>A dead drifter stays dead. You lose what they carried and the kit they wore. Guns, upgrades, banked cash, the town and the story are kept. A human killer keeps the kit and becomes a bounty.</p></div>
+          <div><h3>The loop</h3><p>Walk Mercy Deck. Buy supplies and kit, fit a plug-in, unlock guns. Take a job at the board or from the marshal, then take the freight lift at the west end of the concourse.</p></div>
+          <div><h3>The run</h3><p>Reach the objective, then reach an exit: the lift you came in by, or the tram stop. Hold still in the circle for six seconds. Everything you picked up is unsecured until you do.</p></div>
+          <div><h3>Lockdown</h3><p>The clock at the top counts down to lockdown. After it you see less, and Hollow walkers hunt in growing packs.</p></div>
+          <div><h3>Going down</h3><p>The clinic drags you back to the deck. You lose what the run turned up and the kit you wore. Banked creds, plug-ins, unlocked guns, the deck and the story are kept. If a person put you down, they take your kit and become a bounty you can hunt.</p></div>
           <div><h3>Fighting</h3><p>Every enemy shows where its attack will land before it lands: a cone, a line or a circle on the ground. Step out, or roll through with Space. An aimed shot staggers most enemies out of a wind-up.</p></div>
-          <div><h3>Machines</h3><p>Meridian's robots take more punishment than people. Energy weapons from the gunsmith hit them much harder, and the arc caster locks them up for a moment.</p></div>
-          <div><h3>Quiet</h3><p>Enemies see in a cone and hear gunfire, sprinting and dynamite. A ring over a head is suspicion filling. Scouts fire flares: kill them first.</p></div>
+          <div><h3>Machines</h3><p>Meridian's robots take more punishment than people. Energy weapons hit them much harder, and the arc caster locks them up for a moment.</p></div>
+          <div><h3>Quiet</h3><p>Enemies see in a cone and hear gunfire, sprinting and explosions. A ring over a head is suspicion filling. Scouts fire flares: kill them first.</p></div>
         </div>
         <table class="keys"><caption class="muted">Keyboard and mouse. On a phone the buttons are on screen.</caption>
           <tr><th>Move</th><td>W A S D</td><th>Look</th><td>Mouse (click once to take the mouse, Esc lets go)</td></tr>
           <tr><th>Sprint</th><td>Shift</td><th>Dodge roll</th><td>Space</td></tr>
-          <tr><th>Fire</th><td>Left click (hold to keep firing)</td><th>Alt fire</th><td>Right click or F: fan the hammer, or both barrels</td></tr>
+          <tr><th>Fire</th><td>Left click (hold to keep firing)</td><th>Alt fire</th><td>Right click or F: fan the sidearm, both barrels, or an overcharged bolt</td></tr>
           <tr><th>Guns</th><td>1 to 7, mouse wheel or X</td><th>Reload</th><td>R</td></tr>
           <tr><th>Journal</th><td>J: the story so far and what to do next</td><th></th><td></td></tr>
-          <tr><th>Dynamite</th><td>G (lands where you aim)</td><th>Bandage</th><td>Q</td></tr>
+          <tr><th>Charge</th><td>G (lands where you aim)</td><th>Dressing</th><td>Q</td></tr>
           <tr><th>Use / talk</th><td>E (hold for caches)</td><th>Map</th><td>M or Tab</td></tr>
           <tr><th>Menu</th><td>Esc or P</td><th></th><td></td></tr>
         </table>
@@ -118,7 +118,7 @@ export function createUI(root, panelEl, api) {
         ${first
     ? `<p class="lede">You are ${esc(HERO.name)}. ${esc(HERO.bio)} The rig shop fits every new runner with one plug-in on the house. You can buy the others later and swap between runs.</p>`
     : `<div class="memory"><p><strong>${esc(last.name)}</strong> was killed by ${esc(last.killedBy)}.</p>
-       <p class="muted">Kept: $${camp.cash} in the bank, ${camp.armory.guns.length ? camp.armory.guns.map((g) => GUNS[g].name.toLowerCase()).join(' and ') + ', ' : ''}the town and the story so far. Lost: their kit and everything they carried.${camp.bounty ? ` ${esc(camp.bounty.name)} is wearing that kit now. There is a bounty on the board.` : ''}</p></div>`}
+       <p class="muted">Kept: ¢${camp.cash} in the bank, ${camp.armory.guns.length ? camp.armory.guns.map((g) => GUNS[g].name.toLowerCase()).join(' and ') + ', ' : ''}the deck and the story so far. Lost: their kit and everything they carried.${camp.bounty ? ` ${esc(camp.bounty.name)} is wearing that kit now. There is a bounty on the board.` : ''}</p></div>`}
         <div class="candidates">${(camp.candidates ?? []).map((k, i) => `<article class="candidate">
           <p class="eyebrow">Plug-in</p>
           <h3>${esc(TRAITS[k.trait].name)}</h3>
@@ -136,7 +136,7 @@ export function createUI(root, panelEl, api) {
       const d = s.delta || { cash: 0, prosperity: 0, rep: { meridian: 0, riders: 0 } };
       const deltas = [];
       if (d.cash) deltas.push(`<span class="${d.cash > 0 ? 'good' : 'bad'}">Cash ${signed(d.cash)}</span>`);
-      if (d.prosperity) deltas.push(`<span class="good">Mercy ${signed(d.prosperity)}</span>`);
+      if (d.prosperity) deltas.push(`<span class="good">Deck ${signed(d.prosperity)}</span>`);
       for (const f of ['meridian', 'riders']) if (d.rep?.[f]) deltas.push(`<span class="${d.rep[f] > 0 ? 'good' : 'bad'}">${FACTIONS[f].short} ${signed(d.rep[f])}</span>`);
       return `<section class="result ${died ? 'died' : 'extracted'}">
         <p class="eyebrow">${esc(s.title)}</p>
@@ -145,13 +145,13 @@ export function createUI(root, panelEl, api) {
         ${deltas.length ? `<div class="deltas">${deltas.join('')}</div>` : ''}
         ${s.lost?.length ? `<p class="lost">Lost: ${esc(s.lost.join(', '))}.</p>` : ''}
         ${s.down ? `<div class="memory"><p><strong>You went down.</strong> Killed by ${esc(s.down.killedBy)}. The clinic's recovery team dragged you back to the deck${s.down.times > 1 ? `, for the ${s.down.times}${['th','st','nd','rd'][s.down.times % 10 > 3 || (s.down.times % 100 > 10 && s.down.times % 100 < 14) ? 0 : s.down.times % 10]} time` : ''}.</p><p class="muted">Gone: everything the run turned up${s.down.lostKit.length ? `, and the kit you wore (${esc(s.down.lostKit.join(', '))})` : ''}. Kept: banked creds, plug-ins, unlocked guns, the deck and the story.</p></div>` : ''}
-        ${s.obituary ? `<div class="memory"><p><strong>${esc(s.obituary.name)}</strong>, ${esc(TRAITS[s.obituary.trait]?.name.toLowerCase() ?? '')}. ${plural(s.obituary.expeditions, 'ride')}, ${plural(s.obituary.kills, 'kill')}. Killed by ${esc(s.obituary.killedBy)}.</p>
+        ${s.obituary ? `<div class="memory"><p><strong>${esc(s.obituary.name)}</strong>, ${esc(TRAITS[s.obituary.trait]?.name.toLowerCase() ?? '')}. ${plural(s.obituary.expeditions, 'run')}, ${plural(s.obituary.kills, 'kill')}. Killed by ${esc(s.obituary.killedBy)}.</p>
           ${s.bounty ? `<p class="wanted"><strong>Wanted: ${esc(s.bounty.name)}.</strong> They took ${s.bounty.gear.length ? esc(s.bounty.gear.map((g) => GEAR[g]?.name.toLowerCase()).join(', ')) : 'what was carried'}. Kill them and bring the effects home.</p>` : ''}
-          <p class="muted">Your guns, your cash and the town are still here.</p></div>` : ''}
+          <p class="muted">Your creds and the deck are still here.</p></div>` : ''}
         ${s.outro ? `<div class="finale"><p class="eyebrow">${s.ending ? 'The end of the story' : 'What happens next'}</p><p class="lede">${esc(s.outro)}</p>
-          ${s.ending ? `<p class="lede">${s.ending === 'exposed' ? 'The ledger you printed did the rest. Meridian is finished in this territory, and Mercy has its name on a map again.' : 'The company you sold the ledger to will send another foreman by spring. But tonight the lamps are lit on Main Street.'}</p><p class="muted">The frontier stays open. There is always more work on the board.</p>` : ''}</div>` : ''}
+          ${s.ending ? `<p class="lede">${s.ending === 'exposed' ? 'The ledger you leaked did the rest. Meridian is finished below level 40, and Mercy Deck is on a floor plan again, by choice.' : 'The company you sold the ledger to will send another foreman by spring. But tonight the lamps are lit on Main Street.'}</p><p class="muted">The frontier stays open. There is always more work on the board.</p>` : ''}</div>` : ''}
         ${s.choice ? '<p class="warn">The ledger is in your saddlebag. Talk to the marshal to decide who reads it.</p>' : ''}
-        <button class="btn" data-act="results-done">${R.needsSuccessor(camp) ? 'Find another gun' : 'Back to Mercy'}</button>
+        <button class="btn" data-act="results-done">${'Back to the deck'}</button>
       </section>`;
     },
   };
@@ -191,13 +191,13 @@ export function createUI(root, panelEl, api) {
     api.onPanelClose(was);
   }
 
-  const head = (eyebrow, title) => `<div class="bar"><div><p class="eyebrow">${esc(eyebrow)}</p><h2 id="panel-title">${esc(title)}</h2></div><div class="purse num">$${c()?.cash ?? 0}</div></div>`;
+  const head = (eyebrow, title) => `<div class="bar"><div><p class="eyebrow">${esc(eyebrow)}</p><h2 id="panel-title">${esc(title)}</h2></div><div class="purse num">¢${c()?.cash ?? 0}</div></div>`;
   const foot = (label = 'Step away') => `<div class="row sheet-foot"><button class="btn ghost" data-p="close">${label}</button></div>`;
   const line = (role) => { const t = TALK[role] || TALK.townsfolk; return t[Math.min(c().chapter, t.length - 1)]; };
 
   function buyRow(title, desc, have, check, label, attrs) {
     return `<div class="item"><div><h3>${esc(title)}</h3><p>${esc(desc)}</p>${have ? `<p class="have">${esc(have)}</p>` : ''}</div>
-      <button class="btn ${check.ok ? '' : 'ghost'}" ${attrs} ${check.ok ? '' : 'disabled'}>${esc(label)}<span class="btn-sub">${check.ok ? `$${check.price}` : check.price !== undefined ? `$${check.price} · ${esc(check.reason)}` : esc(check.reason)}</span></button></div>`;
+      <button class="btn ${check.ok ? '' : 'ghost'}" ${attrs} ${check.ok ? '' : 'disabled'}>${esc(label)}<span class="btn-sub">${check.ok ? `¢${check.price}` : check.price !== undefined ? `¢${check.price} · ${esc(check.reason)}` : esc(check.reason)}</span></button></div>`;
   }
 
   function missionCard(m, compact = false) {
@@ -212,7 +212,7 @@ export function createUI(root, panelEl, api) {
       <div class="tags">${tags.map((t) => `<span>${esc(t)}</span>`).join('')}</div>
       <h3>${esc(m.title)}</h3>
       <p class="brief">${esc(m.brief)}</p>
-      <p class="reward num">${m.kind === 'descent' ? 'Paid by the floor, even if you do not come back' : m.cash ? `$${m.cash}` : 'Bounty on proof'}${rep.length ? ' · ' + esc(rep.join(' · ')) : ''}${m.prosperity ? ` · Mercy ${signed(m.prosperity)}` : ''}</p>
+      <p class="reward num">${m.kind === 'descent' ? 'Paid by the floor, even if you do not come back' : m.cash ? `¢${m.cash}` : 'Paid on proof'}${rep.length ? ' · ' + esc(rep.join(' · ')) : ''}${m.prosperity ? ` · Mercy ${signed(m.prosperity)}` : ''}</p>
       ${compact ? '' : `<button class="btn" data-p="pick" data-id="${esc(m.id)}">Take this job</button>`}
     </article>`;
   }
@@ -223,11 +223,11 @@ export function createUI(root, panelEl, api) {
     const warn = [];
     if (ch.hp < R.maxHp(ch) * 0.6) warn.push('You are hurt. The doctor is across the street.');
     if (ch.cartridges < 30) warn.push('You are low on cartridges. The general store sells them.');
-    if (ch.bandages === 0) warn.push('You carry no bandages.');
+    if (ch.bandages === 0) warn.push('You carry no dressings.');
     return `<dl class="kit">
       <div><dt>Health</dt><dd><span class="hp"><span style="width:${(ch.hp / R.maxHp(ch)) * 100}%"></span></span><span class="num">${ch.hp}/${R.maxHp(ch)}</span></dd></div>
       <div><dt>Guns</dt><dd>${esc(guns.join(', '))}</dd></div>
-      <div><dt>Carried</dt><dd class="num">${ch.cartridges} cartridges${camp.armory.guns.includes('shotgun') ? `, ${ch.shells} shells` : ''}, ${plural(ch.bandages, 'bandage')}, ${ch.dynamite} dynamite</dd></div>
+      <div><dt>Carried</dt><dd class="num">${ch.cartridges} slugs${camp.armory.guns.includes('shotgun') ? `, ${ch.shells} shells` : ''}, ${plural(ch.bandages, 'dressing')}, ${ch.dynamite} dynamite</dd></div>
       <div><dt>Kit</dt><dd>${ch.gear.length ? esc(ch.gear.map((g) => GEAR[g].name).join(', ')) : 'None'}</dd></div>
     </dl>${warn.map((w) => `<p class="warn">${esc(w)}</p>`).join('')}`;
   }
@@ -264,8 +264,8 @@ export function createUI(root, panelEl, api) {
       const work = Object.entries(UPGRADES).map(([id, u]) => (ups.includes(id)
         ? `<div class="item built"><div><h3>${esc(u.name)}</h3><p>${esc(u.desc)}</p></div><span class="have">Fitted</span></div>`
         : buyRow(u.name, u.desc, GUNS[u.gun].name, R.canBuyUpgrade(camp, id), 'Fit', `data-p="upgrade" data-id="${id}"`))).join('');
-      return `${head(SHOPS.gunsmith.keeper, 'Gunsmith')}
-        <p class="muted">You ride out with the revolver and find everything else on the way: in caches, in shops down the shaft, and on whatever you kill. Paying the gunsmith to build a gun means it can turn up from then on. Try any of them at the range behind the shop.</p>
+      return `${head(SHOPS.gunsmith.keeper, 'Gun counter')}
+        <p class="muted">You go out with the sidearm and find everything else on the way: in caches, at fences down the shaft, and on whatever you kill. Paying Tess to build a gun means it can turn up from then on. Try any of them at the range behind the counter.</p>
         <h3 class="section">Guns</h3><div class="items">${guns}</div>
         <h3 class="section">Workshop</h3><div class="items">${work}</div>${foot()}`;
     },
@@ -280,7 +280,7 @@ export function createUI(root, panelEl, api) {
         <p class="muted">One plug-in is fitted at a time. Swap whenever you are on the deck. They stay with you when a run goes wrong.</p>
         <div class="items">${plugs}</div>
         <h3 class="section">Kit</h3>
-        <p class="muted">Kit is worn by the drifter. If they die, whoever killed them wears it next.</p>
+        <p class="muted">Kit is worn. If you go down, whoever put you there wears it next.</p>
         <div class="items">${Object.entries(GEAR).map(([id, g]) => (ch.gear.includes(id)
     ? `<div class="item built"><div><h3>${esc(g.name)}</h3><p>${esc(g.desc)}</p></div><span class="have">Worn</span></div>`
     : buyRow(g.name, g.desc, '', R.canBuy(camp, id), 'Buy', `data-p="buy" data-id="${id}"`))).join('')}</div>${foot()}`;
@@ -292,7 +292,7 @@ export function createUI(root, panelEl, api) {
       return `${head(SHOPS.clinic.keeper, 'Clinic')}
         <p class="muted">${hurt ? '“Sit. Hold still. This is going to sting.”' : '“Nothing wrong with you that a week of sleep would not fix.”'}</p>
         <dl class="kit"><div><dt>Health</dt><dd><span class="hp"><span style="width:${(ch.hp / max) * 100}%"></span></span><span class="num">${ch.hp}/${max}</span></dd></div></dl>
-        <div class="row"><button class="btn" data-p="treat" ${hurt && camp.cash >= price ? '' : 'disabled'}>Get patched up<span class="btn-sub">${!hurt ? 'In good health' : price ? `$${price}` : 'Free: the clinic is stocked'}</span></button></div>
+        <div class="row"><button class="btn" data-p="treat" ${hurt && camp.cash >= price ? '' : 'disabled'}>Get patched up<span class="btn-sub">${!hurt ? 'In good health' : price ? `¢${price}` : 'Free: the clinic is stocked'}</span></button></div>
         ${foot()}`;
     },
     hall() {
@@ -300,21 +300,21 @@ export function createUI(root, panelEl, api) {
       const meter = (f) => `<div class="stat"><span class="k">${esc(FACTIONS[f].name)}</span><span class="v num ${camp.rep[f] > 0 ? 'good' : camp.rep[f] < 0 ? 'bad' : ''}">${signed(camp.rep[f])}</span>
         <div class="meter"><span class="mid"></span><span class="pin" style="left:${((camp.rep[f] + 5) / 10) * 100}%"></span></div></div>`;
       const perks = R.perkDetails(camp);
-      return `${head('Clerk Winslow', 'Town Hall')}
-        <div class="status three"><div class="stat"><span class="k">Mercy</span><span class="v">${esc(R.prosperityLabel(camp.prosperity))}</span><span class="have">Prosperity ${camp.prosperity}</span></div>${meter('meridian')}${meter('riders')}</div>
+      return `${head('The Unlisted', 'Customs Hall')}
+        <div class="status three"><div class="stat"><span class="k">The deck</span><span class="v">${esc(R.prosperityLabel(camp.prosperity))}</span><span class="have">Standing ${camp.prosperity}</span></div>${meter('meridian')}${meter('riders')}</div>
         ${perks.length ? `<div class="perks">${perks.map((p) => `<p class="${p.bad ? 'bad' : 'good'}"><strong>${esc(p.name)}.</strong> ${esc(p.desc)}</p>`).join('')}</div>` : ''}
-        <h3 class="section">Put money into the town</h3>
+        <h3 class="section">Put creds into the deck</h3>
         <div class="items">${Object.entries(INVESTMENTS).map(([id, inv]) => (camp.investments.includes(id)
     ? `<div class="item built"><div><h3>${esc(inv.name)}</h3><p>${esc(inv.effect)}</p></div><span class="have">Done</span></div>`
     : buyRow(inv.name, inv.effect, '', R.canInvest(camp, id), 'Fund', `data-p="invest" data-id="${id}"`))).join('')}</div>${foot()}`;
     },
     telegraph() {
       const wires = R.telegrams(c(), 24);
-      return `${head(SHOPS.telegraph.keeper, 'Telegraph Office')}
-        <div class="tape-feed">${wires.map((t) => `<p class="tape"><span class="stamp">Mercy · ride ${t.at}</span>${esc(t.text)}</p>`).join('') || '<p class="muted">The wire is quiet.</p>'}</div>${foot()}`;
+      return `${head(SHOPS.telegraph.keeper, 'Feed terminal')}
+        <div class="tape-feed">${wires.map((t) => `<p class="tape"><span class="stamp">Deck 12 · run ${t.at}</span>${esc(t.text)}</p>`).join('') || '<p class="muted">The feed is quiet.</p>'}</div>${foot()}`;
     },
     saloon() {
-      return `${head(SHOPS.saloon.keeper, 'Dry Fork Saloon')}
+      return `${head(SHOPS.saloon.keeper, 'The Low Tide')}
         <p class="lede">“${esc(line('barkeep'))}”</p>
         <div class="row"><button class="btn" data-p="jobs">See the job board</button></div>${foot()}`;
     },
@@ -325,14 +325,14 @@ export function createUI(root, panelEl, api) {
       if (pdata.pick) {
         const m = list.find((x) => x.id === pdata.pick);
         if (m) {
-          return `${head('Before you ride', m.title)}
+          return `${head('Before you go', m.title)}
             ${missionCard(m, true)}
             ${m.hint ? `<p class="muted">${esc(m.hint)}</p>` : ''}
             ${loadout()}
-            <div class="row"><button class="btn" data-p="ride" data-id="${esc(m.id)}">Saddle up<span class="btn-sub">Ride out now</span></button><button class="btn ghost" data-p="unpick">Not yet</button></div>`;
+            <div class="row"><button class="btn" data-p="ride" data-id="${esc(m.id)}">Go<span class="btn-sub">Take the lift now</span></button><button class="btn ghost" data-p="unpick">Not yet</button></div>`;
         }
       }
-      return `${head('Mercy', 'Work')}
+      return `${head('Mercy Deck', 'Work')}
         ${camp.pendingChoice ? '<p class="warn">The marshal is waiting on your decision about the ledger. The story does not move until you make it.</p>' : ''}
         ${R.storyDone(camp) ? '<p class="muted">The story is finished. These jobs get harder, and pay better, the longer you keep riding.</p>' : ''}
         <div class="bills">${list.map((m) => missionCard(m)).join('') || '<p class="muted">Nothing on the board today.</p>'}</div>${foot()}`;
@@ -345,31 +345,31 @@ export function createUI(root, panelEl, api) {
       let body = `<p class="lede">“${esc(line(role))}”</p>`;
       if (role === 'marshal' && camp.pendingChoice === 'ledger') {
         body = `<div class="decision"><h3>Who reads the Site 9 ledger?</h3>
-          <p>Names, dates, and what Meridian dug into under the Calloway shaft. It is the only copy.</p>
+          <p>Unit numbers, dates, the intake list, and what is under the foundations. It is the only copy.</p>
           <div class="choices">
-            <div class="choice"><h4>Give it to the Free Riders</h4><p>They will print it. Riders +3, Meridian −3, Mercy +1. The company will send men after you.</p><button class="btn" data-p="ledger" data-id="expose">Expose Meridian</button></div>
-            <div class="choice"><h4>Sell it back</h4><p>$300 and the company's gratitude. Meridian +2, Riders −2. Nobody ever reads it.</p><button class="btn ghost" data-p="ledger" data-id="sell">Take the money</button></div>
+            <div class="choice"><h4>Give it to the Unlisted</h4><p>They will put it on every screen they can reach. Unlisted +3, Meridian −3, Deck +1. The machines will be sent after you.</p><button class="btn" data-p="ledger" data-id="expose">Expose Meridian</button></div>
+            <div class="choice"><h4>Sell it back</h4><p>300 creds and the corporation's gratitude. Meridian +2, Unlisted −2. Nobody ever reads it.</p><button class="btn ghost" data-p="ledger" data-id="sell">Take the money</button></div>
           </div></div>`;
       } else if (giver) {
         const m = R.availableMissions(camp).find((x) => x.kind === 'story');
         body += m ? `${missionCard(m, true)}<div class="row"><button class="btn" data-p="pick" data-id="${esc(m.id)}">Take the job</button></div>` : '';
       } else if (role === 'undertaker') {
         body += camp.fallen.length
-          ? `<div class="graves">${camp.fallen.slice(-6).reverse().map((f) => `<div class="grave"><h3>${esc(f.name)}</h3><p class="epitaph">Killed by ${esc(f.killedBy)}.</p><p class="have">${plural(f.expeditions, 'ride')} · ${plural(f.kills ?? 0, 'kill')}</p></div>`).join('')}</div>`
+          ? `<div class="graves">${camp.fallen.slice(-6).reverse().map((f) => `<div class="grave"><h3>${esc(f.name)}</h3><p class="epitaph">Killed by ${esc(f.killedBy)}.</p><p class="have">${plural(f.expeditions, 'run')} · ${plural(f.kills ?? 0, 'kill')}</p></div>`).join('')}</div>`
           : '<p class="muted">Nobody of yours is up there yet.</p>';
       }
-      return `${head(role === 'townsfolk' ? 'Mercy' : 'Mercy', pdata.name || 'Townsfolk')}${body}${foot('Walk on')}`;
+      return `${head('Mercy Deck', pdata.name || 'Someone on the deck')}${body}${foot('Walk on')}`;
     },
     journal() {
       const camp = c();
       const done = CHAPTERS.slice(0, camp.chapter);
       const now = R.currentChapter(camp);
-      const who = (g) => (g === 'rider' ? 'Nell Dunmore, the Free Rider outside the saloon' : 'Marshal Ada Quill, outside the Town Hall');
+      const who = (g) => (g === 'rider' ? 'Nell Dunmore, the courier outside the Low Tide' : 'Marshal Ada Quill, outside the customs hall');
       const next = camp.pendingChoice
-        ? '<div class="decision"><h3>Now: decide who reads the ledger</h3><p>Talk to the marshal outside the Town Hall.</p></div>'
+        ? '<div class="decision"><h3>Now: decide who reads the ledger</h3><p>Talk to the marshal outside the customs hall.</p></div>'
         : now
-          ? `<div class="decision"><h3>Now: chapter ${camp.chapter + 1} of ${CHAPTERS.length}, ${esc(now.title)}</h3><p><strong>${esc(now.goal)}</strong></p><p>${esc(now.brief)}</p><p class="muted">To start it, talk to ${esc(who(now.giver))} (the gold marker in town), or ride out by the trail at the west end of the street.</p></div>`
-          : '<div class="decision"><h3>The story is finished</h3><p>Mercy stands. There is always more work on the job board at the saloon.</p></div>';
+          ? `<div class="decision"><h3>Now: chapter ${camp.chapter + 1} of ${CHAPTERS.length}, ${esc(now.title)}</h3><p><strong>${esc(now.goal)}</strong></p><p>${esc(now.brief)}</p><p class="muted">To start it, talk to ${esc(who(now.giver))} (the gold marker in town), or take the freight lift at the west end of the concourse.</p></div>`
+          : '<div class="decision"><h3>The story is finished</h3><p>Mercy Deck stands. There is always more work on the board at the Low Tide.</p></div>';
       const past = done.length
         ? `<h3 class="section">The story so far</h3><ol class="journal">${done.map((ch) => `<li><strong>${esc(ch.title)}.</strong> ${esc(ch.recap)}</li>`).join('')}</ol>`
         : `<h3 class="section">How it began</h3><ol class="journal">${PROLOGUE.map((p) => `<li><strong>${esc(p.title)}.</strong> ${esc(p.text)}</li>`).join('')}</ol>`;
@@ -379,7 +379,7 @@ export function createUI(root, panelEl, api) {
     pause() {
       const ride = api.inRide();
       const s = api.settings();
-      return `<div class="bar"><div><p class="eyebrow">Paused${c()?.character ? ' · ' + esc(c().character.name) : ''}</p><h2 id="panel-title">${ride ? esc(api.rideTitle()) : 'Mercy'}</h2></div></div>
+      return `<div class="bar"><div><p class="eyebrow">Paused${c()?.character ? ' · ' + esc(c().character.name) : ''}</p><h2 id="panel-title">${ride ? esc(api.rideTitle()) : 'Mercy Deck'}</h2></div></div>
         ${ride ? `<ul class="objectives">${api.objectives().map((o) => `<li class="${o.done ? 'done' : ''}">${esc(o.text)}</li>`).join('')}</ul>` : ''}
         <div class="row">
           <button class="btn" data-p="close">Resume</button>
@@ -388,7 +388,7 @@ export function createUI(root, panelEl, api) {
           <button class="btn ghost" data-p="open" data-id="keys">Controls</button>
           <button class="btn ghost" data-p="mute">${s.mute ? 'Sound is off' : 'Sound is on'}</button>
         </div>
-        ${pdata.giveup ? `<div class="confirm"><p><strong>Give up this ride?</strong> ${esc(c().character.name)} walks home alive, with their supplies, and nothing they picked up.</p>
+        ${pdata.giveup ? `<div class="confirm"><p><strong>Give up this run?</strong> You walk home alive, with your supplies, and nothing you picked up.</p>
           <div class="row"><button class="btn danger" data-p="giveup-yes">Turn back</button><button class="btn ghost" data-p="giveup-no">Keep going</button></div></div>`
     : `<div class="row">${ride ? '<button class="link" data-p="giveup">Give up and walk home</button>' : '<button class="link" data-p="quit">Save and go to the title screen</button>'}</div>`}`;
     },
@@ -397,9 +397,9 @@ export function createUI(root, panelEl, api) {
         <table class="keys">
           <tr><th>Move</th><td>W A S D</td></tr><tr><th>Look</th><td>Mouse. Click once to take the mouse; Esc lets go. Arrow keys also turn.</td></tr>
           <tr><th>Sprint</th><td>Shift</td></tr><tr><th>Dodge roll</th><td>Space</td></tr>
-          <tr><th>Fire</th><td>Left click; hold to keep firing</td></tr><tr><th>Alt fire</th><td>Right click or F: fan the hammer / both barrels</td></tr>
+          <tr><th>Fire</th><td>Left click; hold to keep firing</td></tr><tr><th>Alt fire</th><td>Right click or F: fan the sidearm, both barrels, or an overcharged bolt</td></tr>
           <tr><th>Guns</th><td>1 to 7, mouse wheel, or X</td></tr><tr><th>Reload</th><td>R</td></tr>
-          <tr><th>Dynamite</th><td>G</td></tr><tr><th>Bandage</th><td>Q</td></tr>
+          <tr><th>Charge</th><td>G</td></tr><tr><th>Dressing</th><td>Q</td></tr>
           <tr><th>Use / talk</th><td>E (hold for caches and objectives)</td></tr><tr><th>Map</th><td>M or Tab</td></tr>
           <tr><th>Journal</th><td>J</td></tr><tr><th>Controller</th><td>Left stick moves, right stick looks. Buttons are listed, and can be changed, in Settings.</td></tr>
         </table>

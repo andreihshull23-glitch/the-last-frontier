@@ -30,7 +30,7 @@ const LEDGER_CAP = 1200;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const fail = (reason, price) => (price === undefined ? { ok: false, reason } : { ok: false, reason, price });
 /** Cannot afford it: say what it costs and how much is missing. */
-const short = (c, price) => ({ ok: false, reason: `$${price - c.cash} short`, price });
+const short = (c, price) => ({ ok: false, reason: `¢${price - c.cash} short`, price });
 
 function shell() {
   return {
@@ -101,9 +101,9 @@ export function rollCandidates(c, n = 3) {
 }
 
 export function hireDrifter(c, index) {
-  if (c.character?.alive) return fail('You already have a drifter.');
+  if (c.character?.alive) return fail('You are already set up.');
   const pick = c.candidates?.[index];
-  if (!pick) return fail('That drifter is no longer looking for work.');
+  if (!pick) return fail('That plug-in is no longer on offer.');
   const first = c.fallen.length === 0;
   // One runner for the whole campaign. The pick is their first plug-in.
   c.plugins = [...new Set([...(c.plugins || []), pick.trait])];
@@ -187,10 +187,10 @@ export function gunPool(c) {
 }
 
 const DESCENT_DEF = {
-  id: 'descent', title: DESCENT.title, brief: DESCENT.brief, hint: 'Rooms seal when you walk in. Kill everything to open them. Find the floor boss, then ride the lift down.',
+  id: 'descent', title: DESCENT.title, brief: DESCENT.brief, hint: 'Rooms seal when you walk in. Kill everything to open them. Find the floor boss, then take the lift down.',
   level: { gen: 'descent', floor: 1 }, reward: { cash: 0 }, after: 1,
 };
-const bossLabel = (kind) => (kind === 'foreman' ? 'Kill Foreman Voss' : kind === 'overseer' ? 'Destroy the Overseer' : kind === 'warden' ? 'Destroy the Warden' : kind === 'brute' ? 'Kill the boss' : 'Kill the target');
+const bossLabel = (kind) => (kind === 'foreman' ? 'Kill Director Voss' : kind === 'overseer' ? 'Destroy the Overseer' : kind === 'warden' ? 'Destroy the Warden' : kind === 'brute' ? 'Kill the boss' : 'Kill the target');
 function floorConfig(base, floor, seed, pool) {
   const F = DESCENT.floors[floor - 1];
   return {
@@ -246,14 +246,14 @@ export function ammoCap(c, field) {
 
 function locked(c, def) {
   if (def.needsInvestment && !c.investments.includes(def.needsInvestment)) return `Needs: ${INVESTMENTS[def.needsInvestment].name.toLowerCase()}`;
-  if (def.needsProsperity && c.prosperity < def.needsProsperity) return `Needs Mercy prosperity ${def.needsProsperity}`;
+  if (def.needsProsperity && c.prosperity < def.needsProsperity) return `Needs deck standing ${def.needsProsperity}`;
   if (def.needsGun && !c.armory.guns.includes(def.needsGun)) return `Needs the ${GUNS[def.needsGun].name.toLowerCase()}`;
   return null;
 }
 
 function shopOpen(c) {
-  if (!c.character?.alive) return fail('Hire a drifter first.');
-  if (c.activeExpedition) return fail('Your drifter is out in the field.');
+  if (!c.character?.alive) return fail('No runner.');
+  if (c.activeExpedition) return fail('You are out on a run.');
   return { ok: true };
 }
 
@@ -291,7 +291,7 @@ export function canBuyGun(c, id) {
   if (!open.ok) return open;
   const g = GUNS[id];
   if (!g || !g.cost) return fail('Not for sale.');
-  if (g.base) return fail('Turns up on every ride');
+  if (g.base) return fail('Turns up on every run');
   if (c.armory.guns.includes(id)) return fail('Unlocked');
   if (g.after && c.chapter < g.after) return fail(`Not built yet: finish "${CHAPTERS[g.after - 1].title}"`, g.cost);
   if (c.cash < g.cost) return short(c, g.cost);
@@ -341,7 +341,7 @@ export function canBuyUpgrade(c, id) {
   if (!u) return fail('Unknown work');
   if (c.armory.upgrades.includes(id)) return fail('Fitted');
   if (u.gun !== START_GUN && !GUNS[u.gun].base && !c.armory.guns.includes(u.gun)) return fail(`Unlock the ${GUNS[u.gun].name.toLowerCase()} first`, u.cost);
-  if (!c.investments.includes('workshop')) return fail("Needs: gunsmith's workshop (Town Hall)", u.cost);
+  if (!c.investments.includes('workshop')) return fail("Needs: Tess's workbench (Customs Hall)", u.cost);
   if (c.cash < u.cost) return short(c, u.cost);
   return { ok: true, price: u.cost };
 }
@@ -357,7 +357,7 @@ export function canInvest(c, id) {
   const inv = INVESTMENTS[id];
   if (!inv) return fail('Unknown project');
   if (c.investments.includes(id)) return fail('Done');
-  if (inv.needsProsperity && c.prosperity < inv.needsProsperity) return fail(`Needs Mercy prosperity ${inv.needsProsperity}`, inv.cost);
+  if (inv.needsProsperity && c.prosperity < inv.needsProsperity) return fail(`Needs deck standing ${inv.needsProsperity}`, inv.cost);
   if (c.cash < inv.cost) return short(c, inv.cost);
   return { ok: true, price: inv.cost };
 }
@@ -421,7 +421,7 @@ export function townConfig(c, arrive = 'trail') {
     seed: TOWN_SEED,
     level: {
       gen: 'town', seed: TOWN_SEED, arrive, investments: [...c.investments], prosperity: c.prosperity,
-      fallen: c.fallen.slice(-9).map((f) => ({ name: f.name, epitaph: `Killed by ${f.killedBy}. ${f.expeditions} ride${f.expeditions === 1 ? '' : 's'}.` })),
+      fallen: c.fallen.slice(-9).map((f) => ({ name: f.name, epitaph: `Killed by ${f.killedBy}. ${f.expeditions} run${f.expeditions === 1 ? '' : 's'}.` })),
     },
     objective: null,
     character: ch?.alive ? characterConfig(c) : { name: 'Nobody', trait: 'steady', look: 0, hp: 100, maxHp: 100, gear: [], cartridges: 0, shells: 0, bandages: 0, dynamite: 0 },
@@ -436,9 +436,9 @@ export function townConfig(c, arrive = 'trail') {
 }
 
 export function beginExpedition(c, missionId, seed) {
-  if (c.activeExpedition) return fail('A ride is already under way.');
+  if (c.activeExpedition) return fail('A run is already under way.');
   const ch = c.character;
-  if (!ch?.alive) return fail('Hire a drifter first.');
+  if (!ch?.alive) return fail('No runner.');
   const { kind, def } = missionDef(missionId);
   const offer = availableMissions(c).find((m) => m.id === missionId);
   if (!def || !offer) return fail('That job is not on offer.');
@@ -449,7 +449,7 @@ export function beginExpedition(c, missionId, seed) {
   const open = def.level.gen === 'canyon' && def.level.theme !== 'hollow';
   const bounty = c.bounty ? { name: c.bounty.name, notoriety: c.bounty.notoriety, victims: [...c.bounty.victims] } : null;
   const objective = { ...def.level.objective };
-  if (objective.kind === 'kill') objective.label = objective.enemy === 'foreman' ? 'Kill Foreman Voss' : objective.enemy === 'overseer' ? 'Destroy the Overseer' : objective.enemy === 'bounty' ? `Kill ${bounty?.name ?? 'the outlaw'}` : 'Kill the rustler boss';
+  if (objective.kind === 'kill') objective.label = objective.enemy === 'foreman' ? 'Kill Director Voss' : objective.enemy === 'overseer' ? 'Destroy the Overseer' : objective.enemy === 'bounty' ? `Kill ${bounty?.name ?? 'the outlaw'}` : 'Kill the Saint';
   const config = {
     mode: 'ride', expeditionId: id, missionId, seed: seed >>> 0, title: offer.title,
     intro: def.hint || def.brief,
@@ -478,21 +478,21 @@ export function beginExpedition(c, missionId, seed) {
 
 /** Undo beginExpedition when the ride could not start. */
 export function abortExpedition(c, expeditionId) {
-  if (!c.activeExpedition || c.activeExpedition.id !== expeditionId) return fail('No such ride.');
+  if (!c.activeExpedition || c.activeExpedition.id !== expeditionId) return fail('No such run.');
   c.activeExpedition = null;
   return { ok: true };
 }
 
 function killerLabel(killer) {
-  if (!killer) return 'the Red Country';
-  if (killer.kind === 'bounty') return killer.name ?? 'an outlaw';
+  if (!killer) return 'the tower';
+  if (killer.kind === 'bounty') return killer.name ?? 'a ganger';
   if (killer.kind === 'echo') return 'their own echo';
   if (killer.kind === 'walker' || killer.kind === 'husk') return 'something in the dark';
-  if (killer.kind === 'dynamite') return 'their own dynamite';
-  if (killer.kind === 'foreman') return 'Foreman Voss';
+  if (killer.kind === 'dynamite') return 'their own charge';
+  if (killer.kind === 'foreman') return 'Director Voss';
   if (killer.kind === 'overseer') return 'the Overseer';
   const def = ENEMIES[killer.kind];
-  return def ? `a ${def.name}` : 'the Red Country';
+  return def ? `a ${def.name}` : 'the tower';
 }
 
 export function rollOutlawName(c) {
@@ -507,14 +507,14 @@ export function rollOutlawName(c) {
  */
 export function resolveExpedition(c, report) {
   const active = c.activeExpedition;
-  if (!active || !report || report.expeditionId !== active.id) return fail('This ride has already been settled.');
+  if (!active || !report || report.expeditionId !== active.id) return fail('This run has already been settled.');
   const { kind, def } = missionDef(active.missionId);
   const ch = c.character;
   const before = { cash: c.cash, rep: { ...c.rep }, prosperity: c.prosperity, chapter: c.chapter };
   const offer = def ? describe(c, kind, def) : null;
   const summary = {
     ok: true, outcome: report.outcome, missionId: active.missionId, title: offer?.title ?? 'Unknown job', story: kind === 'story',
-    drifter: ch?.name ?? 'Your drifter', lines: [], lost: [], obituary: null, bounty: null, done: false, outro: null, choice: null, ending: null,
+    drifter: ch?.name ?? 'You', lines: [], lost: [], obituary: null, bounty: null, done: false, outro: null, choice: null, ending: null,
   };
   c.activeExpedition = null;
   c.expeditionCount += 1;
@@ -526,13 +526,13 @@ export function resolveExpedition(c, report) {
     const finished = report.outcome === 'extracted' && report.done;
     const cleared = finished ? (report.floor || 1) : Math.max(0, (report.floor || 1) - 1);
     const pay = cleared * DESCENT.reward.cashPerFloor + (finished && cleared >= DESCENT.floors.length ? DESCENT.reward.cashFinish : 0);
-    if (pay > 0) { c.cash += pay; summary.lines.push({ label: `The Descent: ${cleared} floor${cleared === 1 ? '' : 's'} cleared`, value: `+$${pay}`, tone: 'good' }); }
+    if (pay > 0) { c.cash += pay; summary.lines.push({ label: `The Descent: ${cleared} floor${cleared === 1 ? '' : 's'} cleared`, value: `+¢${pay}`, tone: 'good' }); }
     else summary.lines.push({ label: 'The Descent', value: 'No floor cleared', tone: 'muted' });
     c.descentBest = Math.max(c.descentBest || 0, cleared);
     summary.floors = cleared;
     if (finished && cleared >= DESCENT.floors.length) {
       summary.done = true;
-      summary.outro = 'You rode the lift back up from the heart of the ship. Nobody in Mercy has done that before. The lift is still running, and the ship is never quite the same twice.';
+      summary.outro = 'You rode the lift back up from the heart of the Hollow. Nobody on the deck has done that before. The shaft is still open, and it is never quite the same twice.';
       record(c, 'DESCENT_DONE', {});
     }
   }
@@ -542,7 +542,7 @@ export function resolveExpedition(c, report) {
     const lootTotal = kept ? Math.round(loot.reduce((s, l) => s + (l.value | 0), 0) * (c.investments.includes('coachline') ? 1.2 : 1)) : 0;
     if (lootTotal > 0) {
       c.cash += lootTotal;
-      summary.lines.push({ label: `Sold ${loot.length} find${loot.length === 1 ? '' : 's'}`, value: `+$${lootTotal}` });
+      summary.lines.push({ label: `Sold ${loot.length} find${loot.length === 1 ? '' : 's'}`, value: `+¢${lootTotal}` });
     }
     if (kept && def && report.done && kind !== 'descent') {
       const bountyJob = def.id === 'bounty';
@@ -551,7 +551,7 @@ export function resolveExpedition(c, report) {
       for (const [f, d] of Object.entries(def.reward.rep ?? {})) adjustRep(c, f, d);
       c.prosperity += def.reward.prosperity ?? 0;
       summary.done = true;
-      if (!bountyJob) summary.lines.push({ label: `${kind === 'story' ? 'Chapter' : 'Job'}: ${offer.title}`, value: `+$${payout}`, tone: 'good' });
+      if (!bountyJob) summary.lines.push({ label: `${kind === 'story' ? 'Chapter' : 'Job'}: ${offer.title}`, value: `+¢${payout}`, tone: 'good' });
       if (kind === 'story') {
         c.chapter += 1;
         record(c, def.event, def.event === 'FOREMAN_DEAD' ? { exposed: has(c, 'EVIDENCE_EXPOSED') } : {});
@@ -576,16 +576,16 @@ export function resolveExpedition(c, report) {
       const reward = BOUNTY_REWARD * c.bounty.notoriety + refund;
       c.cash += reward;
       record(c, 'BOUNTY_CLAIMED', { outlaw: c.bounty.name, victims: c.bounty.victims.join(' AND ') });
-      summary.lines.push({ label: `Bounty on ${c.bounty.name}`, value: `+$${reward}`, tone: 'good' });
+      summary.lines.push({ label: `Bounty on ${c.bounty.name}`, value: `+¢${reward}`, tone: 'good' });
       if (back.length) summary.lines.push({ label: 'Recovered kit', value: back.join(', ') });
       c.bounty = null;
     } else if (report.bountyKilled && c.bounty) {
       record(c, 'BOUNTY_SLAIN_UNCLAIMED', { outlaw: c.bounty.name });
-      summary.lines.push({ label: `${c.bounty.name} is dead`, value: 'Effects left behind', tone: 'muted' });
+      summary.lines.push({ label: `${c.bounty.name} is dead`, value: 'Kit left behind', tone: 'muted' });
       c.bounty = null;
     }
     if (!kept) {
-      summary.lost = loot.map((l) => `${l.name} ($${l.value})`);
+      summary.lost = loot.map((l) => `${l.name} (¢${l.value})`);
       record(c, 'DRIFTER_FLED', { name: ch.name });
     }
     const cons = report.consumables ?? {};
@@ -603,7 +603,7 @@ export function resolveExpedition(c, report) {
       record(c, 'BOUNTY_SLAIN_UNCLAIMED', { outlaw: c.bounty.name });
       c.bounty = null;
     }
-    summary.lost = [...loot.map((l) => `${l.name} ($${l.value})`), ...ch.gear.map((g) => GEAR[g]?.name ?? g)];
+    summary.lost = [...loot.map((l) => `${l.name} (¢${l.value})`), ...ch.gear.map((g) => GEAR[g]?.name ?? g)];
     // The runner does not die for good: the clinic's recovery team drags them back to the deck.
     // What the run turned up is gone, and so is the kit they wore.
     c.deaths = (c.deaths || 0) + 1;
@@ -630,7 +630,7 @@ export function resolveExpedition(c, report) {
   } else {
     // 'missing': the page closed mid-ride with no snapshot to resume from. The drifter
     // limps home: loot and the supplies they carried are gone, kit and life are kept.
-    summary.lost = loot.map((l) => `${l.name} ($${l.value})`);
+    summary.lost = loot.map((l) => `${l.name} (¢${l.value})`);
     summary.lines.push({ label: 'Supplies carried', value: 'Lost', tone: 'bad' });
     ch.hp = Math.max(1, Math.round(maxHp(ch) / 2));
     ch.cartridges = Math.min(ch.cartridges, 24); ch.shells = Math.min(ch.shells, 6); ch.bandages = 0; ch.dynamite = 0;
@@ -688,7 +688,7 @@ export function fromSavePayload(payload) {
   c.descentBest = Math.max(0, Math.round(num(raw.descentBest, 0)));
   c.deaths = Math.max(0, Math.round(num(raw.deaths, 0)));
   c.plugins = Array.isArray(raw.plugins) ? [...new Set(raw.plugins.filter((t) => TRAITS[t]))] : [];
-  c.fallen = Array.isArray(raw.fallen) ? raw.fallen.filter((f) => f && typeof f.name === 'string').map((f) => ({ ...f, killedBy: String(f.killedBy ?? 'the Red Country'), expeditions: num(f.expeditions, 0) })) : [];
+  c.fallen = Array.isArray(raw.fallen) ? raw.fallen.filter((f) => f && typeof f.name === 'string').map((f) => ({ ...f, killedBy: String(f.killedBy ?? 'the tower'), expeditions: num(f.expeditions, 0) })) : [];
   c.armory = {
     guns: Array.isArray(raw.armory?.guns) ? [...new Set(raw.armory.guns.filter((g) => GUNS[g] && g !== 'revolver'))] : [],
     upgrades: Array.isArray(raw.armory?.upgrades) ? [...new Set(raw.armory.upgrades.filter((u) => UPGRADES[u]))] : [],
