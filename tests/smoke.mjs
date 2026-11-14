@@ -214,13 +214,10 @@ if (want('death')) {
   await waitMode(page, 'menu', 240000);
   await page.waitForSelector('[data-act="results-done"]');
   await shot(page, '31-death');
-  check(await D(page, () => window.LF_DEBUG.app.campaign.fallen.length === 1), 'the drifter is on Boot Hill');
+  check(await D(page, () => window.LF_DEBUG.app.campaign.deaths === 1 && Boolean(window.LF_DEBUG.app.campaign.character)), 'Rook went down once and is still the runner');
   await page.click('[data-act="results-done"]');
-  await page.waitForSelector('[data-act="hire"]');
-  await shot(page, '32-successor');
-  await page.click('[data-act="hire"][data-i="1"]');
   await waitMode(page, 'town');
-  await D(page, () => { window.LF_DEBUG.quality(2); const p = window.LF_DEBUG.state().player; p.x = 96 * 32; p.y = 33 * 32; window.LF_DEBUG.face(-Math.PI / 2, 0.2); });
+  await D(page, () => { window.LF_DEBUG.quality(2); const p = window.LF_DEBUG.state().player; p.x = 90 * 32; p.y = 41 * 32; window.LF_DEBUG.face(Math.PI / 2, 0.1); });
   await waitSim(page, 0.6);
   await shot(page, '33-boot-hill');
   await ctx.close();

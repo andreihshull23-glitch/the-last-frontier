@@ -45,6 +45,12 @@ export function registerTints(assets) {
   // sci-fi kit walls: rusted company iron on the Foundry, the ship's own dark plate on the Hull
   T('rustwall', chain(remap([{ sat: [0, 1], h: 0.06, s: 0.2, lMul: 0.72 }]), multiply(0.8, 0.74, 0.7)));
   T('hullwall', chain(remap([{ sat: [0, 0.35], h: 0.63, s: 0.16, lMul: 0.62 }, { sat: [0.35, 1], h: 0.5, s: 0.5, lMul: 0.9 }]), multiply(0.8, 0.86, 1.0)));
+  // Mercy Deck: dark blue plate, gunmetal street furniture, signs that keep their colour
+  T('deckwall', chain(remap([{ sat: [0, 0.35], h: 0.66, s: 0.22, lMul: 0.78 }, { sat: [0.35, 1], h: 0.52, s: 0.7, lMul: 1.0 }]), multiply(0.85, 0.85, 1.0)));
+  T('deckprop', remap([{ sat: [0, 0.3], h: 0.65, s: 0.16, lMul: 0.6 }, { sat: [0.3, 1], lMul: 0.9 }]));
+  T('street', remap([{ sat: [0, 0.25], h: 0.64, s: 0.14, lMul: 0.6 }]));
+  T('neonsign', remap([{ sat: [0, 0.2], lit: [0, 0.62], h: 0.64, s: 0.12, lMul: 0.45 }]));
+  T('clinic', remap([{ sat: [0, 1], h: 0.42, s: 0.18, lMul: 1.0 }]));
   T('machine', chain(remap([{ sat: [0, 1], sMul: 0.55, lMul: 0.8 }]), multiply(0.9, 0.82, 0.74)));
   T('mine', chain(remap([{ sat: [0, 1], sMul: 0.72 }]), multiply(0.74, 0.7, 0.72)));
   T('hollow', remap([{ sat: [0, 1], h: 0.74, s: 0.28, lMul: 0.62 }]));

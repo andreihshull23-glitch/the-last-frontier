@@ -23,6 +23,10 @@ export const THEMES = {
   works: { ground: { ...BASE_GROUND, [G.mine]: [128, 108, 92], [G.plank]: [150, 110, 72] }, cap: [44, 36, 34], rockTint: 'mine' },
   foundry: { ground: BASE_GROUND, cap: [48, 40, 34], rockTint: null },
   ship: { ground: BASE_GROUND, cap: [34, 35, 44], rockTint: null },
+  deck: {
+    ground: { ...BASE_GROUND, [G.deck]: [60, 64, 84], [G.grate]: [40, 43, 58], [G.hull]: [48, 50, 70], [G.glow]: [70, 215, 235], [G.paving]: [84, 78, 104], [G.field]: [196, 164, 44] },
+    cap: [15, 16, 25], rockTint: null,
+  },
   hollow: {
     ground: { ...BASE_GROUND, [G.sand]: [74, 64, 100], [G.trail]: [88, 76, 116], [G.rockfloor]: [64, 56, 90], [G.hollow]: [52, 44, 78], [G.grass]: [84, 80, 120], [G.camp]: [60, 52, 80] },
     cap: [70, 58, 100], rockTint: 'hollow',
@@ -160,7 +164,13 @@ export function buildWorld(assets, L, opts = {}) {
     else if (p.m === '@cyl') m.addCyl(p.x, p.y, p.z, p.sx, p.sy, p.sz, hexRgb(p.c), p.c2 ? hexRgb(p.c2) : null, p.seg, p.axis || 'y', p.r || 0);
     else m.add(p.m, p.x, p.y, p.z, p.r, p.s, p.t || (rockTinted(p.m) ? theme.rockTint : null), p.shade || 1);
   };
-  for (const p of L.pieces) addPiece(sectorAt(p.x, p.z), p);
+  // lit things (neon, screens) are drawn unshaded, in a mesh of their own
+  const glowM = new Merger(assets);
+  for (const p of L.pieces) addPiece(p.glow ? glowM : sectorAt(p.x, p.z), p);
+  if (!glowM.empty) {
+    const mesh = new THREE.Mesh(glowM.build(), new THREE.MeshBasicMaterial({ vertexColors: true }));
+    group.add(mesh);
+  }
 
   const sectorMeshes = [];
   for (const m of sectors) {
@@ -231,9 +241,11 @@ export function buildWorld(assets, L, opts = {}) {
     cv.width = 512; cv.height = Math.max(64, Math.round(512 * s.h / s.w));
     const c = cv.getContext('2d');
     c.fillStyle = s.bg || '#5e3f28'; c.fillRect(0, 0, cv.width, cv.height);
-    c.fillStyle = 'rgba(0,0,0,0.16)';
-    for (let y = 0; y < cv.height; y += Math.round(cv.height / 4)) c.fillRect(0, y, cv.width, 2);
-    c.strokeStyle = s.fg || '#ecd9a8'; c.lineWidth = 8; c.strokeRect(10, 10, cv.width - 20, cv.height - 20);
+    if (!s.glow) {
+      c.fillStyle = 'rgba(0,0,0,0.16)';
+      for (let y = 0; y < cv.height; y += Math.round(cv.height / 4)) c.fillRect(0, y, cv.width, 2);
+    } else { c.shadowColor = s.fg; c.shadowBlur = 18; }
+    c.strokeStyle = s.fg || '#ecd9a8'; c.lineWidth = s.glow ? 5 : 8; c.strokeRect(10, 10, cv.width - 20, cv.height - 20);
     c.fillStyle = s.fg || '#ecd9a8';
     let size = cv.height * 0.56;
     c.font = `700 ${size}px "Big Shoulders Display", "Arial Narrow", Impact, sans-serif`;
@@ -244,7 +256,7 @@ export function buildWorld(assets, L, opts = {}) {
     const tex = new THREE.CanvasTexture(cv);
     tex.encoding = THREE.sRGBEncoding;
     tex.anisotropy = 4;
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(s.w, s.h), new THREE.MeshLambertMaterial({ map: tex, transparent: false }));
+    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(s.w, s.h), new (s.glow ? THREE.MeshBasicMaterial : THREE.MeshLambertMaterial)({ map: tex, transparent: false }));
     mesh.position.set(s.x, s.y, s.z);
     mesh.rotation.y = Math.atan2(s.nx, s.nz);
     group.add(mesh);

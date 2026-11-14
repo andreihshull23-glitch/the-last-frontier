@@ -42,49 +42,46 @@ const cowboy = (c, band = '#2e241c') => ({ type: 'cowboy', c, band });
 // recoloured clothes. Machines are the Meridian Company's; the Hollow's dead are the same people, gone grey.
 const hat = (model, c = null) => ({ type: 'model', model: 'west/hat-' + model, c });
 export const LOOKS = {
-  // outlaws
-  bandit: { fam: 'man', model: 'Adventurer', tint: 'cloth_black', hat: hat('b'), gun: 'qg/Shotgun_SawedOff' },
-  gunman: { fam: 'man', model: 'Adventurer', tint: 'cloth_red', hat: hat('a'), gun: 'qg/Revolver_3' },
-  dynamiter: { fam: 'man', model: 'Farmer', tint: 'cloth_red' },
-  brute: { fam: 'man', model: 'Farmer', tint: 'cloth_black', scale: 1.32 },
-  bounty: { fam: 'woman', model: 'Adventurer', tint: 'cloth_black', hat: hat('b'), gun: 'qg/Revolver_5', scale: 1.06 },
-  // the Meridian Company
-  guard: { fam: 'robot', model: 'George', gun: 'gun/blaster-e' },
-  scout: { fam: 'robot', model: 'Leela', scale: 0.8 },
-  enforcer: { fam: 'robot', model: 'Stan', gun: 'gun/blaster-h', scale: 0.95 },
-  crusher: { fam: 'robot', model: 'Mike', tint: 'crusher', scale: 1.12 },
-  trooper: { fam: 'man', model: 'Swat', gun: 'gun/blaster-d' },
-  overseer: { fam: 'robot', model: 'Stan', tint: 'overseer', gun: 'gun/blaster-a', scale: 1.45 },
+  // the Rust Saints: gangers in dark leathers with one loud colour each
+  bandit: { fam: 'man', model: 'Adventurer', tint: 'cloth_black', gun: 'qg/Shotgun_SawedOff' },
+  gunman: { fam: 'woman', model: 'SciFi', tint: 'cloth_red', gun: 'qg/Revolver_3' },
+  dynamiter: { fam: 'man', model: 'Adventurer', tint: 'cloth_pink' },
+  brute: { fam: 'man', model: 'Swat', tint: 'saint', scale: 1.34 },
+  bounty: { fam: 'woman', model: 'Soldier', tint: 'cloth_black', gun: 'qg/Revolver_5', scale: 1.06 },
+  // Meridian: the machines WARDEN took, and the shells and troopers it still pays
+  guard: { fam: 'cyber', model: 'Enemy_2Legs_Gun', tint: 'meridian' },
+  scout: { fam: 'cyber', model: 'Enemy_Flying_Gun', tint: 'meridian', scale: 0.9 },
+  enforcer: { fam: 'cyber', model: 'Character', tint: 'shell', gun: 'gun/blaster-h', scale: 1.18 },
+  crusher: { fam: 'cyber', model: 'Enemy_Large', tint: 'meridian_heavy', scale: 0.6 },
+  trooper: { fam: 'man', model: 'Spacesuit', tint: 'trooper', gun: 'gun/blaster-d' },
+  overseer: { fam: 'cyber', model: 'Enemy_Large_Gun', tint: 'overseer', scale: 0.85 },
   foreman: { fam: 'robot', model: 'Mike', tint: 'iron', gun: 'qg/Shotgun_4', scale: 1.5 },
   warden: { fam: 'robot', model: 'Mike', tint: 'warden', gun: 'gun/blaster-e', scale: 1.6 },
-  turret: { fam: 'robot', model: 'Leela', tint: 'turret', scale: 0.72 },
-  // the Hollow: miners and drifters the ship kept walking
-  walker: { fam: 'man', model: 'Farmer', tint: 'hollow_dead' },
+  turret: { fam: 'cyber', model: 'Enemy_Flying', tint: 'turret', scale: 1.1 },
+  // the Hollow: people from the intake list, still walking
+  walker: { fam: 'man', model: 'Adventurer', tint: 'hollow_dead' },
   husk: { fam: 'woman', model: 'Adventurer', tint: 'husk_dead', scale: 0.86 },
-  // Mercy
+  // Mercy Deck
   deputy: { fam: 'robot', model: 'Stan', gun: 'gun/blaster-n', scale: 0.86, tint: 'deputy' },
   keeper_store: { fam: 'woman', model: 'Adventurer', tint: 'cloth_blue' },
   keeper_gunsmith: { fam: 'woman', model: 'SciFi', tint: 'cloth_rust' },
-  keeper_outfitter: { fam: 'woman', model: 'Adventurer', hat: hat('a') },
-  keeper_clinic: { fam: 'man', model: 'Spacesuit', tint: 'cloth_white' },
+  keeper_outfitter: { fam: 'woman', model: 'SciFi', tint: 'cloth_violet' },
+  keeper_clinic: { fam: 'man', model: 'Adventurer', tint: 'cloth_white' },
   keeper_telegraph: { fam: 'robot', model: 'George', tint: 'brass', scale: 0.85 },
-  keeper_saloon: { fam: 'woman', model: 'Adventurer', tint: 'cloth_red' },
-  keeper_stable: { fam: 'man', model: 'Farmer' },
-  clerk: { fam: 'man', model: 'Adventurer', tint: 'cloth_white', hat: hat('c') },
-  marshal: { fam: 'woman', model: 'Soldier', tint: 'cloth_rust', hat: hat('b') },
-  rider: { fam: 'woman', model: 'Soldier', hat: hat('a') },
-  agent: { fam: 'man', model: 'Spacesuit' },
-  undertaker: { fam: 'man', model: 'Adventurer', tint: 'cloth_black', hat: hat('c') },
-  townsman: { fam: 'man', model: 'Adventurer', tint: 'cloth_rust', hat: hat('b') },
-  townswoman: { fam: 'woman', model: 'Adventurer', tint: 'cloth_green' },
-  towns2: { fam: 'man', model: 'Farmer', tint: 'cloth_green' },
-  towns3: { fam: 'man', model: 'Farmer' },
+  keeper_saloon: { fam: 'woman', model: 'Adventurer', tint: 'cloth_pink' },
+  keeper_stable: { fam: 'man', model: 'Spacesuit', tint: 'cloth_teal' },
+  clerk: { fam: 'man', model: 'Adventurer', tint: 'cloth_teal' },
+  marshal: { fam: 'woman', model: 'Soldier', tint: 'cloth_rust' },
+  rider: { fam: 'woman', model: 'Soldier', tint: 'cloth_violet' },
+  agent: { fam: 'cyber', model: 'Character', tint: 'suit' },
+  undertaker: { fam: 'woman', model: 'Adventurer', tint: 'cloth_black' },
+  townsman: { fam: 'man', model: 'Adventurer', tint: 'cloth_violet' },
+  townswoman: { fam: 'woman', model: 'Adventurer', tint: 'cloth_teal' },
+  towns2: { fam: 'man', model: 'Spacesuit', tint: 'cloth_green' },
+  towns3: { fam: 'woman', model: 'SciFi', tint: 'cloth_pink' },
 };
-const DRIFTER_BODIES = [
-  ['man', 'Swat', null, null], ['woman', 'Adventurer', null, 'b'], ['man', 'Adventurer', 'cloth_blue', 'b'], ['woman', 'Soldier', null, 'a'],
-  ['man', 'Farmer', null, null], ['woman', 'SciFi', 'cloth_rust', 'b'], ['man', 'Adventurer', 'cloth_red', 'c'], ['woman', 'Adventurer', 'cloth_rust', 'a'],
-  ['man', 'Farmer', 'cloth_green', null], ['woman', 'Soldier', 'cloth_blue', 'b'], ['man', 'Swat', 'cloth_rust', 'a'], ['woman', 'Adventurer', 'cloth_blue', 'c'],
-];
+// One runner. The index is kept for old saves; everybody is Rook now.
+const DRIFTER_BODIES = [['man', 'Swat', null, null]];
 export function drifterLook(index, gear = []) {
   const n = DRIFTER_BODIES.length;
   const i = ((index % n) + n) % n;
@@ -108,10 +105,20 @@ function registerCharacterTints(assets) {
   R('cloth_blue', cloth(0.6, 0.4, 1.0));
   R('cloth_green', cloth(0.3, 0.35, 0.95));
   R('cloth_rust', cloth(0.06, 0.6, 1.0));
+  R('saint', remap([{ sat: [0, 1], lit: [0, 0.45], h: 0.03, s: 0.55, lMul: 0.9 }]));
+  R('cloth_violet', cloth(0.75, 0.5, 1.0));
+  R('cloth_teal', cloth(0.5, 0.55, 0.95));
+  R('cloth_pink', cloth(0.9, 0.65, 1.05));
+  R('trooper', chain(remap([{ hue: [0.125, 0.78], sat: [0.12, 1], h: 0.0, s: 0.5, lMul: 0.6 }]), multiply(0.6, 0.6, 0.66)));
+  // the kit's machines ship white and orange: Meridian paints them gunmetal with a red eye
+  R('meridian', remap([{ sat: [0, 0.3], h: 0.63, s: 0.14, lMul: 0.52 }, { sat: [0.3, 1], h: 0.0, s: 0.85, lMul: 1.0 }]));
+  R('meridian_heavy', remap([{ sat: [0, 0.3], h: 0.08, s: 0.2, lMul: 0.5 }, { sat: [0.3, 1], h: 0.09, s: 0.9, lMul: 1.0 }]));
+  R('shell', remap([{ sat: [0, 0.3], h: 0.6, s: 0.1, lMul: 0.95 }, { sat: [0.3, 1], h: 0.0, s: 0.8, lMul: 0.95 }]));
+  R('suit', remap([{ sat: [0, 0.3], h: 0.6, s: 0.06, lMul: 1.15 }, { sat: [0.3, 1], h: 0.58, s: 0.5, lMul: 1.0 }]));
   R('crusher', chain(remap([{ sat: [0.3, 1], h: 0.09, s: 0.8, lMul: 1.0 }]), multiply(0.85, 0.82, 0.8)));
-  R('overseer', chain(remap([{ sat: [0.3, 1], h: 0.78, s: 0.6, lMul: 0.75 }]), multiply(0.6, 0.6, 0.68)));
+  R('overseer', remap([{ sat: [0, 0.3], h: 0.76, s: 0.2, lMul: 0.42 }, { sat: [0.3, 1], h: 0.82, s: 0.85, lMul: 1.0 }]));
   R('warden', chain(remap([{ sat: [0.3, 1], h: 0.52, s: 0.75, lMul: 0.95 }]), multiply(0.5, 0.62, 0.78)));
-  R('turret', chain(remap([{ sat: [0.15, 1], h: 0.02, s: 0.7, lMul: 0.9 }]), multiply(0.62, 0.6, 0.62)));
+  R('turret', remap([{ sat: [0, 0.3], h: 0.6, s: 0.1, lMul: 0.45 }, { sat: [0.3, 1], h: 0.03, s: 0.9, lMul: 1.0 }]));
   R('cloth_white', remap([{ hue: [0.125, 0.78], sat: [0.12, 1], s: 0.08, lMul: 1.7 }]));
   // the dead: everything drained toward grey-violet, skin included
   R('hollow_dead', chain(remap([{ sat: [0, 1], h: 0.72, s: 0.16, lMul: 0.82 }]), multiply(0.86, 0.9, 1.0)));

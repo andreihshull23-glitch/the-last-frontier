@@ -11,6 +11,7 @@
 // and can recolour anything per instance.
 import { readdirSync, writeFileSync, mkdirSync, existsSync, statSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve, basename } from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { readGlb, primitives, worldMatrices, accessor, xformPoint, xformDir } from './glb.mjs';
 import { readPng, sample } from './png.mjs';
@@ -62,6 +63,10 @@ const PACKS = [
       /^Door_(Frame_A|Frame_Square|Metal|DarkMetal|Simple)$/, /^Platform_(Round1|Stairs_2|Ramp_2|Rails_2|Rails_4)$/, // flat floor plates alias badly at this density, so they are left out
       /^Column_/, /^Prop_/,
     ] },
+  // Quaternius Cyberpunk Game Kit: street furniture, neon signs, turrets and pickups. Flat colours, except the
+  // signs, whose artwork is a texture: those faces are cut fine enough to read.
+  { id: 'cyber', gltf: 'cyber-kit', scale: 1.9, subdivide: 0.07, pick: [/./],
+    parts: { lootbox: ['Lootbox_Top'], 'turret-gun': ['Turret_Gun_Top'], 'turret-cannon': ['Turret_Cannon_Top'], 'turret-gundouble': ['Turret_GunDouble_Top'] } },
   // the frontier itself: a flat-coloured western kit (FBX). Building pieces are stretched upward so a 1.8 m person fits a doorway.
   { id: 'west', fbx: 'wild-west', scale: 1, tall: { match: /^(Modular)\//, y: 1.3 } },
   { id: 'gun', dir: 'kenney_blaster-kit_2.1', scale: 1, pick: [/^blaster-[a-r]$/, /^crate-/, /^grenade-/, /^clip-/, /^bullet-foam$/, /^target-(large|small)$/], parts: { 'crate-*': ['lid'] } },
@@ -159,16 +164,28 @@ function extract(file, pack, name) {
   const dir = dirname(file);
   for (let p of primitives(glb)) {
     const g = group(owner[p.node]);
-    if (pack.subdivide && p.uvs) p = tessellate(p, pack.subdivide, pack.scale);
     const mat = json.materials?.[p.material] || {};
-    const pbr = mat.pbrMetallicRoughness || {};
+    // a lit sign keeps its artwork in the emissive slot
+    const pbr = { ...(mat.pbrMetallicRoughness || {}) };
+    if (!pbr.baseColorTexture && mat.emissiveTexture) pbr.baseColorTexture = mat.emissiveTexture;
+    if (pack.subdivide && p.uvs && pbr.baseColorTexture) p = tessellate(p, pack.subdivide, pack.scale);
     const factor = pbr.baseColorFactor || [1, 1, 1, 1];
     let img = null;
     if (pbr.baseColorTexture) {
       const tex = json.textures[pbr.baseColorTexture.index];
-      const uri = json.images[tex.source].uri;
-      img = texture(join(dir, decodeURIComponent(uri)));
-      if (!img && pack.textures) img = texture(join(packsDir, pack.textures, basename(decodeURIComponent(uri))));
+      const im = json.images[tex.source];
+      let uri = im.uri;
+      if (uri === undefined && im.bufferView !== undefined) {
+        // the image is inside the file: write it out once and read it like any other
+        const bv = json.bufferViews[im.bufferView];
+        const tmp = join(tmpdir(), 'lf-bake-' + basename(file) + '-' + tex.source + '.png');
+        if (!existsSync(tmp)) writeFileSync(tmp, glb.bin.subarray(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength));
+        img = texture(tmp);
+        uri = tmp;
+      } else {
+        img = texture(join(dir, decodeURIComponent(uri)));
+        if (!img && pack.textures) img = texture(join(packsDir, pack.textures, basename(decodeURIComponent(uri))));
+      }
       if (!img) throw new Error('missing texture ' + uri + ' for ' + file);
     }
     // parts are stored relative to their pivot (the part node's rest position)
@@ -177,7 +194,7 @@ function extract(file, pack, name) {
     const det = m[0] * (m[5] * m[10] - m[6] * m[9]) - m[4] * (m[1] * m[10] - m[2] * m[9]) + m[8] * (m[1] * m[6] - m[2] * m[5]);
     const base = g.pos.length / 3;
     const n = p.positions.length / 3;
-    const skin = p.skin !== undefined ? json.skins[p.skin] : null;
+    const skin = pack.characters && p.skin !== undefined ? json.skins[p.skin] : null;
     const jointBone = skin ? skin.joints.map((j) => BONES.indexOf(json.nodes[j].name)) : null;
     for (let i = 0; i < n; i++) {
       const w = xformPoint(m, p.positions[i * 3], p.positions[i * 3 + 1], p.positions[i * 3 + 2]);

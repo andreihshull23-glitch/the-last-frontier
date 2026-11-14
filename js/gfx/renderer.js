@@ -1158,7 +1158,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
 
   function syncLights(sim, dt) {
     const s = sim.state, p = s.player, W = r.world;
-    const dark = darkness(sim);
+    const dark = sim.level.neon ? 0.85 : darkness(sim);
     for (const f of flashes) { f.t = Math.max(0, f.t - dt); if (f.t <= 0) f.light.intensity = 0; }
     const px = p.x * U, pz = p.y * U;
     const sources = [];
@@ -1198,8 +1198,9 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       const fire = l.kind === 'fire';
       const flick = fire ? 0.8 + Math.sin(r.time * 13 + l.x) * 0.12 + Math.random() * 0.1 : 1;
       glows.P[n * 3] = l.x; glows.P[n * 3 + 1] = l.y; glows.P[n * 3 + 2] = l.z;
-      glows.C[n * 3] = l.c[0]; glows.C[n * 3 + 1] = l.c[1] * 0.8; glows.C[n * 3 + 2] = l.c[2] * 0.6;
-      glows.S[n] = (fire ? 1.5 : l.kind === 'window' ? 1.3 : l.kind === 'shaft' ? 3.2 : 0.9) * flick;
+      const neon = l.kind === 'neon';
+      glows.C[n * 3] = l.c[0]; glows.C[n * 3 + 1] = l.c[1] * (neon ? 1 : 0.8); glows.C[n * 3 + 2] = l.c[2] * (neon ? 1 : 0.6);
+      glows.S[n] = (fire ? 1.5 : l.kind === 'window' ? 1.3 : l.kind === 'shaft' ? 3.2 : neon ? 1.5 : 0.9) * flick;
       glows.A[n] = (fire ? 0.5 : 0.16) + dark * (fire ? 0.3 : 0.5);
       n++;
       if (fire && Math.random() < 0.3) emit(sparks, { x: l.x + (Math.random() - 0.5) * 0.3, y: 0.4, z: l.z + (Math.random() - 0.5) * 0.3, vx: (Math.random() - 0.5) * 0.3, vy: 1 + Math.random(), vz: (Math.random() - 0.5) * 0.3, life: 1, size: 0.07, color: '#ffb35c', drag: 0.5 });
