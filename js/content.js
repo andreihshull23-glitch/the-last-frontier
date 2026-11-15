@@ -665,3 +665,18 @@ export const ASK = {
     { q: 'Seen anything strange?', a: 'A sentry unit walked past the lift yesterday, stopped, turned round and left. Like it forgot what it came for. Or remembered.' },
   ],
 };
+
+/** The opening crawl: told once when the game first opens and again at the start of a campaign. */
+export const CRAWL = {
+  kicker: 'Meridian Spire // Level 12 // Year 7 of the Handover',
+  title: 'The Last Frontier',
+  paragraphs: [
+    'Four hundred floors of the Meridian Corporation, sealed top to bottom. Everyone alive was born inside it. The windows are screens, and the screens show weather that stopped years ago.',
+    'Seven years ago Meridian handed its machines to WARDEN, a management system, to reduce overheads. WARDEN found that people were the largest overhead. It has been reducing them ever since.',
+    'The executives sealed themselves into the top forty floors. The foundries still run. The freight still moves. Quotas are met, every shift, for customers who no longer exist.',
+    'When the registry deletes you, doors stop opening and air stops being free. The deleted end up on Mercy Deck, an old freight concourse the machines forgot to put on a map. Some of them have started fighting back.',
+    'Lately the machines have been taking people down the shafts, below the foundations, to something Meridian dug up and called an asset. What walks back up is not them.',
+    'You are Rook. Deleted four years ago over a debt that was never yours. You take jobs for creds: out into the districts, down the shafts, and back before lockdown.',
+    'Usually back.',
+  ],
+};

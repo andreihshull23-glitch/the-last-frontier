@@ -36,6 +36,9 @@ const waitSim = (page, t, timeout = 240000) => page.waitForFunction((tt) => (win
 const simT = (page) => D(page, () => window.LF_DEBUG.state()?.t ?? 0);
 async function startCampaign(page) {
   await page.click('[data-act="new"]');
+  // a new campaign opens with the story crawl; any key skips it
+  await page.waitForSelector('.crawl-text');
+  await page.keyboard.press('Space');
   await page.waitForSelector('[data-act="hire"]');
   await page.click('[data-act="hire"][data-i="0"]');
   await waitMode(page, 'town');
@@ -51,6 +54,11 @@ if (want('town')) {
   await shot(page, '02-howto');
   await page.click('[data-act="back"]');
   await page.click('[data-act="new"]');
+  // a new campaign opens with the story crawl; any key skips it
+  await page.waitForSelector('.crawl-text');
+  await page.waitForTimeout(6000);
+  await shot(page, '01b-crawl');
+  await page.keyboard.press('Space');
   await page.waitForSelector('[data-act="hire"]');
   await shot(page, '03-hire');
   await page.click('[data-act="hire"][data-i="0"]');

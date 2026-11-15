@@ -383,6 +383,38 @@
   .asks .btn { text-transform: none; font-family: var(--f-body); font-size: 15px; letter-spacing: 0; }
   .asks .btn.asked { opacity: .6; }
   .answer { border-left: 3px solid var(--lamp); padding-left: 14px; display: grid; gap: 6px; }
+  /* the title: everything centred, the menu a single column of equal buttons */
+  #ui.over-town:has(.title-screen) { background: radial-gradient(ellipse at center, rgba(8, 7, 20, .9) 0%, rgba(8, 7, 20, .78) 45%, rgba(8, 7, 20, .35) 100%); justify-items: center; }
+  #ui.over-town .screen.title-screen { margin: 0 auto; max-width: 640px; width: 100%; }
+  .title-screen .title-copy { justify-items: center; text-align: center; }
+  .title-screen .lede { margin-inline: auto; }
+  .title-screen .actions { flex-direction: column; align-items: stretch; width: min(340px, 100%); margin-inline: auto; gap: 12px; }
+  .title-screen .actions .btn { align-items: center; text-align: center; width: 100%; }
+  .title-screen .save-note, .title-screen .confirm { justify-content: center; text-align: center; }
+  .title-screen .confirm .row { justify-content: center; }
+  /* the opening crawl: lines rise from the bottom and recede up the shaft */
+  #ui.crawling { padding: 0; overflow: hidden; background: #05040c; }
+  .crawl-screen { position: fixed; inset: 0; overflow: hidden; display: block; max-width: none; }
+  .crawl-sky { position: absolute; inset: 0; background:
+      radial-gradient(1px 1px at 12% 22%, #9ab 50%, transparent 51%), radial-gradient(1px 1px at 72% 12%, #dfe8ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 35% 64%, #9ab 50%, transparent 51%), radial-gradient(1px 1px at 88% 48%, #a070ff 50%, transparent 51%),
+      radial-gradient(1px 1px at 52% 32%, #3fe0ff 50%, transparent 51%), radial-gradient(1px 1px at 22% 84%, #ff3fa4 50%, transparent 51%),
+      linear-gradient(180deg, #05040c 0%, #0d0820 55%, #1a0a24 100%); }
+  .crawl-view { position: absolute; inset: 0; perspective: 360px; perspective-origin: 50% 0%;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 34%, #000 100%); mask-image: linear-gradient(180deg, transparent 0%, #000 34%, #000 100%); }
+  .crawl { position: absolute; left: 50%; bottom: 0; width: min(720px, 90vw); height: 100%; transform-origin: 50% 100%; transform: translateX(-50%) rotateX(22deg); }
+  .crawl-text { position: absolute; top: 100%; width: 100%; animation: crawl-up 62s linear forwards; color: #ffd23f; text-align: justify;
+    font: 400 clamp(19px, 2.6vw, 30px)/1.5 var(--f-body); display: grid; gap: 1.1em; text-shadow: 0 0 12px rgba(255, 210, 63, .45); }
+  .crawl-text .crawl-kicker { text-align: center; font: 600 clamp(12px, 1.5vw, 16px)/1.3 var(--f-mono); letter-spacing: .2em; text-transform: uppercase; color: var(--steel); text-shadow: none; }
+  .crawl-text .crawl-title { text-align: center; font-size: clamp(54px, 9vw, 110px); color: var(--ink); text-shadow: 4px 4px 0 var(--lamp), -3px -3px 0 var(--steel); margin-bottom: .3em; }
+  .crawl-text p:last-child { text-align: center; color: var(--lamp); text-shadow: 0 0 14px rgba(255, 63, 164, .6); }
+  @keyframes crawl-up { from { transform: translateY(0); } to { transform: translateY(-260%); } }
+  .crawl-skip { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); bottom: max(16px, env(safe-area-inset-bottom, 0px)); z-index: 6; }
+  @media (prefers-reduced-motion: reduce) {
+    .crawl-view { -webkit-mask-image: none; mask-image: none; perspective: none; overflow-y: auto; }
+    .crawl { transform: translateX(-50%); position: relative; height: auto; bottom: auto; padding: 32px 0 96px; }
+    .crawl-text { animation: none; position: static; }
+  }
   @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
 </style>
 

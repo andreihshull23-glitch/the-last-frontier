@@ -4,7 +4,7 @@
 
 import * as R from './rules.js';
 import { PAD_ACTIONS } from './gamepad.js';
-import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CHAPTERS, AMMO, PROLOGUE, HERO } from './content.js';
+import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CRAWL, CHAPTERS, AMMO, PROLOGUE, HERO } from './content.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -27,7 +27,7 @@ export function createUI(root, panelEl, api) {
     notice = '';
     confirmNew = false;
     root.hidden = false;
-    root.className = name === 'title' || name === 'loading' ? 'over-town' : '';
+    root.className = name === 'title' || name === 'loading' ? 'over-town' : name === 'crawl' ? 'crawling' : '';
     render();
     root.scrollTop = 0;
   }
@@ -57,6 +57,17 @@ export function createUI(root, panelEl, api) {
         <div class="loadbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><span style="width:${pct}%"></span></div>
       </section>`;
     },
+    crawl() {
+      return `<div class="crawl-sky" aria-hidden="true"></div>
+        <div class="crawl-view" role="region" aria-label="The story so far">
+          <div class="crawl"><div class="crawl-text">
+            <p class="crawl-kicker">${esc(CRAWL.kicker)}</p>
+            <h1 class="crawl-title">${esc(CRAWL.title)}</h1>
+            ${CRAWL.paragraphs.map((p) => `<p>${esc(p)}</p>`).join('')}
+          </div></div>
+        </div>
+        <button class="btn ghost small crawl-skip" data-act="crawl-done">Skip<span class="btn-sub">any key</span></button>`;
+    },
     title() {
       const camp = c();
       const ch = camp?.character;
@@ -75,6 +86,7 @@ export function createUI(root, panelEl, api) {
           ${cont}
           <button class="btn ${camp ? 'ghost' : ''}" data-act="new">${camp ? 'New campaign' : 'Jack in'}${camp ? '' : '<span class="btn-sub">Start a new campaign</span>'}</button>
           <button class="btn ghost" data-act="howto">How to play</button>
+          <button class="btn ghost" data-act="crawl">The story</button>
           <button class="btn ghost" data-act="settings">Settings</button>
         </div>
         ${confirmNew ? `<div class="confirm"><p><strong>Start over?</strong> This erases the campaign: creds, plug-ins, unlocked guns, the deck and the story.</p>
@@ -149,14 +161,17 @@ export function createUI(root, panelEl, api) {
           ${s.bounty ? `<p class="wanted"><strong>Wanted: ${esc(s.bounty.name)}.</strong> They took ${s.bounty.gear.length ? esc(s.bounty.gear.map((g) => GEAR[g]?.name.toLowerCase()).join(', ')) : 'what was carried'}. Kill them and bring the effects home.</p>` : ''}
           <p class="muted">Your creds and the deck are still here.</p></div>` : ''}
         ${s.outro ? `<div class="finale"><p class="eyebrow">${s.ending ? 'The end of the story' : 'What happens next'}</p><p class="lede">${esc(s.outro)}</p>
-          ${s.ending ? `<p class="lede">${s.ending === 'exposed' ? 'The ledger you leaked did the rest. Meridian is finished below level 40, and Mercy Deck is on a floor plan again, by choice.' : 'The company you sold the ledger to will send another foreman by spring. But tonight the lamps are lit on Main Street.'}</p><p class="muted">The frontier stays open. There is always more work on the board.</p>` : ''}</div>` : ''}
+          ${s.ending ? `<p class="lede">${s.ending === 'exposed' ? 'The ledger you leaked did the rest. Meridian is finished below level 40, and Mercy Deck is on a floor plan again, by choice.' : 'The corporation you sold the ledger to will send another director by the next quarter. But tonight every light on the deck is on.'}</p><p class="muted">The deck stays open. There is always more work on the board.</p>` : ''}</div>` : ''}
         ${s.choice ? '<p class="warn">The ledger is in your pack. Talk to the marshal to decide who reads it.</p>' : ''}
         <button class="btn" data-act="results-done">${'Back to the deck'}</button>
       </section>`;
     },
   };
 
+  root.addEventListener('animationend', (e) => { if (screen === 'crawl' && e.target.classList.contains('crawl-text')) api.crawlDone(data.next); });
+  window.addEventListener('keydown', (e) => { if (screen === 'crawl' && !e.repeat) { e.preventDefault(); api.crawlDone(data.next); } });
   root.addEventListener('click', (e) => {
+    if (screen === 'crawl' && !e.target.closest('[data-act]')) { api.crawlDone(data.next); return; }
     const btn = e.target.closest('[data-act]');
     if (!btn) return;
     api.audio.unlock();
@@ -167,6 +182,8 @@ export function createUI(root, panelEl, api) {
     else if (act === 'new-yes') api.newCampaign();
     else if (act === 'new-no') { confirmNew = false; render(); }
     else if (act === 'howto') show('howto', { back: screen, backData: data });
+    else if (act === 'crawl') show('crawl', { next: 'title' });
+    else if (act === 'crawl-done') api.crawlDone(data.next);
     else if (act === 'settings') openPanel('settings', { fromTitle: true });
     else if (act === 'back') show(data.back || 'title', data.backData || {});
     else if (act === 'hire') { const r = R.hireDrifter(c(), Number(btn.dataset.i)); if (r.ok) { api.persist(); api.enterTown('saloon'); } else flash(r.reason); }
@@ -427,6 +444,8 @@ export function createUI(root, panelEl, api) {
           <select id="set-quality" data-set="quality">
             ${[['auto', 'Automatic'], ['0', 'High'], ['1', 'Medium'], ['2', 'Low (fastest)']].map(([v, n]) => `<option value="${v}" ${String(s.quality) === v ? 'selected' : ''}>${n}</option>`).join('')}
           </select>
+          <label for="set-music">Music volume <span class="num" id="set-music-v">${Math.round((s.music ?? 0.7) * 100)}%</span></label>
+          <input id="set-music" type="range" min="0" max="1" step="0.05" value="${s.music ?? 0.7}" data-set="music">
           <label class="check"><input id="set-invert" type="checkbox" data-set="invert" ${s.invert ? 'checked' : ''}> Invert vertical look</label>
           <label class="check"><input id="set-shake" type="checkbox" data-set="shake" ${s.shake ? 'checked' : ''}> Screen shake</label>
           <label class="check"><input id="set-mute" type="checkbox" data-set="mute" ${s.mute ? 'checked' : ''}> Mute sound</label>
@@ -493,6 +512,7 @@ export function createUI(root, panelEl, api) {
     const key = el.dataset.set;
     const value = el.type === 'checkbox' ? el.checked : el.type === 'range' ? Number(el.value) : el.value === 'auto' ? 'auto' : Number(el.value);
     api.setSetting(key, value);
+    if (key === 'music') { const v = panelEl.querySelector('#set-music-v'); if (v) v.textContent = `${Math.round(Number(value) * 100)}%`; }
     if (key === 'sens') { const v = panelEl.querySelector('#set-sens-v'); if (v) v.textContent = `${Number(value).toFixed(1)}×`; }
   });
 

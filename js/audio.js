@@ -1,3 +1,5 @@
+import { createMusic } from './music.js';
+
 // Synthesized sound: every effect is built from noise and oscillators, so the
 // game ships no audio files. Gunshots feed a short feedback delay for a canyon echo.
 
@@ -18,6 +20,7 @@ export function createAudio() {
   let noise = null;
   let muted = readMuted();
   const amb = { wind: null, windGain: null, drone: null, droneGain: null, filter: null };
+  let music = null, musicVolume = 0.7;
 
   function unlock() {
     if (ctx) {
@@ -54,6 +57,9 @@ export function createAudio() {
     noise = ctx.createBuffer(1, ctx.sampleRate * 1.5, ctx.sampleRate);
     const data = noise.getChannelData(0);
     for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+
+    music = createMusic(ctx, master, noise);
+    music.setVolume(musicVolume);
 
     // Ambience: wind through a slowly wandering low-pass, plus a drone that rises at night.
     amb.wind = ctx.createBufferSource();
@@ -257,6 +263,9 @@ export function createAudio() {
       amb.windGain.gain.setTargetAtTime(on ? 0.05 + (hollow ? 0.02 : 0) : 0.015, t, 0.8);
       amb.droneGain.gain.setTargetAtTime(on ? night * 0.035 + (hollow ? 0.03 : 0) : 0, t, 1.2);
     },
+    /** The piece to play ('deck', 'run', 'hollow', 'boss' or null) and how intense. */
+    setMusic(name, intensity = 0) { if (music) music.set(name, intensity); },
+    setMusicVolume(v) { musicVolume = v; if (music) music.setVolume(v); },
     get muted() {
       return muted;
     },

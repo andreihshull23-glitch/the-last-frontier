@@ -36,7 +36,7 @@ const app = {
 };
 
 function readSettings() {
-  const base = { sens: 1, invert: false, quality: 'auto', mute: false, shake: true, hints: true, pad: null, camera: 'shoulder' };
+  const base = { sens: 1, invert: false, quality: 'auto', mute: false, music: 0.7, shake: true, hints: true, pad: null, camera: 'shoulder' };
   try {
     const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
     if (raw && typeof raw === 'object') Object.assign(base, raw);
@@ -61,6 +61,7 @@ const ui = createUI(uiRoot, panelEl, {
   persist,
   saveStatus: () => saves.status,
   newCampaign,
+  crawlDone,
   continueGame,
   enterTown,
   startRide,
@@ -89,6 +90,7 @@ function applySettings() {
   controls.prefs.invert = s.invert;
   controls.pad.setBinds(s.pad);
   audio.setMuted(s.mute);
+  audio.setMusicVolume(s.music ?? 0.7);
   if (renderer) {
     renderer.shakeOn = s.shake;
     renderer.setCamera(s.camera === 'high' ? 'high' : 'shoulder');
@@ -124,7 +126,15 @@ function newCampaign() {
   saves.clearRun();
   persist();
   leaveStage();
-  ui.show('hire');
+  ui.show('crawl', { next: 'hire' });
+}
+
+const CRAWL_SEEN = 'lf.crawlSeen';
+/** The crawl is over (or skipped): go where it was leading. */
+function crawlDone(next) {
+  if (ui.screen !== 'crawl') return;
+  try { localStorage.setItem(CRAWL_SEEN, '1'); } catch { /* preference only */ }
+  if (next === 'hire') ui.show('hire'); else showTitle();
 }
 
 function continueGame() {
@@ -362,6 +372,23 @@ function townInteract(e) {
 
 const SHOT_SOUND = { revolver: 'precise', fan: 'fan', rifle: 'rifleShot', shotgun: 'shotgunShot', smg: 'smgShot', longrifle: 'longShot', pulse: 'pulseShot', arc: 'arcShot', overcharge: 'overcharge' };
 
+/** Which piece of music fits this moment, and how hard it should push. */
+function musicFor(sim) {
+  const s = sim.state;
+  if (app.mode === 'town') return ['deck', 0];
+  if (s.phase !== 'playing') return ['deck', 0];
+  const p = s.player;
+  let fighting = 0;
+  for (const e of s.enemies) {
+    if (e.dead || e.kind === 'target') continue;
+    if ((e.state === 'engage' || e.state === 'dash' || e.state === 'flare' || e.state === 'search') && Math.hypot(e.x - p.x, e.y - p.y) < 900) fighting++;
+  }
+  const boss = s.boss && s.enemies.find((e) => e.id === s.boss && !e.dead);
+  if (boss && (boss.state === 'engage' || Math.hypot(boss.x - p.x, boss.y - p.y) < 700)) return ['boss', 0.6 + Math.min(0.4, fighting * 0.1)];
+  const level = Math.min(1, fighting / 5 + (s.extract?.active ? 0.35 : 0));
+  return [haunted(sim) ? 'hollow' : 'run', level];
+}
+
 function dispatch(events) {
   const sim = app.sim;
   renderer.consume(events, sim);
@@ -582,6 +609,10 @@ function frameBody(ts) {
     if (app.ambienceT <= 0 && playing()) {
       app.ambienceT = 0.5;
       audio.setAmbience({ on: true, night: app.mode === 'town' ? 0 : sim.level.dark ? 0.8 : nightFactor(sim.state), hollow: haunted(sim) });
+      audio.setMusic(...musicFor(sim));
+    } else if (app.ambienceT <= 0) {
+      app.ambienceT = 0.5;
+      audio.setMusic('deck', 0);
     }
     if (playing() && app.sim === sim) {
       const fp = focusPrompt(sim);
@@ -666,6 +697,10 @@ async function boot(hotData = {}) {
     return;
   }
   showTitle();
+  // the very first time the game opens, tell the story before the menu
+  let seen = true;
+  try { seen = localStorage.getItem(CRAWL_SEEN) === '1'; } catch { /* no storage: skip it */ }
+  if (!seen && !app.campaign && !new URLSearchParams(location.search).has('debug')) ui.show('crawl', { next: 'title' });
 }
 
 try {

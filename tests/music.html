@@ -1,0 +1,18 @@
+<!doctype html><meta charset="utf-8"><body><script type="module">
+import { createMusic } from '../js/music.js';
+const out = {};
+try {
+  for (const [name, level] of [['deck', 0], ['run', 0], ['run', 1], ['hollow', 0.6], ['boss', 1]]) {
+    const sr = 22050, secs = 12;
+    const ctx = new OfflineAudioContext(1, sr * secs, sr);
+    const noise = ctx.createBuffer(1, sr * 1.5, sr); const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    const m = createMusic(ctx, ctx.destination, noise);
+    m.prerender(name, level, secs - 1);
+    const buf = await ctx.startRendering();
+    const x = buf.getChannelData(0);
+    let sum = 0, peak = 0; for (const v of x) { sum += v * v; peak = Math.max(peak, Math.abs(v)); }
+    out[name + '@' + level] = { rms: +Math.sqrt(sum / x.length).toFixed(4), peak: +peak.toFixed(3) };
+  }
+} catch (e) { out.error = String(e.stack || e); }
+window.OUT = out; window.READY = true;
+</script>
