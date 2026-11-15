@@ -183,7 +183,7 @@ function drawBigMap(r, ctx, sim, ui) {
   }
   drawMapMarkers(ctx, sim, x, y, sc, true, ui);
   label(ctx, (L.name || 'MAP').toUpperCase(), w / 2, y - 22, LAMP, `900 ${w < 640 ? 22 : 30}px ${FONT_DISPLAY}`);
-  const legend = s.mode === 'town' ? 'YOU ▸   SHOPS ■   RIDE OUT ○' : 'YOU ▸   OBJECTIVE ◆   EXIT ○   CACHE ▪   ENEMY ●';
+  const legend = s.mode === 'town' ? 'YOU ▸   SHOPS ■   FREIGHT LIFT ○' : 'YOU ▸   OBJECTIVE ◆   EXIT ○   CACHE ▪   ENEMY ●';
   label(ctx, legend, w / 2, y + mh + 26, DUST, `600 ${w < 640 ? 9.5 : 11}px ${FONT_MONO}`);
   label(ctx, r.touch ? 'TAP MAP TO CLOSE' : 'M OR TAB TO CLOSE', w / 2, y + mh + 44, DUST, `500 10px ${FONT_MONO}`);
 }
@@ -289,7 +289,7 @@ function drawWorldOverlays(r, ctx, sim, dt, b, ui) {
     const dist = Math.round(Math.hypot(it.x - p.x, it.y - p.y) * U);
     if (it.kind === 'objective') marker(r, ctx, it.x, it.y, 1.6, b, LAMP, 'diamond', `${dist}m`);
     else if (it.kind === 'exit') marker(r, ctx, it.x, it.y, 2.4, b, SAGE, 'ring', done ? `EXIT ${dist}m` : `${dist}m`, done ? 1 : 0.55);
-    else if (it.kind === 'ride' && ui.town?.canRide) marker(r, ctx, it.x, it.y, 2.6, b, SAGE, 'ring', dist > 6 ? `RIDE OUT ${dist}m` : '', 0.9);
+    else if (it.kind === 'ride' && ui.town?.canRide) marker(r, ctx, it.x, it.y, 2.6, b, SAGE, 'ring', dist > 6 ? `FREIGHT LIFT ${dist}m` : '', 0.9);
     else if (it.kind === 'talk' && ui.town?.giver === it.role) marker(r, ctx, it.x, it.y, 2.75, b, LAMP, 'bang', dist > 9 ? `${dist}m` : '');
     else if (it.kind === 'shop' && ui.town?.flag === it.shop) marker(r, ctx, it.x, it.y, 2.6, b, LAMP, 'bang', dist > 9 ? `${dist}m` : '');
   }
@@ -467,7 +467,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     panel(ctx, left, top, panelW, panelH);
     ctx.textAlign = 'left';
     ctx.fillStyle = LAMP; ctx.font = `800 ${compact ? 15 : 17}px ${FONT_DISPLAY}`;
-    ctx.fillText('MERCY', left + 10, top + 20);
+    ctx.fillText('MERCY DECK', left + 10, top + 20);
     ctx.textAlign = 'right'; ctx.fillStyle = SAGE; ctx.font = `700 ${compact ? 12 : 14}px ${FONT_MONO}`;
     ctx.fillText(`¢${t.cash ?? 0}`, left + panelW - 10, top + 20);
     ctx.textAlign = 'left'; ctx.fillStyle = INK; ctx.font = `500 ${compact ? 10.5 : 11.5}px ${FONT_MONO}`;
@@ -483,7 +483,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     panel(ctx, left, top, panelW, panelH);
     ctx.textAlign = 'left';
     ctx.fillStyle = LAMP; ctx.font = `800 ${compact ? 15 : 17}px ${FONT_DISPLAY}`;
-    ctx.fillText(truncate(ctx, (s.config.title ?? 'The ride').toUpperCase(), panelW - 20), left + 10, top + 20);
+    ctx.fillText(truncate(ctx, (s.config.title ?? 'The run').toUpperCase(), panelW - 20), left + 10, top + 20);
     ctx.font = `500 ${compact ? 10.5 : 11.5}px ${FONT_MONO}`;
     objs.forEach((o, i) => {
       const y = top + 38 + i * lineH;

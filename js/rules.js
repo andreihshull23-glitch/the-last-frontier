@@ -37,7 +37,7 @@ function shell() {
     seed: 1, rolls: 0, createdAt: Date.now(), cash: 0, prosperity: 0, rep: { meridian: 0, riders: 0 },
     investments: [], armory: { guns: [], upgrades: [] }, chapter: 0,
     character: null, candidates: null, fallen: [], bounty: null, plugins: [], deaths: 0,
-    ledger: [], ledgerSeq: 0, pendingChoice: null, activeExpedition: null, expeditionCount: 0, jobsDone: 0,
+    ledger: [], ledgerSeq: 0, pendingChoice: null, activeExpedition: null, expeditionCount: 0, jobsDone: 0, jobsOnce: [],
   };
 }
 
@@ -171,13 +171,13 @@ function describe(c, kind, def) {
   if (def.id === 'bounty' && c.bounty) {
     title = `Wanted: ${c.bounty.name}`;
     cash = BOUNTY_REWARD * c.bounty.notoriety;
-    brief = `${c.bounty.name} killed ${c.bounty.victims.join(' and ')} and rides with what they carried. ${def.brief}`;
+    brief = `${c.bounty.name} killed ${c.bounty.victims.join(' and ')} and walks around wearing what they took. ${def.brief}`;
   }
   return {
     id: `${kind}:${def.id}`, kind, key: def.id, title, brief, hint: def.hint || '', faction: def.faction || null,
     giver: def.giver || null, cash, rep: def.reward.rep || {}, prosperity: def.reward.prosperity || 0, tier,
     chapter: story ? c.chapter + 1 : 0, final: Boolean(def.final), gen: def.level.gen, night: Boolean(def.level.night),
-    objective: def.level.objective,
+    objective: def.level.objective, line: def.line || null,
   };
 }
 
@@ -217,6 +217,8 @@ export function availableMissions(c) {
   for (const job of Object.values(JOBS)) {
     if (c.chapter < job.after) continue;
     if (job.needsBounty && !c.bounty) continue;
+    if (job.once && (c.jobsOnce || []).includes(job.id)) continue;
+    if (job.needsJob && !(c.jobsOnce || []).includes(job.needsJob)) continue;
     if (!meets(c, job.requires)) continue;
     if (job.faction === 'riders' && perks(c).includes('riders_shun')) continue;
     out.push(describe(c, 'job', job));
@@ -358,6 +360,7 @@ export function canInvest(c, id) {
   if (!inv) return fail('Unknown project');
   if (c.investments.includes(id)) return fail('Done');
   if (inv.needsProsperity && c.prosperity < inv.needsProsperity) return fail(`Needs deck standing ${inv.needsProsperity}`, inv.cost);
+  if (inv.needsJob && !(c.jobsOnce || []).includes(inv.needsJob)) return fail(`Needs: ${JOBS[inv.needsJob]?.title ?? 'a job first'}`, inv.cost);
   if (c.cash < inv.cost) return short(c, inv.cost);
   return { ok: true, price: inv.cost };
 }
@@ -560,6 +563,7 @@ export function resolveExpedition(c, report) {
         if (def.final) summary.ending = has(c, 'EVIDENCE_EXPOSED') ? 'exposed' : 'sold';
       } else {
         c.jobsDone += 1;
+        if (def.once) c.jobsOnce = [...new Set([...(c.jobsOnce || []), def.id])];
         record(c, 'JOB_DONE', { id: def.id, title: offer.title });
       }
     } else if (def && kind !== 'descent') {
@@ -685,6 +689,9 @@ export function fromSavePayload(payload) {
   c.ledgerSeq = Math.max(num(raw.ledgerSeq, 0), ...c.ledger.map((e) => e.n), 0);
   c.expeditionCount = Math.max(0, Math.round(num(raw.expeditionCount, 0)));
   c.jobsDone = Math.max(0, Math.round(num(raw.jobsDone, 0)));
+  c.jobsOnce = Array.isArray(raw.jobsOnce) ? raw.jobsOnce.filter((j) => JOBS[j]?.once) : [];
+  // a TIN rebuilt before the side jobs existed stays rebuilt
+  if (c.investments.includes('deputy') && !c.jobsOnce.includes('tin_voice')) c.jobsOnce.push('tin_core', 'tin_servos', 'tin_voice');
   c.descentBest = Math.max(0, Math.round(num(raw.descentBest, 0)));
   c.deaths = Math.max(0, Math.round(num(raw.deaths, 0)));
   c.plugins = Array.isArray(raw.plugins) ? [...new Set(raw.plugins.filter((t) => TRAITS[t]))] : [];

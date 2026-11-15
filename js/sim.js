@@ -279,6 +279,7 @@ function dropItem(sim, x, y, what, price = 0) {
   return it;
 }
 function rollDrop(sim, luck = 1) {
+  sim.state.drops = (sim.state.drops || 0) + 1;
   const gun = sim.rng.chance(0.5) ? rollGun(sim, luck) : null;
   if (gun) return { gun };
   const relic = rollRelic(sim, luck);
@@ -356,7 +357,7 @@ function updateRooms(sim) {
       } else {
         for (let k = 0; k < 3; k++) s.pickups.push({ id: s.nextId++, kind: 'cash', x: cx + sim.rng.range(-30, 30), y: cy + sim.rng.range(-30, 30), amount: sim.rng.int(4, 9) });
         if (sim.rng.chance(Math.min(0.6, 0.22 * luck))) s.pickups.push({ id: s.nextId++, kind: 'heart', x: cx, y: cy + 24, amount: 20 });
-        if (sim.rng.chance(Math.min(0.5, 0.12 * luck))) { const d = rollDrop(sim, luck); if (d) dropItem(sim, cx, cy - 30, d); }
+        if (sim.rng.chance(Math.min(0.25, 0.06 * luck) / (1 + 1.5 * (s.drops || 0)))) { const d = rollDrop(sim, luck); if (d) dropItem(sim, cx, cy - 30, d); }
         emit(sim, 'toast', { text: 'Room clear.', tone: 'good' });
       }
     }
@@ -1189,7 +1190,9 @@ function completeInteract(sim, it) {
     if (it.shells) { const n = addAmmo(sim, 'shells', it.shells); if (n) bits.push(`${n} shells`); }
     if (it.bandage && p.bandages < CARRY.bandages) { p.bandages += 1; bits.push('a bandage'); }
     // the better the cache, the better the odds of a gun or a relic beside it
-    if (it.tier >= 2 || (it.tier === 1 && sim.rng.chance(0.5)) || (it.tier === 0 && sim.rng.chance(0.12))) {
+    // finds are rare, and each one makes the next rarer on this level
+    const scarce = 1 / (1 + 1.5 * (s.drops || 0));
+    if (sim.rng.chance(((it.tier >= 2 ? 0.55 : it.tier === 1 ? 0.14 : 0.03) * scarce))) {
       const d = rollDrop(sim, sim.cache.mods.luck * (1 + it.tier * 0.5));
       if (d) { const a = Math.atan2(p.y - it.y, p.x - it.x); dropItem(sim, it.x + Math.cos(a) * 30, it.y + Math.sin(a) * 30, d); bits.push(d.gun ? `a ${GUNS[d.gun].name.toLowerCase()}` : RELICS[d.relic].name.toLowerCase()); }
     }
@@ -2343,7 +2346,7 @@ function endExpedition(sim, outcome) {
     missionId: s.config.missionId,
     outcome,
     done: objectiveDone(s),
-    carried: { loot: [...s.carried.loot.map((l) => ({ ...l })), ...(s.coin > 0 ? [{ name: 'Loose coin', value: s.coin }] : [])], items: [...s.carried.items], effects: s.carried.effects },
+    carried: { loot: [...s.carried.loot.map((l) => ({ ...l })), ...(s.coin > 1 ? [{ name: 'Loose coin, at the fence rate', value: Math.floor(s.coin / 2) }] : [])], items: [...s.carried.items], effects: s.carried.effects },
     floor: s.floor,
     carry: { hp: p.hp, mags: { ...p.mags }, gun: p.gun, relics: [...p.relics], pulses: p.pulses, ammo: { ...p.ammo }, bandages: p.bandages, dynamite: p.dynamite, coin: s.coin, kills: s.kills },
     relics: [...p.relics], guns: Object.keys(p.mags),

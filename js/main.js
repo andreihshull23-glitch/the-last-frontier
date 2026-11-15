@@ -70,7 +70,7 @@ const ui = createUI(uiRoot, panelEl, {
   pad: () => controls.pad,
   setSetting,
   inRide: () => app.mode === 'ride',
-  rideTitle: () => app.sim?.state.config.title ?? 'The ride',
+  rideTitle: () => app.sim?.state.config.title ?? 'The run',
   objectives: () => (app.sim ? objectiveList(app.sim) : []),
   giveUp,
   quitToTitle,
@@ -180,7 +180,7 @@ function enterTown(arrive = 'trail', keep = null) {
   } catch (err) {
     console.error(err);
     ui.show('title', { resume: false });
-    ui.flash('Mercy could not be built. Reload the page to try again.');
+    ui.flash('Mercy Deck could not be built. Reload the page to try again.');
     return;
   }
   if (keep) { sim.state.player.x = keep.x; sim.state.player.y = keep.y; sim.state.player.aim = keep.aim; }

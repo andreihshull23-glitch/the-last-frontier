@@ -150,7 +150,7 @@ export function createUI(root, panelEl, api) {
           <p class="muted">Your creds and the deck are still here.</p></div>` : ''}
         ${s.outro ? `<div class="finale"><p class="eyebrow">${s.ending ? 'The end of the story' : 'What happens next'}</p><p class="lede">${esc(s.outro)}</p>
           ${s.ending ? `<p class="lede">${s.ending === 'exposed' ? 'The ledger you leaked did the rest. Meridian is finished below level 40, and Mercy Deck is on a floor plan again, by choice.' : 'The company you sold the ledger to will send another foreman by spring. But tonight the lamps are lit on Main Street.'}</p><p class="muted">The frontier stays open. There is always more work on the board.</p>` : ''}</div>` : ''}
-        ${s.choice ? '<p class="warn">The ledger is in your saddlebag. Talk to the marshal to decide who reads it.</p>' : ''}
+        ${s.choice ? '<p class="warn">The ledger is in your pack. Talk to the marshal to decide who reads it.</p>' : ''}
         <button class="btn" data-act="results-done">${'Back to the deck'}</button>
       </section>`;
     },
@@ -207,6 +207,7 @@ export function createUI(root, panelEl, api) {
     if (m.kind === 'descent') tags.push('Roguelike run', `${m.floors} floors`, m.best ? `Best: floor ${m.best}` : 'Never finished');
     else tags.push(m.gen === 'mine' ? 'Underground' : m.night ? 'In lockdown' : 'District');
     if (m.kind === 'job' && m.tier) tags.push(`Danger ${m.tier}`);
+    if (m.line) tags.push(`${m.line} line · hard`);
     const rep = Object.entries(m.rep).map(([f, d]) => `${FACTIONS[f].short} ${signed(d)}`);
     return `<article class="bill ${m.faction || 'none'} ${m.kind === 'story' ? 'is-selected' : ''}">
       <div class="tags">${tags.map((t) => `<span>${esc(t)}</span>`).join('')}</div>
@@ -258,7 +259,7 @@ export function createUI(root, panelEl, api) {
         return owned
           ? `<div class="item built"><div><h3>${esc(def.name)} <span class="muted">· ${esc(def.role)}</span></h3><p>${esc(def.desc)}</p><p class="have">${esc(stat(g))}</p></div><span class="have">${g === 'revolver' ? 'You always carry it' : 'Unlocked: can be found'}</span></div>`
           : def.base
-            ? `<div class="item built"><div><h3>${esc(def.name)} <span class="muted">· ${esc(def.role)}</span></h3><p>${esc(def.desc)}</p><p class="have">${esc(stat(g))}</p></div><span class="have">Found on every ride</span></div>`
+            ? `<div class="item built"><div><h3>${esc(def.name)} <span class="muted">· ${esc(def.role)}</span></h3><p>${esc(def.desc)}</p><p class="have">${esc(stat(g))}</p></div><span class="have">Found on every run</span></div>`
             : buyRow(`${def.name} · ${def.role}`, def.desc, stat(g), R.canBuyGun(camp, g), 'Unlock', `data-p="gun" data-id="${g}"`);
       }).join('');
       const work = Object.entries(UPGRADES).map(([id, u]) => (ups.includes(id)
@@ -334,7 +335,7 @@ export function createUI(root, panelEl, api) {
       }
       return `${head('Mercy Deck', 'Work')}
         ${camp.pendingChoice ? '<p class="warn">The marshal is waiting on your decision about the ledger. The story does not move until you make it.</p>' : ''}
-        ${R.storyDone(camp) ? '<p class="muted">The story is finished. These jobs get harder, and pay better, the longer you keep riding.</p>' : ''}
+        ${R.storyDone(camp) ? '<p class="muted">The story is finished. These jobs get harder, and pay better, the longer you keep running them.</p>' : ''}
         <div class="bills">${list.map((m) => missionCard(m)).join('') || '<p class="muted">Nothing on the board today.</p>'}</div>${foot()}`;
     },
     talk() {

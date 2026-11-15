@@ -53,9 +53,10 @@ test('the sim is deterministic and resumes from a snapshot', () => {
 
 test('an expedition settles exactly once; going down costs the kit, not the runner', () => {
   const c = campaign();
-  c.cash = 500;
+  c.cash = 900;
   assert.ok(R.buy(c, 'bandage').ok !== false);
   assert.ok(R.buy(c, 'duster').ok !== false);
+  c.jobsOnce = ['tin_core', 'tin_servos', 'tin_voice'];
   const invested = R.invest(c, 'deputy');
   assert.ok(invested.ok !== false, invested.reason);
   const cashBefore = c.cash;
@@ -111,7 +112,7 @@ test('giving up brings the drifter home alive', () => {
 
 test('Deputy Tin follows, fights, and only ever goes offline', () => {
   const c = campaign();
-  c.cash = 500; R.invest(c, 'deputy');
+  c.cash = 600; c.jobsOnce = ['tin_core', 'tin_servos', 'tin_voice']; R.invest(c, 'deputy');
   const { sim } = ride(c, R.availableMissions(c)[0].id);
   const s = sim.state, e = s.enemies.find((x) => !x.dead);
   // stand the drifter near an enemy and wake it
@@ -335,4 +336,16 @@ test('data sanity', () => {
   for (const f of DESCENT.floors) for (const kind of [...Object.keys(f.mix), f.boss]) assert.ok(ENEMIES[kind], kind);
   for (const d of [...CHAPTERS, ...Object.values(JOBS)]) for (const kind of Object.keys(d.level.mix || {})) assert.ok(ENEMIES[kind], `${d.id}: ${kind}`);
   for (const [id, inv] of Object.entries(INVESTMENTS)) assert.ok(inv.name && inv.cost > 0 && inv.effect, id);
+});
+
+test('TIN is only rebuilt after the three TIN jobs', () => {
+  const c = campaign();
+  c.cash = 5000; c.chapter = 6;
+  assert.equal(R.canInvest(c, 'deputy').ok, false);
+  const ids = () => R.availableMissions(c).map((m) => m.key);
+  assert.ok(ids().includes('tin_core') && !ids().includes('tin_servos'));
+  c.jobsOnce = ['tin_core'];
+  assert.ok(!ids().includes('tin_core') && ids().includes('tin_servos'));
+  c.jobsOnce = ['tin_core', 'tin_servos', 'tin_voice'];
+  assert.equal(R.canInvest(c, 'deputy').ok, true);
 });

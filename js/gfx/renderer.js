@@ -205,12 +205,16 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     crystal: new THREE.OctahedronGeometry(0.3, 0),
   };
   const basic = (hex, opts = {}) => new THREE.MeshBasicMaterial({ color: col(hex), transparent: true, depthWrite: false, toneMapped: false, ...opts });
-  const tracerMat = new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending });
-  const tracers = new THREE.InstancedMesh(G.box, tracerMat, 320);
-  tracers.frustumCulled = false;
-  tracers.count = 0;
-  tracers.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(96 * 3), 3);
-  scene.add(tracers);
+  // Every shot is a laser bolt: a near-white core inside a coloured glow, both drawn additively.
+  const boltMesh = (opacity) => {
+    const m = new THREE.InstancedMesh(G.box, new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, opacity, depthWrite: false, blending: THREE.AdditiveBlending }), 320);
+    m.frustumCulled = false; m.count = 0;
+    m.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(320 * 3), 3);
+    scene.add(m);
+    return m;
+  };
+  const tracers = boltMesh(0.55);   // the glow
+  const cores = boltMesh(1.0);      // the core
   const decalMat = new THREE.MeshBasicMaterial({ color: col('#3a120d'), transparent: true, opacity: 0.55, depthWrite: false });
 
   // ---------------------------------------------------------------- world
@@ -1000,39 +1004,45 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     }
   }
 
+  const ENEMY_BOLT = [1, 0.32, 0.18], HOLLOW_BOLT = [0.66, 0.42, 1], ALLY_BOLT = [0.4, 0.9, 1];
+  const boltRgb = new Map();
+  function boltColour(b) {
+    if (b.hollow) return HOLLOW_BOLT;
+    if (b.owner === 'enemy') return b.ground ? [1, 0.72, 0.2] : ENEMY_BOLT;
+    if (b.owner === 'echo' || b.kind === 'buddy') return ALLY_BOLT;
+    const hex = GUNS[b.kind]?.bolt || '#ff4a5a';
+    if (!boltRgb.has(hex)) { const c = col(hex); boltRgb.set(hex, [c.r, c.g, c.b]); }
+    return boltRgb.get(hex);
+  }
   function syncBullets(sim) {
     const s = sim.state;
     let n = 0;
-    const colors = tracers.instanceColor.array;
+    const gc = tracers.instanceColor.array, cc = cores.instanceColor.array;
+    const put = (mesh, colours, i, c, k) => { mesh.setMatrixAt(i, m4); colours[i * 3] = c[0] * k + (1 - k); colours[i * 3 + 1] = c[1] * k + (1 - k); colours[i * 3 + 2] = c[2] * k + (1 - k); };
     for (const b of s.bullets) {
       if (n >= 320) break;
-      const ang = Math.atan2(b.vy, b.vx);
-      const len = Math.min(2.4, Math.max(0.5, Math.hypot(b.x - b.px, b.y - b.py) * U * 1.4));
-      pos.set(b.x * U - Math.cos(ang) * len / 2, GUN_Y, b.y * U - Math.sin(ang) * len / 2);
-      quat.setFromAxisAngle(yAxis, -ang);
-      scl.set(len, 0.035, 0.035);
-      m4.compose(pos, quat, scl);
-      tracers.setMatrixAt(n, m4);
+      const c = boltColour(b);
       if (b.big) {
+        // orbs: a soft ball with a hot centre
         const pulse = 0.3 + Math.sin(r.time * 18 + b.id) * 0.04;
         pos.set(b.x * U, b.ground ? 0.28 : GUN_Y, b.y * U);
-        scl.set(pulse, b.ground ? pulse * 0.55 : pulse, pulse);
-        m4.compose(pos, quat, scl);
-        tracers.setMatrixAt(n, m4);
-        const cb = b.hollow ? [0.66, 0.42, 1] : b.ground ? [1, 0.72, 0.2] : [1, 0.25, 0.5];
-        colors[n * 3] = cb[0]; colors[n * 3 + 1] = cb[1]; colors[n * 3 + 2] = cb[2];
+        quat.identity();
+        scl.set(pulse * 1.5, (b.ground ? 0.55 : 1) * pulse * 1.5, pulse * 1.5); m4.compose(pos, quat, scl); put(tracers, gc, n, c, 1);
+        scl.set(pulse * 0.6, (b.ground ? 0.55 : 1) * pulse * 0.6, pulse * 0.6); m4.compose(pos, quat, scl); put(cores, cc, n, c, 0.35);
         n++;
         continue;
       }
-      const energy = b.owner === 'player' ? GUNS[b.kind]?.bolt : null;
-      if (energy || b.kind === 'pulse') { scl.set(len * 0.8, b.heavy ? 0.16 : 0.07, b.heavy ? 0.16 : 0.07); m4.compose(pos, quat, scl); tracers.setMatrixAt(n, m4); }
-      const c = energy ? (b.kind === 'arc' ? [0.8, 0.62, 1] : [0.42, 0.85, 1]) : b.kind === 'pulse' ? [1, 0.3, 0.55] : b.owner === 'player' ? [1, 0.88, 0.55] : b.owner === 'echo' ? [0.45, 0.85, 1] : [1, 0.42, 0.22];
-      colors[n * 3] = c[0]; colors[n * 3 + 1] = c[1]; colors[n * 3 + 2] = c[2];
+      const ang = Math.atan2(b.vy, b.vx);
+      const heavy = b.heavy || b.kind === 'longrifle' || b.kind === 'rail';
+      const len = Math.min(2.6, Math.max(0.9, Math.hypot(b.x - b.px, b.y - b.py) * U * 1.6));
+      const w = heavy ? 0.2 : b.kind === 'smg' || b.kind === 'pulse' ? 0.09 : 0.12;
+      pos.set(b.x * U - Math.cos(ang) * len / 2, GUN_Y, b.y * U - Math.sin(ang) * len / 2);
+      quat.setFromAxisAngle(yAxis, -ang);
+      scl.set(len, w, w); m4.compose(pos, quat, scl); put(tracers, gc, n, c, 1);
+      scl.set(len * 0.92, w * 0.32, w * 0.32); m4.compose(pos, quat, scl); put(cores, cc, n, c, 0.3);
       n++;
     }
-    tracers.count = n;
-    tracers.instanceMatrix.needsUpdate = true;
-    tracers.instanceColor.needsUpdate = true;
+    for (const m of [tracers, cores]) { m.count = n; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
   }
 
   function syncBombs(sim, dt) {

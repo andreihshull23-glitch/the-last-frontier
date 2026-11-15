@@ -304,7 +304,7 @@ function build(spec, seed) {
     L.keep[ty * L.w + tx] = 1;
     const n = c.tier === 2 ? 3 : c.tier === 1 ? 2 : 1;
     const loot = [];
-    for (let k = 0; k < n; k++) loot.push({ name: LOOT_NAMES[rng.int(0, LOOT_NAMES.length - 1)], value: Math.round((10 + rng.next() * 16 + c.tier * 14) * worth) });
+    for (let k = 0; k < n; k++) loot.push({ name: LOOT_NAMES[rng.int(0, LOOT_NAMES.length - 1)], value: Math.round((4 + rng.next() * 7 + c.tier * 6) * worth) });
     L.items.push({
       kind: 'cache', x: tileCentre(tx), y: tileCentre(ty), tier: c.tier, a: rng.next() * TAU, loot,
       cartridges: rng.chance(0.75) ? rng.int(10, 18) : 0, shells: rng.chance(0.4) ? rng.int(4, 8) : 0,

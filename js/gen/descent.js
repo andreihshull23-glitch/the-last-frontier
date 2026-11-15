@@ -314,7 +314,7 @@ function build(spec, seed) {
       const tx = Math.floor(x / TILE), ty = Math.floor(y / TILE);
       addFlags(L, tx, ty, SOLID, 6);
       L.keep[ty * L.w + tx] = 1;
-      L.items.push({ kind: 'cache', x: tileCentre(tx), y: tileCentre(ty), tier: 2, a: 0, loot: [{ name: LOOT_NAMES[rng.int(0, LOOT_NAMES.length - 1)], value: 20 + floorNo * 12 }], cartridges: 24, shells: 8, bandage: 1, dynamite: 1 });
+      L.items.push({ kind: 'cache', x: tileCentre(tx), y: tileCentre(ty), tier: 2, a: 0, loot: [{ name: LOOT_NAMES[rng.int(0, LOOT_NAMES.length - 1)], value: 10 + floorNo * 6 }], cartridges: 24, shells: 8, bandage: 1, dynamite: 1 });
     }
     if (r.wares) {
       const gun = gunFor(floorNo + 1), relic = relicFor(Math.min(3, floorNo + 1));
