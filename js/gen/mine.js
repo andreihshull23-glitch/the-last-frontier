@@ -1,7 +1,7 @@
 // Underground levels: rooms joined by tunnels, dark, with one way in by the
 // ore lift and a ladder up an air shaft at the far end. The upper works belong
 // to claim jumpers; the deep rooms belong to whatever came up the shaft.
-import { TILE, PX, MACRO, SOLID, ROCK, WATER, GROUND, LOOT_NAMES } from '../content.js';
+import { TILE, PX, MACRO, SOLID, ROCK, WATER, GROUND, LOOT_NAMES, ENEMIES } from '../content.js';
 import { makeRng } from '../rng.js';
 import { createLevel, skinRock, place, box, cyl, paint, reserve, centreM, tileCentre, addFlags, setTile, validateLevel, inb, buildNav, floodFrom, WALL } from '../level.js';
 import { scatter, clearAround, PEBBLES, TM } from './common.js';
@@ -278,7 +278,7 @@ function build(spec, seed) {
   const threat = spec.threat ?? 1;
   const used = new Set();
   for (const [kind, n] of Object.entries(spec.mix || {})) {
-    const hollow = kind === 'husk' || kind === 'walker';
+    const hollow = Boolean(ENEMIES[kind]?.hollow);
     const count = Math.max(1, Math.round(n * threat));
     for (let k = 0; k < count; k++) {
       let at = null;

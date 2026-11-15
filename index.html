@@ -379,6 +379,10 @@
   #ui.over-town { background: linear-gradient(90deg, rgba(8, 7, 20, .95) 0%, rgba(8, 7, 20, .84) 42%, rgba(8, 7, 20, .25) 100%); }
   .loadbar { height: 10px; border: 2px solid var(--steel); }
   canvas { image-rendering: auto; }
+  .asks { display: flex; flex-wrap: wrap; gap: 10px; }
+  .asks .btn { text-transform: none; font-family: var(--f-body); font-size: 15px; letter-spacing: 0; }
+  .asks .btn.asked { opacity: .6; }
+  .answer { border-left: 3px solid var(--lamp); padding-left: 14px; display: grid; gap: 6px; }
   @media (prefers-reduced-motion: reduce) { .btn { transition: none; } }
 </style>
 

@@ -1,7 +1,7 @@
 // Bakes the Quaternius character packs (CC0, .gltf with embedded buffers) into
 // assets/people.json: skinned meshes (two bone influences per vertex), one
 // skeleton and one set of resampled animation clips per rig family.
-//   node tools/bake-characters.mjs <dirMen> <dirWomen> <dirRobots> <dirCyber> [outDir]
+//   node tools/bake-characters.mjs <dirMen> <dirWomen> <dirRobots> <dirCyber> [outDir] [dirAliens]
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,7 @@ import { accessor, compose, mul, IDENT, xformPoint } from './glb.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const [dMen, dWomen, dRobots, dPack] = process.argv.slice(2, 6).map((p) => resolve(p));
 const outDir = resolve(process.argv[6] || join(here, '..'));
+const dAliens = process.argv[7] ? resolve(process.argv[7]) : null;
 const FPS = 15;
 const FINGER = /Index|Middle|Ring|Pinky|Thumb|Palm/;
 
@@ -22,12 +23,16 @@ const FAMILIES = [
     drop: /^Blade/, // the runner is modelled holding a sword; the game puts guns in that hand instead
     files: ['Character', 'Enemy_2Legs', 'Enemy_2Legs_Gun', 'Enemy_Flying', 'Enemy_Flying_Gun', 'Enemy_Large', 'Enemy_Large_Gun'] },
 ];
+// The sci-fi megakit's three creatures: the Hollow's own things. They ship with an idle clip only;
+// the game moves them by hand.
+if (dAliens) FAMILIES.push({ id: 'alien', dir: dAliens, height: 1.2, heights: { Alien_Scolitex: 0.95, Alien_Oculichrysalis: 1.35, Alien_Cyclop: 1.55 },
+  files: ['Alien_Scolitex', 'Alien_Oculichrysalis', 'Alien_Cyclop'] });
 
 function readGltf(path) {
   const json = JSON.parse(readFileSync(path, 'utf8'));
   if (json.buffers.length !== 1) throw new Error('expected one buffer: ' + path);
   const uri = json.buffers[0].uri;
-  const bin = Buffer.from(uri.slice(uri.indexOf(',') + 1), 'base64');
+  const bin = uri.startsWith('data:') ? Buffer.from(uri.slice(uri.indexOf(',') + 1), 'base64') : readFileSync(join(dirname(path), decodeURIComponent(uri)));
   return { json, bin };
 }
 const lin2srgb = (v) => Math.round(255 * Math.min(1, Math.max(0, v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055)));

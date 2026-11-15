@@ -21,6 +21,8 @@ const MODEL_CLIPS = {
   Enemy_Flying: { ...MACHINE, death: 'Dead' }, Enemy_Flying_Gun: { ...MACHINE, death: 'Dead' },
 };
 const FAMILY = {
+  // the Hollow's creatures: one idle clip each; walking, striking and dying are done by hand (see update)
+  alien: { idle: 'Alien_Idle', hand: null },
   cyber: MACHINE,
   man: HUMAN,
   woman: HUMAN,
@@ -60,6 +62,9 @@ export const LOOKS = {
   turret: { fam: 'cyber', model: 'Enemy_Flying', tint: 'turret', scale: 1.1 },
   // the Hollow: people from the intake list, still walking
   walker: { fam: 'man', model: 'Adventurer', tint: 'hollow_dead' },
+  mite: { fam: 'alien', model: 'Alien_Scolitex', tint: 'hollow_mite' },
+  seer: { fam: 'alien', model: 'Alien_Oculichrysalis', tint: 'hollow_seer', hover: 0.55 },
+  gazer: { fam: 'alien', model: 'Alien_Cyclop', tint: 'hollow_gazer' },
   husk: { fam: 'woman', model: 'Adventurer', tint: 'husk_dead', scale: 0.86 },
   // Mercy Deck
   deputy: { fam: 'robot', model: 'Stan', gun: 'gun/blaster-n', scale: 0.86, tint: 'deputy' },
@@ -123,6 +128,10 @@ function registerCharacterTints(assets) {
   // the dead: everything drained toward grey-violet, skin included
   R('hollow_dead', chain(remap([{ sat: [0, 1], h: 0.72, s: 0.16, lMul: 0.82 }]), multiply(0.86, 0.9, 1.0)));
   R('husk_dead', chain(remap([{ sat: [0, 1], h: 0.1, s: 0.1, lMul: 0.95 }]), multiply(0.9, 0.9, 0.86)));
+  // the Hollow's creatures, pulled toward its violet; the eyes are left to glow in update
+  R('hollow_mite', remap([{ sat: [0.3, 1], hue: [0.0, 0.2], h: 0.8, s: 0.4, lMul: 0.5 }, { sat: [0.3, 1], hue: [0.3, 0.6], h: 0.86, s: 0.45, lMul: 0.75 }]));
+  R('hollow_seer', remap([{ sat: [0.3, 1], hue: [0.0, 0.2], h: 0.76, s: 0.35, lMul: 0.7 }]));
+  R('hollow_gazer', remap([{ sat: [0.3, 1], hue: [0.5, 0.7], h: 0.72, s: 0.35, lMul: 0.7 }]));
   R('ghost', chain(remap([{ sat: [0, 1], h: 0.54, s: 0.45, lMul: 1.2 }]), multiply(0.8, 1, 1.1)));
 }
 
@@ -577,6 +586,7 @@ export function createActors(assets) {
       for (const b of a.armIdx) { const o = b * 7 + 3; P[o] = A[o]; P[o + 1] = A[o + 1]; P[o + 2] = A[o + 2]; P[o + 3] = A[o + 3]; }
     }
     applyPose(a, a.pose);
+    if (a.look.fam === 'alien') creature(a, dt);
     if (a.gun && a.gunBase) {
       // recoil: the gun kicks back and up, then settles
       const k = a.shootT < 0.16 ? Math.sin((a.shootT / 0.16) * Math.PI) * (1 - a.shootT / 0.16) : 0;
@@ -589,6 +599,26 @@ export function createActors(assets) {
       a.flash = Math.max(0, a.flash - dt * 7);
       a.material.emissive.setRGB(0.55 * a.flash, 0.16 * a.flash, 0.1 * a.flash);
     }
+  }
+
+  /** Creatures have no walk, strike or death clips: bob, lean, lunge and collapse instead. */
+  function creature(a, dt) {
+    if (a.baseY === undefined) { a.baseY = a.inner.position.y; a.baseS = a.inner.scale.x; a.ct = Math.random() * 6; }
+    a.ct += dt * (1 + a.speed * 0.6);
+    const hover = a.look.hover || 0, s = a.scale;
+    let y = a.baseY + hover * s, k = 1, lean = 0;
+    if (hover) y += Math.sin(a.ct * 2.2) * 0.08 * s;
+    else if (a.speed > 0.4) y += Math.abs(Math.sin(a.ct * 7)) * 0.06 * s;   // a scuttle
+    lean = Math.min(0.35, a.speed * 0.06);
+    if (a.meleeT < 0.3) { lean += Math.sin((a.meleeT / 0.3) * Math.PI) * 0.5; k *= 1 + Math.sin((a.meleeT / 0.3) * Math.PI) * 0.15; }
+    if (a.shootT < 0.25) k *= 1 + Math.sin((a.shootT / 0.25) * Math.PI) * 0.12;   // swells as it fires
+    if (a.dead) {
+      const d = Math.min(1, a.deadT / 0.7);
+      k *= 1 - d * 0.8; y = a.baseY - d * 0.2 * s; lean = d * 1.2;
+    }
+    a.inner.position.y = y;
+    a.inner.scale.setScalar(a.baseS * k);
+    a.inner.rotation.x = lean;
   }
 
   function place(a, x, z, facing) {

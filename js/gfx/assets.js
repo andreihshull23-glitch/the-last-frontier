@@ -83,7 +83,7 @@ export function createAssets() {
 
   async function load(base = 'assets/', onProgress = () => {}) {
     let done = 0;
-    const families = ['man', 'woman', 'robot', 'cyber'];
+    const families = ['man', 'woman', 'robot', 'cyber', 'alien'];
     // Packs that are baked but that no level uses yet are not downloaded.
     const NOT_YET = ['chr', 'spacemod'];
     const packIds = [...ASSET_PACKS.filter((p) => !NOT_YET.includes(p)), 'qg']; // the old mini figures are no longer drawn

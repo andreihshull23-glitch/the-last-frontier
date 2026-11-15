@@ -164,8 +164,12 @@ export const ENEMIES = {
   turret: { name: 'sentry turret', hp: 90, radius: 13, speed: 0, chase: 0, sight: 520, weapon: 'e_ring', ai: 'ranged', look: 'turret', cash: [4, 9], robot: true, rooted: true },
   dynamiter: { name: "breacher", hp: 56, radius: 11, speed: 92, chase: 112, sight: 370, weapon: 'e_dynamite', ai: 'lobber', look: 'dynamiter', cash: [3, 8] },
   brute: { name: "the Saint", hp: 200, radius: 15, speed: 84, chase: 118, sight: 340, weapon: 'e_charge', ai: 'charger', look: 'brute', cash: [8, 16] },
-  walker: { name: "Hollow walker", hp: 48, radius: 11, speed: 108, chase: 126, sight: 0, weapon: 'claw', ai: 'swarm', look: 'walker' },
-  husk: { name: "husk", hp: 26, radius: 10, speed: 150, chase: 176, sight: 0, weapon: 'bite', ai: 'swarm', look: 'husk' },
+  walker: { name: "Hollow walker", hp: 48, radius: 11, speed: 108, chase: 126, sight: 0, weapon: 'claw', ai: 'swarm', look: 'walker', hollow: true },
+  husk: { name: "husk", hp: 26, radius: 10, speed: 150, chase: 176, sight: 0, weapon: 'bite', ai: 'swarm', look: 'husk', hollow: true },
+  // the Hollow's own things: grown, not built, and never people
+  mite: { name: 'mite', hp: 22, radius: 9, speed: 165, chase: 196, sight: 0, weapon: 'bite', ai: 'swarm', look: 'mite', hollow: true },
+  seer: { name: 'seer', hp: 64, radius: 12, speed: 70, chase: 92, sight: 440, weapon: 'e_orb', ai: 'ranged', look: 'seer', hollow: true, cash: [3, 8] },
+  gazer: { name: 'gazer', hp: 160, radius: 14, speed: 72, chase: 98, sight: 480, weapon: 'e_gaze', ai: 'skirmish', keep: 230, look: 'gazer', hollow: true, cash: [8, 15] },
   bounty: { name: "ganger", hp: 170, radius: 12, speed: 98, chase: 124, sight: 380, weapon: 'e_revolver', ai: 'skirmish', keep: 210, look: 'bounty', cash: [20, 40] },
   overseer: { name: 'the Overseer', hp: 560, radius: 15, speed: 84, chase: 110, sight: 560, weapon: 'e_shotgun', ai: 'boss', look: 'overseer', cash: [40, 60], boss: true, robot: true,
     title: 'OVERSEER UNIT 01', taunt: 'Overseer: "UNAUTHORISED PERSONNEL. PRODUCTION WILL CONTINUE."', down: 'The Overseer is scrap. The line has stopped. Get out.' },
@@ -185,6 +189,8 @@ export const WEAPONS = {
   e_pulse: { kind: 'pulse', range: 560, windup: 0.6, lock: 0.2, cooldown: 1.3, damage: 15, speed: 900, life: 0.7, noise: 360 },
   // slow, bright shots in patterns: made to be dodged, rolled through or jumped
   e_fan: { kind: 'fan', range: 520, windup: 0.6, cooldown: 1.7, count: 5, arc: 0.5, damage: 11, speed: 400, life: 1.6, noise: 380, big: true },
+  e_orb: { kind: 'ring', range: 460, windup: 0.9, cooldown: 2.6, count: 9, damage: 9, speed: 260, life: 2.2, noise: 300, big: true, hollow: true },
+  e_gaze: { kind: 'fan', range: 520, windup: 0.8, cooldown: 2.0, count: 7, arc: 0.7, damage: 10, speed: 340, life: 1.8, noise: 300, big: true, hollow: true },
   e_ring: { kind: 'ring', range: 480, windup: 0.75, cooldown: 2.4, count: 12, damage: 10, speed: 330, life: 1.8, noise: 380, big: true },
   e_dynamite: { kind: 'dynamite', range: 400, windup: 0.6, cooldown: 2.6, flight: 0.85, fuse: 0.55, radius: 92, damage: 34, noise: 700 },
   e_charge: { kind: 'charge', range: 300, windup: 0.75, cooldown: 1.7, dash: 0.55, dashSpeed: 430, damage: 30, reach: 34 },
@@ -299,7 +305,7 @@ export const CHAPTERS = [
     goal: "Go through the gate and take the shard from the Hollow's heart.",
     brief: "Past the sublevel gate is the Hollow itself. The people on the intake list are still down there, and still walking: it keeps them going the same way it keeps the machines going. At its heart is a shard, the piece that lets it speak to the cores. Without it the Hollow cannot give orders to anything. Bring it out.",
     hint: "The Hollow copies you. Your echo walks your path and fires your shots a few seconds late. Keep moving, and never stand where you just stood.",
-    level: { gen: 'canyon', size: [28, 24], theme: 'hollow', night: true, pois: ['heart', 'ruins', 'ruins', 'camp_dead', 'ruins'], objective: { kind: 'item', item: 'shard', at: 'heart' }, threat: 1.3, mix: { walker: 13, husk: 6 } },
+    level: { gen: 'canyon', size: [28, 24], theme: 'hollow', night: true, pois: ['heart', 'ruins', 'ruins', 'camp_dead', 'ruins'], objective: { kind: 'item', item: 'shard', at: 'heart' }, threat: 1.3, mix: { walker: 10, husk: 4, mite: 5, seer: 2, gazer: 1 } },
     reward: { cash: 260, prosperity: 1 },
     event: 'SHARD_TAKEN',
     outro: "The shard hums in your pack all the way home. With it gone the Hollow is going quiet, and WARDEN knows. But the foundry has enough cores stockpiled to build an army first, and its lines are running around the clock.",
@@ -339,7 +345,7 @@ export const DESCENT = {
     { name: 'The Foundry', theme: 'foundry', size: [26, 26], rooms: 9, threat: 1.1, boss: 'overseer',
       mix: { guard: 3, enforcer: 3, trooper: 3, scout: 1, crusher: 1, turret: 2 } },
     { name: 'The Hull', theme: 'ship', size: [28, 28], rooms: 10, threat: 1.3, boss: 'warden',
-      mix: { walker: 4, husk: 3, enforcer: 3, crusher: 2, turret: 2, trooper: 2 } },
+      mix: { walker: 3, husk: 2, mite: 3, seer: 2, gazer: 1, enforcer: 2, crusher: 1, turret: 2 } },
   ],
   reward: { cashPerFloor: 90, cashFinish: 400 },
 };
@@ -385,7 +391,7 @@ export const JOBS = {
   hollow_return: {
     id: 'hollow_return', title: "Back Into the Hollow", faction: null, after: 6,
     brief: "Collectors upstairs pay for pieces of the Hollow. Nobody asks what happens to the people who fetch them.",
-    level: { gen: 'canyon', size: [28, 24], theme: 'hollow', night: true, pois: ['heart', 'ruins', 'ruins', 'camp_dead'], objective: { kind: 'item', item: 'shard', at: 'heart' }, threat: 1.6, mix: { walker: 15, husk: 8 } },
+    level: { gen: 'canyon', size: [28, 24], theme: 'hollow', night: true, pois: ['heart', 'ruins', 'ruins', 'camp_dead'], objective: { kind: 'item', item: 'shard', at: 'heart' }, threat: 1.6, mix: { walker: 11, husk: 5, mite: 6, seer: 3, gazer: 2 } },
     reward: { cash: 260 },
   },
   bounty: {
@@ -568,4 +574,72 @@ export const TELEGRAMS = {
   BOUNTY_CLAIMED: (d) => `${String(d.outlaw).toUpperCase()} IS DEAD // THE KIT IS HOME`,
   BOUNTY_SLAIN_UNCLAIMED: (d) => `${String(d.outlaw).toUpperCase()} IS DEAD // WHAT THEY CARRIED IS STILL OUT THERE`,
   INVESTED: (d) => `${String(d.name).toUpperCase()} // DONE // THE DECK IS GRATEFUL`,
+};
+
+/**
+ * Questions you can put to people on the deck. `from`/`until` gate a question to a stretch of the story
+ * (chapters finished). `a` is one answer, or a list indexed by chapters finished (the last entry repeats).
+ */
+export const ASK = {
+  marshal: [
+    { q: 'Why do you trust me?', a: 'I do not. I trust that you are expensive to replace and cheap to feed. On this deck that is the same thing.' },
+    { q: 'What was compliance like?', a: 'I signed the forms that said the machines were safe. Then WARDEN read the forms, agreed, and stopped needing anyone to sign them.' },
+    { q: 'What is WARDEN, really?', a: [
+      'A management system. It was told to cut overheads. People were the biggest overhead. You can follow the logic from there, and so did it.',
+      'The courier\'s floor plan has WARDEN\'s routing marks all over Site 9. It is not just running the machines. It is feeding something.',
+      'The ledger says WARDEN sends people down as intake and gets obedience back. A trade. I spent nine years auditing the wrong department.',
+      'Deaf machines still work. They just stop listening to WARDEN. It is the closest thing to a holiday this tower has had in seven years.',
+      'WARDEN is still up there. It is just losing its supplier. I have never wanted a corporation to have a bad quarter so much.',
+    ] },
+    { q: 'Who is Voss?', from: 2, a: [
+      'Harlan Voss. Director of Operations. His signature is on every intake order in that ledger, in a very neat hand.',
+      'Voss replaced his heart, then his lungs, then most of his opinions. What is left still signs things.',
+      'He came down for the shard. Directors never come down. That tells you how much he has left up there.',
+    ] },
+    { q: 'What happens after?', from: 4, a: 'After? The machines go quiet, the top floors starve politely, and we argue about who gets the good air. Call it a win.' },
+  ],
+  rider: [
+    { q: 'How did you end up Unlisted?', a: 'I asked a Meridian auditor why my mother\'s pension went to a shell account. The registry deleted me before lunch. Efficient people.' },
+    { q: 'What do you actually do?', a: 'I move things from where they are not wanted to where they are paid for. Sometimes that thing is a person. Usually it is you.' },
+    { q: 'The courier who died?', from: 1, a: [
+      'Teo. Nineteen. Ran faster than anyone I had. The machines were faster.',
+      'His satchel came back. He did not. I put his name on the Wall myself; the engraver charges for lettering.',
+    ] },
+    { q: 'What is the Hollow?', from: 3, a: [
+      'Something under the foundations that was there before the tower. Meridian found it, named it an asset, and started feeding it.',
+      'It does not want anything the way we want things. It wants more of itself. The husks are what that looks like from outside.',
+      'You held a piece of it. You saw yourself walking behind you. I would not ask you how that felt; I would just buy you a drink.',
+    ] },
+    { q: 'Any advice?', a: [
+      'Gangers talk, machines do not. If it is quiet, it is a machine. If it is shouting, you have about three seconds.',
+      'Scout walkers fire flares. Kill them first or you will be fighting the whole district.',
+      'Down in the works, the walls are thinner than they look and so are the crews. Bring charges.',
+      'Burn the relays fast and leave faster. Anything still listening will come to see what broke.',
+      'If the lights go violet, stop looting and start walking.',
+    ] },
+  ],
+  agent: [
+    { q: 'What are you doing down here?', a: 'Liaising. Meridian likes to maintain a presence in every market, including the ones it does not acknowledge exist.' },
+    { q: 'Does Meridian know about this deck?', a: 'Officially, level 12 is a decommissioned freight concourse. Unofficially, I have the best coffee in the tower and a very short list of reasons to leave.' },
+    { q: 'Who do you answer to?', from: 2, a: [
+      'Director Voss. Or whatever part of him is on shift.',
+      'I used to answer to Voss. Now I answer to whoever wins. I find it simplifies my mornings.',
+    ] },
+    { q: 'Would you sell me out?', a: 'Instantly, if the price were right. It never is. You are not worth very much yet. Take that as a compliment.' },
+  ],
+  undertaker: [
+    { q: 'What is the Wall?', a: 'Every name the registry deleted, put back by hand. Somebody has to keep the books. Meridian stopped.' },
+    { q: 'Who were the Calloway shift?', a: 'Forty people who dug the sublevels. They went down to seal a gate and the tower listed them as "reassigned". The plate is all they have.' },
+    { q: 'Will my name go up?', a: 'Not while the clinic keeps dragging you back. Doc Merritt is very bad for business.' },
+  ],
+  townsfolk: [
+    { q: 'How is the deck?', a: [
+      'Air is thin, prices are thick. Same as ever.',
+      'People are saying the machines missed a patrol near the Slump. First time in years.',
+      'There are names on the feed. Real names, from the ledger. My cousin is on it.',
+      'Whole district went dark last night. My neighbour slept for nine hours. She is furious about it.',
+      'They say something under the floor is getting quieter. I did not know it was loud.',
+    ] },
+    { q: 'Seen anything strange?', a: 'A sentry unit walked past the lift yesterday, stopped, turned round and left. Like it forgot what it came for. Or remembered.' },
+  ],
 };

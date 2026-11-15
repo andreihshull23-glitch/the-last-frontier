@@ -4,7 +4,7 @@
 
 import * as R from './rules.js';
 import { PAD_ACTIONS } from './gamepad.js';
-import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, CHAPTERS, AMMO, PROLOGUE, HERO } from './content.js';
+import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CHAPTERS, AMMO, PROLOGUE, HERO } from './content.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -358,6 +358,15 @@ export function createUI(root, panelEl, api) {
           ? `<div class="graves">${camp.fallen.slice(-6).reverse().map((f) => `<div class="grave"><h3>${esc(f.name)}</h3><p class="epitaph">Killed by ${esc(f.killedBy)}.</p><p class="have">${plural(f.expeditions, 'run')} · ${plural(f.kills ?? 0, 'kill')}</p></div>`).join('')}</div>`
           : '<p class="muted">Nobody of yours is up there yet.</p>';
       }
+      // questions: what this person will talk about at this point in the story
+      const done = camp.chapter;
+      const qs = (ASK[role] || ASK.townsfolk).map((t, i) => ({ ...t, i })).filter((t) => done >= (t.from ?? 0) && done <= (t.until ?? 99));
+      if (pdata.ask !== undefined) {
+        const t = (ASK[role] || ASK.townsfolk)[pdata.ask];
+        const ans = Array.isArray(t.a) ? t.a[Math.min(Math.max(0, done - (t.from ?? 0)), t.a.length - 1)] : t.a;
+        body += `<div class="answer"><p class="muted">You: ${esc(t.q)}</p><p class="lede">“${esc(ans)}”</p></div>`;
+      }
+      if (qs.length) body += `<div class="asks">${qs.map((t) => `<button class="btn ghost small${(pdata.asked || []).includes(t.i) ? ' asked' : ''}" data-p="ask" data-id="${t.i}">${esc(t.q)}</button>`).join('')}</div>`;
       return `${head('Mercy Deck', pdata.name || 'Someone on the deck')}${body}${foot('Walk on')}`;
     },
     journal() {
@@ -462,6 +471,7 @@ export function createUI(root, panelEl, api) {
     else if (act === 'plugfit') done(R.fitPlugin(camp, id), 'ui');
     else if (act === 'invest') done(R.invest(camp, id));
     else if (act === 'treat') done(R.treat(camp), 'heal');
+    else if (act === 'ask') { pdata.ask = +id; pdata.asked = [...new Set([...(pdata.asked || []), +id])]; renderPanel(); }
     else if (act === 'ledger') { const r = R.chooseLedger(camp, id); done(r, 'chapter'); if (r.ok) { panel = 'talk'; renderPanel(); } }
     else if (act === 'jobs') { panel = 'jobs'; pdata = {}; renderPanel(); }
     else if (act === 'pick') { panel = 'jobs'; pdata = { pick: id }; renderPanel(); }

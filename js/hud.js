@@ -137,7 +137,7 @@ function drawMapMarkers(ctx, sim, x, y, sc, big, ui) {
       ctx.fillStyle = BLOOD;
       ctx.fillRect(mx - 3, my - 3, 6, 6);
     } else if (e.spotted) {
-      ctx.fillStyle = e.kind === 'walker' || e.kind === 'husk' ? HOLLOW : BLOOD;
+      ctx.fillStyle = ENEMIES[e.kind]?.hollow ? HOLLOW : BLOOD;
       ctx.beginPath(); ctx.arc(mx, my, big ? 3 : 2, 0, TAU); ctx.fill();
     }
   }

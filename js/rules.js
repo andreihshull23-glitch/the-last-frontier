@@ -487,7 +487,7 @@ function killerLabel(killer) {
   if (!killer) return 'the tower';
   if (killer.kind === 'bounty') return killer.name ?? 'a ganger';
   if (killer.kind === 'echo') return 'their own echo';
-  if (killer.kind === 'walker' || killer.kind === 'husk') return 'something in the dark';
+  if (ENEMIES[killer.kind]?.hollow) return 'something in the dark';
   if (killer.kind === 'dynamite') return 'their own charge';
   if (killer.kind === 'foreman') return 'Director Voss';
   if (killer.kind === 'overseer') return 'the Overseer';

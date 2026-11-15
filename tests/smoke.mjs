@@ -100,6 +100,11 @@ if (want('town')) {
   await page.keyboard.press('KeyE');
   await page.waitForSelector('#panel .sheet.talk', { timeout: 20000 });
   await shot(page, '10-talk-panel');
+  // ask her something: the answer appears in the panel
+  await page.click('[data-p="ask"][data-id="2"]');
+  await page.waitForSelector('#panel .answer');
+  check(await page.$eval('#panel .answer', (el) => el.textContent.includes('WARDEN')), 'the marshal answers a question');
+  await shot(page, '10b-ask');
   await page.click('[data-p="pick"]');
   await page.waitForSelector('[data-p="ride"]');
   await shot(page, '11-briefing');

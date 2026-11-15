@@ -8,7 +8,8 @@ The loop: walk Mercy Deck (stalls, job board, customs hall), take the freight li
 
 - Unit tests: `npm test` (`tests/game.test.js`: generators, rules, sim determinism, the companion).
 - Browser smoke test: `node tests/smoke.mjs <outDir> <path/to/three.min.js> [sections]`. Sections: `town`, `death`, `levels`, `phone`, `pad` (a simulated controller and `play.html`). It uses Playwright and writes screenshots. WebGL runs on SwiftShader, which is slow, so the test waits on sim time, never wall time.
-- Viewers for art work: `tests/actorview.mjs` (character line-ups), `tests/levelview.mjs`, `tests/viewer.mjs`.
+- Viewers for art work: `tests/actorview.mjs` (character line-ups; `set=guns`, `set=plugins`, `set=hollow`), `tests/levelview.mjs`, `tests/viewer.mjs`.
+- Collision audit: `node tests/collision-audit.mjs [--list]` compares drawn objects with blocking tiles on every level. Keep walk-through near or under 10%.
 - Local play: serve the folder over HTTP and open `/?debug` (`window.LF_DEBUG`). ES modules do not load from `file://`.
 - `index.html` has no `<html>`, `<head>` or `<body>` because the Artifact host wraps it.
 
@@ -17,7 +18,7 @@ The loop: walk Mercy Deck (stalls, job board, customs hall), take the freight li
 All art is baked to vertex colours, with no textures, into quantised JSON packs under `assets/`. The source packs are not in the project.
 
 - `tools/bake-assets.mjs <packsDir>`: Kenney kits, the Quaternius sci-fi megakit and the cyberpunk kit (`cyber-kit/{platforms,pickups,turrets}`) become the world packs and `js/data/models.js` (boxes and collision footprints). A sign's artwork is read from its emissive texture.
-- `tools/bake-characters.mjs <men> <women> <robots> <cyber>`: Quaternius characters become `assets/people-{man,woman,robot,cyber}.json`. Each family shares one skeleton and clip set, except that a file whose skeleton differs keeps its own (`rigs`, `clipsets`); every robot does.
+- `tools/bake-characters.mjs <men> <women> <robots> <cyber> [outDir] [aliens]`: Quaternius characters become `assets/people-{man,woman,robot,cyber,alien}.json`. The aliens (the Hollow's mites, seers and gazers) ship with an idle clip only; `creature()` in `actors.js` moves them by hand. Each family shares one skeleton and clip set, except that a file whose skeleton differs keeps its own (`rigs`, `clipsets`); every robot does.
 - `tools/bake-guns.mjs <objDir>`: guns become `assets/qg.json`.
 
 ## Who owns what
@@ -49,5 +50,9 @@ All art is baked to vertex colours, with no textures, into quantised JSON packs 
 - Add content to `content.js` as data, then teach `rules.js` or `sim.js` the behaviour.
 - Randomness in the sim comes from `sim.rng` only.
 - A character look is an entry in `LOOKS` in `actors.js`: family, model, and optional tint, gun and scale. Nobody wears a hat.
+- Long guns are shouldered with both hands (`shoulder()` in `actors.js`); `ONE_HAND` lists the models held in one hand (pistols, revolvers, small blasters).
+- The fitted plug-in shows on Rook: add its parts to `PLUGIN_PARTS` in `actors.js` when adding a plug-in.
+- People on the deck answer questions from `ASK` in `content.js`, gated by chapters finished.
+- Mark Hollow enemies `hollow: true` in `ENEMIES`; code checks that flag, never a list of kinds.
 - Neon: set `glow` on a piece, add an `L.lights` entry of kind `neon` for its halo, and give `L.signs` entries `glow: true`.
 - After changing gameplay, rerun both test suites and look at the smoke screenshots.

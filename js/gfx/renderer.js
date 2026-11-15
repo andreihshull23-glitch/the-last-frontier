@@ -753,7 +753,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           r.hitMarker = 0.14;
           const a = actorOf(e.id);
           if (a) a.flash = 1;
-          const hollow = e.kind === 'walker' || e.kind === 'husk';
+          const hollow = Boolean(ENEMIES[e.kind]?.hollow);
           for (let i = 0; i < 6; i++) {
             const an = e.angle + (Math.random() - 0.5) * 1.3;
             emit(dust, { x: X, y: 1.0, z: Z, vx: Math.cos(an) * (1 + Math.random() * 2.5), vy: Math.random() * 1.5, vz: Math.sin(an) * (1 + Math.random() * 2.5), grav: 9, life: 0.4, size: 0.07, a: 0.9, color: hollow ? '#b9a8ff' : '#8a2a1e', drag: 3 });
@@ -772,7 +772,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
             W.corpses.push({ a, t: 0 });
             if (W.corpses.length > 18) { const old = W.corpses.shift(); actors.dispose(old.a); }
           }
-          if (e.kind !== 'walker' && e.kind !== 'husk') decal(X + Math.cos(e.angle) * 0.4, Z + Math.sin(e.angle) * 0.4, 0.5 + Math.random() * 0.3);
+          if (!ENEMIES[e.kind]?.hollow) decal(X + Math.cos(e.angle) * 0.4, Z + Math.sin(e.angle) * 0.4, 0.5 + Math.random() * 0.3);
           else for (let i = 0; i < 18; i++) emit(sparks, { x: X, y: 0.3 + Math.random() * 1.5, z: Z, vx: (Math.random() - 0.5) * 2, vy: 0.5 + Math.random(), vz: (Math.random() - 0.5) * 2, life: 0.9, size: 0.08, color: '#b9a8ff', drag: 1 });
           break;
         }
@@ -1019,7 +1019,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
         scl.set(pulse, b.ground ? pulse * 0.55 : pulse, pulse);
         m4.compose(pos, quat, scl);
         tracers.setMatrixAt(n, m4);
-        const cb = b.ground ? [1, 0.72, 0.2] : [1, 0.25, 0.5];
+        const cb = b.hollow ? [0.66, 0.42, 1] : b.ground ? [1, 0.72, 0.2] : [1, 0.25, 0.5];
         colors[n * 3] = cb[0]; colors[n * 3 + 1] = cb[1]; colors[n * 3 + 2] = cb[2];
         n++;
         continue;

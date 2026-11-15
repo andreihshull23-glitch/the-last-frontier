@@ -1094,7 +1094,7 @@ function spawnBullet(sim, b) {
     vx: Math.cos(b.angle) * b.speed, vy: Math.sin(b.angle) * b.speed,
     damage: b.damage, owner: b.owner, life: b.life, kind: b.kind, stagger: Boolean(b.stagger), src: b.src ?? null, grazed: false,
     pierce: b.pierce || 0, robotMul: b.robotMul || 1, chain: b.chain || 0, chainRange: b.chainRange || 0, stun: b.stun || 0, heavy: Boolean(b.heavy), hit: [],
-    bounce: b.bounce || 0, explode: b.explode || null, big: Boolean(b.big), ground: Boolean(b.ground),
+    bounce: b.bounce || 0, explode: b.explode || null, big: Boolean(b.big), ground: Boolean(b.ground), hollow: Boolean(b.hollow),
   });
 }
 
@@ -1824,7 +1824,7 @@ function releaseAttack(sim, e, def, w) {
 function fireEnemyBullet(sim, e, w, angle) {
   spawnBullet(sim, {
     x: e.x + Math.cos(angle) * (e.r + 3), y: e.y + Math.sin(angle) * (e.r + 3), angle,
-    speed: w.speed, damage: w.damage, owner: 'enemy', life: w.life ?? w.range / w.speed, kind: w.kind, big: w.big, ground: w.kind === 'ring',
+    speed: w.speed, damage: w.damage, owner: 'enemy', life: w.life ?? w.range / w.speed, kind: w.kind, big: w.big, ground: w.kind === 'ring' && !w.hollow, hollow: Boolean(w.hollow),
     src: { kind: e.kind, name: e.name },
   });
 }
