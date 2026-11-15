@@ -30,6 +30,8 @@ export function createUI(root, panelEl, api) {
     root.className = name === 'title' || name === 'loading' ? 'over-town' : name === 'crawl' ? 'crawling' : '';
     render();
     root.scrollTop = 0;
+    // a controller presses whatever has focus: on the crawl that is Skip
+    if (name === 'crawl') root.querySelector('.crawl-skip')?.focus({ preventScroll: true });
   }
   function hide() { screen = null; root.hidden = true; root.innerHTML = ''; }
   function flash(msg) { notice = msg; if (panel) renderPanel(); else render(); }

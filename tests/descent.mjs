@@ -11,6 +11,8 @@ page.on('pageerror', (e) => errs.push(String(e.stack || e).slice(0, 500)));
 await page.goto(`${base}/?debug`);
 await page.waitForFunction(() => window.LF_DEBUG && window.LF_DEBUG.app.mode === 'title', null, { timeout: 120000 });
 await page.click('[data-act="new"]');
+await page.waitForSelector('.crawl-text');
+await page.keyboard.press('Space');
 await page.waitForSelector('[data-act="hire"]');
 await page.click('[data-act="hire"][data-i="0"]');
 await page.waitForFunction(() => window.LF_DEBUG.app.mode === 'town');

@@ -299,6 +299,9 @@ if (want('phone')) {
   const { ctx, page } = await open({ viewport: { width: 400, height: 780 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
   await shot(page, '50-phone-title');
   await page.tap('[data-act="new"]');
+  await page.waitForSelector('.crawl-text');
+  await shot(page, '50b-phone-crawl');
+  await page.tap('.crawl-skip');
   await page.waitForSelector('[data-act="hire"]');
   await shot(page, '51-phone-hire');
   await page.tap('[data-act="hire"][data-i="0"]');
@@ -347,6 +350,8 @@ if (want('pad')) {
   const focused = await page.evaluate(() => document.activeElement?.dataset?.act ?? null);
   check(focused === 'new', `the D-pad moves focus in menus (${focused})`);
   await tap(0);
+  await page.waitForSelector('.crawl-text');
+  await tap(0);   // A skips the story crawl
   await page.waitForSelector('[data-act="hire"]');
   await tap(13); await tap(0);
   await waitMode(page, 'town');
