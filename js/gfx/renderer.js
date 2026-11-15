@@ -213,7 +213,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     scene.add(m);
     return m;
   };
-  const tracers = boltMesh(0.55);   // the glow
+  const tracers = boltMesh(0.9);    // the glow
   const cores = boltMesh(1.0);      // the core
   const decalMat = new THREE.MeshBasicMaterial({ color: col('#3a120d'), transparent: true, opacity: 0.55, depthWrite: false });
 
@@ -1076,11 +1076,11 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       const ang = Math.atan2(b.vy, b.vx);
       const heavy = b.heavy || b.kind === 'longrifle' || b.kind === 'rail';
       const len = Math.min(2.6, Math.max(0.9, Math.hypot(b.x - b.px, b.y - b.py) * U * 1.6));
-      const w = heavy ? 0.2 : b.kind === 'smg' || b.kind === 'pulse' ? 0.09 : 0.12;
+      const w = heavy ? 0.28 : b.kind === 'smg' || b.kind === 'pulse' ? 0.13 : 0.17;
       pos.set(b.x * U - Math.cos(ang) * len / 2, GUN_Y, b.y * U - Math.sin(ang) * len / 2);
       quat.setFromAxisAngle(yAxis, -ang);
       scl.set(len, w, w); m4.compose(pos, quat, scl); put(tracers, gc, n, c, 1);
-      scl.set(len * 0.92, w * 0.32, w * 0.32); m4.compose(pos, quat, scl); put(cores, cc, n, c, 0.3);
+      scl.set(len * 0.94, w * 0.3, w * 0.3); m4.compose(pos, quat, scl); put(cores, cc, n, c, 0.45);
       n++;
     }
     for (const m of [tracers, cores]) { m.count = n; m.instanceMatrix.needsUpdate = true; m.instanceColor.needsUpdate = true; }
