@@ -616,9 +616,12 @@ export function createActors(assets) {
       const d = Math.min(1, a.deadT / 0.7);
       k *= 1 - d * 0.8; y = a.baseY - d * 0.2 * s; lean = d * 1.2;
     }
-    a.inner.position.y = y;
+    // scale and lean about the feet, not about the model's own origin (which sits well off the ground)
+    const lift = y - a.baseY;
     a.inner.scale.setScalar(a.baseS * k);
     a.inner.rotation.x = lean;
+    a.inner.position.y = a.baseY * k * Math.cos(lean) + lift;
+    a.inner.position.z = a.baseY * k * Math.sin(lean);
   }
 
   function place(a, x, z, facing) {
