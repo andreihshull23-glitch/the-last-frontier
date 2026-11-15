@@ -1,7 +1,7 @@
 // Underground levels: rooms joined by tunnels, dark, with one way in by the
 // ore lift and a ladder up an air shaft at the far end. The upper works belong
 // to claim jumpers; the deep rooms belong to whatever came up the shaft.
-import { TILE, PX, MACRO, SOLID, ROCK, WATER, GROUND, LOOT_NAMES, ENEMIES } from '../content.js';
+import { TILE, PX, MACRO, SOLID, ROCK, WATER, GROUND, LOOT_NAMES, ENEMIES, DEALS } from '../content.js';
 import { makeRng } from '../rng.js';
 import { createLevel, skinRock, place, box, cyl, paint, reserve, centreM, tileCentre, addFlags, setTile, validateLevel, inb, buildNav, floodFrom, WALL } from '../level.js';
 import { scatter, clearAround, PEBBLES, TM } from './common.js';
@@ -293,6 +293,15 @@ function build(spec, seed) {
       if (!at) continue;
       L.spawns.push({ kind, x: at[0], y: at[1], dormant: hollow });
     }
+  }
+
+  // ---- a black-market uplink and an intake record
+  {
+    const ids = Object.keys(DEALS);
+    const up = freeSpot(P(20), null);
+    if (up) L.items.push({ kind: 'uplink', deal: ids[rng.int(0, ids.length - 1)], x: up[0], y: up[1] });
+    const lg = freeSpot(P(26), true);
+    if (lg) L.items.push({ kind: 'log', x: lg[0], y: lg[1] });
   }
 
   // ---- waves: taking what is in the vault wakes the level up; so does walking into a nest

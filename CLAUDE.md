@@ -54,5 +54,9 @@ All art is baked to vertex colours, with no textures, into quantised JSON packs 
 - The fitted plug-in shows on Rook: add its parts to `PLUGIN_PARTS` in `actors.js` when adding a plug-in.
 - People on the deck answer questions from `ASK` in `content.js`, gated by chapters finished.
 - Mark Hollow enemies `hollow: true` in `ENEMIES`; code checks that flag, never a list of kinds.
+- Run variety lives in `content.js` as data: `SYNERGIES` (two relics give a third effect), `ELITES` (modifiers some enemies spawn with; chance from `eliteChance` in the run config), `DEALS` (the black-market uplink on each level), `LOGS` (intake records, one findable per run, kept in the journal), `COMMS` (lines spoken in your ear at a run's beats: start, wave, objective, lockdown, extract).
+- District and underground levels hold part of their enemies back as `L.waves`: walking into a place, or taking the objective, brings a wave in (`updateWaves` in `sim.js`).
+- Music is synthesized in `js/music.js` (pieces: deck, run, hollow, boss); `main.js` picks the piece and intensity (`musicFor`). `node tests/music.mjs <three.min.js>` renders each offline.
+- The opening crawl is `CRAWL` in `content.js`; it plays on first launch and at the start of every campaign.
 - Neon: set `glow` on a piece, add an `L.lights` entry of kind `neon` for its halo, and give `L.signs` entries `glow: true`.
 - After changing gameplay, rerun both test suites and look at the smoke screenshots.

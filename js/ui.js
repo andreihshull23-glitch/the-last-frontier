@@ -4,7 +4,7 @@
 
 import * as R from './rules.js';
 import { PAD_ACTIONS } from './gamepad.js';
-import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CRAWL, CHAPTERS, AMMO, PROLOGUE, HERO } from './content.js';
+import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CRAWL, LOGS, CHAPTERS, AMMO, PROLOGUE, HERO } from './content.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -401,7 +401,10 @@ export function createUI(root, panelEl, api) {
         ? `<h3 class="section">The story so far</h3><ol class="journal">${done.map((ch) => `<li><strong>${esc(ch.title)}.</strong> ${esc(ch.recap)}</li>`).join('')}</ol>`
         : `<h3 class="section">How it began</h3><ol class="journal">${PROLOGUE.map((p) => `<li><strong>${esc(p.title)}.</strong> ${esc(p.text)}</li>`).join('')}</ol>`;
       const ahead = now ? `<p class="muted">Still ahead: ${CHAPTERS.slice(camp.chapter + 1).map((ch) => esc(ch.title)).join(' · ') || 'nothing after this one'}.</p>` : '';
-      return `<div class="bar"><div><p class="eyebrow">Journal</p><h2 id="panel-title">What is going on</h2></div></div>${next}${past}${ahead}${foot('Close')}`;
+      const logs = (camp.logs || []).length
+        ? `<h3 class="section">Intake records (${camp.logs.length} of ${LOGS.length})</h3><ol class="journal">${camp.logs.map((n) => LOGS[n]).filter(Boolean).map((l) => `<li><strong>${esc(l.title)}.</strong> ${esc(l.text)}</li>`).join('')}</ol>`
+        : `<p class="muted">Intake records turn up once a run, on a terminal somewhere on the map. Carry one home and it goes here.</p>`;
+      return `<div class="bar"><div><p class="eyebrow">Journal</p><h2 id="panel-title">What is going on</h2></div></div>${next}${past}${logs}${ahead}${foot('Close')}`;
     },
     pause() {
       const ride = api.inRide();

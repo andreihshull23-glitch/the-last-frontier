@@ -2,7 +2,7 @@
 // drifter walks in and open again when everything inside is dead (see
 // updateRooms in sim.js). Each floor has fights, a chest room, a shop, and a
 // boss room with the lift down.
-import { TILE, PX, MACRO, SOLID, BLOCKS_SHOT, ROCK, GROUND, LOOT_NAMES, DESCENT, GUNS, RELICS, ENEMIES } from '../content.js';
+import { TILE, PX, MACRO, SOLID, BLOCKS_SHOT, ROCK, GROUND, LOOT_NAMES, DESCENT, GUNS, RELICS, ENEMIES, DEALS } from '../content.js';
 import { makeRng } from '../rng.js';
 import { createLevel, skinRock, box, cyl, paint, reserve, addFlags, setTile, validateLevel, buildNav, floodFrom, tileCentre, place, WALL } from '../level.js';
 import { TM } from './common.js';
@@ -323,6 +323,13 @@ function build(spec, seed) {
     }
   }
   L.items.push({ kind: 'exit', variant: 'lift', x: liftAt[0], y: liftAt[1], needsClear: true });
+  // the fence keeps a black-market uplink in the corner; the stash has an intake record
+  {
+    const ids = Object.keys(DEALS);
+    const shop = rooms.find((q) => q.role === 'shop'), stash = rooms.find((q) => q.role === 'chest');
+    if (shop) { const at = spot(shop, 2); if (at) L.items.push({ kind: 'uplink', deal: ids[rng.int(0, ids.length - 1)], x: at[0], y: at[1] }); }
+    if (stash) { const at = spot(stash, 2); if (at) L.items.push({ kind: 'log', x: at[0], y: at[1] }); }
+  }
 
   L.name = F.name;
   L.clock = { start: 'none' };

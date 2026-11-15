@@ -245,6 +245,7 @@ export function createAudio() {
     door: () => burst({ freq: 300, q: 2, dur: 0.14, gain: 0.12 }),
     chapter: () => [392, 523.3, 659.3].forEach((f, i) => tone({ type: 'triangle', freq: f, dur: 0.9, gain: 0.1, when: i * 0.16, echo: 0.4 })),
     ui: () => tone({ type: 'triangle', freq: 620, dur: 0.05, gain: 0.05 }),
+    alarm: (v = 1) => [0, 0.32, 0.64].forEach((w) => tone({ type: 'square', freq: 740, to: 520, dur: 0.24, gain: 0.05 * v, when: w })),
     cash: () => {
       tone({ type: 'triangle', freq: 1046, dur: 0.08, gain: 0.08 });
       tone({ type: 'triangle', freq: 1568, dur: 0.16, gain: 0.08, when: 0.06 });

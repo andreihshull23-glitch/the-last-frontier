@@ -5,7 +5,7 @@
 
 import {
   TILE as TS, PX, MACRO, ENEMIES, WEAPONS, GUNS, GUN_ORDER, gunStats, AMMO, CARRY, DYNAMITE, ITEMS, SOLID, OPAQUE, BLOCKS_SHOT, ROCK,
-  RELICS, PULSE, JUMP, START_GUN,
+  RELICS, PULSE, JUMP, START_GUN, SYNERGIES, ELITES, DEALS,
 } from './content.js';
 import { makeRng } from './rng.js';
 import { buildNav, nearestNav } from './level.js';
@@ -147,6 +147,8 @@ export function createSim(config, level) {
     if (it.kind === 'cache') Object.assign(base, { tier: it.tier, a: it.a, loot: it.loot, cartridges: it.cartridges, shells: it.shells, bandage: it.bandage, dynamite: it.dynamite, duration: 0.7 });
     else if (it.kind === 'objective') Object.assign(base, { item: it.item, role: it.role, zone: it.zone || '', duration: ITEMS[it.item].duration, known: true });
     else if (it.kind === 'exit') Object.assign(base, { variant: it.variant, duration: 0, seen: true, known: true, needsClear: Boolean(it.needsClear) });
+    else if (it.kind === 'uplink') Object.assign(base, { deal: it.deal, duration: 1.2, r: 64 });
+    else if (it.kind === 'log') Object.assign(base, { duration: 1.0, r: 56 });
     else if (it.kind === 'ware' || it.kind === 'gun' || it.kind === 'relic') Object.assign(base, { gun: it.gun || null, relic: it.relic || null, heal: it.heal || 0, price: it.price || 0, duration: 0, r: 54, seen: true, known: true });
     else Object.assign(base, { shop: it.shop || null, r: it.r || 60, text: it.text || '', duration: 0, seen: true, known: true });
     state.interactables.push(base);
@@ -204,14 +206,14 @@ export function restoreSim(data, level) {
 
 const BASE_MODS = { damage: 1, rate: 1, mag: 1, reload: 1, speed: 1, dodge: 1, armour: 1, coin: 1, luck: 1, robot: 1, berserk: 1, magnet: 0, lifesteal: 0, pierce: 0, bounce: 0, static: 0, pulses: 0, extra: 0, revive: 0 };
 const MULTIPLY = new Set(['damage', 'rate', 'mag', 'reload', 'speed', 'dodge', 'armour', 'coin', 'luck', 'robot', 'berserk']);
-/** What the relics carried add up to. */
+/** Synergies the relics carried complete. */
+export const synergiesOf = (relics) => Object.keys(SYNERGIES).filter((id) => SYNERGIES[id].needs.every((r) => (relics || []).includes(r)));
+/** What the relics carried add up to, synergies included. */
 export function runMods(relics) {
   const m = { ...BASE_MODS };
-  for (const id of relics || []) {
-    const r = RELICS[id];
-    if (!r) continue;
-    for (const [k, v] of Object.entries(r.mod)) { if (MULTIPLY.has(k)) m[k] *= v; else m[k] += v; }
-  }
+  const add = (mod) => { for (const [k, v] of Object.entries(mod)) { if (MULTIPLY.has(k)) m[k] *= v; else m[k] += v; } };
+  for (const id of relics || []) if (RELICS[id]) add(RELICS[id].mod);
+  for (const id of synergiesOf(relics)) add(SYNERGIES[id].mod);
   return m;
 }
 /** Gun stats with gunsmith upgrades and this run's relics applied. */
@@ -246,8 +248,13 @@ export function giveGun(sim, id, quiet = false) {
 export function giveRelic(sim, id, quiet = false) {
   const s = sim.state, p = s.player, r = RELICS[id];
   if (!r || p.relics.includes(id)) return false;
+  const had = synergiesOf(p.relics);
   p.relics.push(id);
   rebuildGuns(sim);
+  for (const sid of synergiesOf(p.relics)) if (!had.includes(sid) && !quiet) {
+    emit(sim, 'toast', { text: `SYNERGY: ${SYNERGIES[sid].name}. ${SYNERGIES[sid].desc}`, tone: 'story', long: true });
+    emit(sim, 'synergy', { id: sid, x: p.x, y: p.y });
+  }
   if (r.mod.pulses) p.pulses += r.mod.pulses;
   if (!quiet) emit(sim, 'toast', { text: `${r.name}. ${r.desc}`, tone: 'good', long: true });
   return true;
@@ -347,6 +354,7 @@ function updateWaves(sim) {
     const lines = WAVE_TEXT[w.on];
     emit(sim, 'toast', { text: lines[sim.rng.int(0, lines.length - 1)], tone: 'bad' });
     emit(sim, 'wave', { x: w.x, y: w.y, count: w.units.length });
+    comms(sim, 'wave');
   });
 }
 function updateRooms(sim) {
@@ -362,6 +370,7 @@ function updateRooms(sim) {
         seal(sim, r, true);
         spawnWave(sim, r, st);
         emit(sim, 'room_sealed', { id: r.id, boss: r.role === 'boss' });
+        comms(sim, 'wave');
         emit(sim, 'toast', { text: r.role === 'boss' ? 'The doors slam. Something big is coming up through the floor.' : 'The doors seal. Clear the room.', tone: 'bad' });
       }
     } else if (st.state === 'active') {
@@ -415,6 +424,14 @@ function addEnemy(sim, kind, x, y, extra = {}) {
     known: false, dead: false, summons: 0,
   };
   if (def.boss) s.boss = e.id;
+  // some ordinary enemies come out elite: a modifier, more health, better pickings
+  const eliteOK = !def.boss && !e.target && def.ai !== 'none' && !def.rooted && kind !== 'bounty' && !extra.noElite;
+  if (eliteOK && (extra.forceElite || sim.rng.chance((s.config.eliteChance ?? 0) + (s.eliteBonus || 0)))) {
+    const kinds = Object.keys(ELITES);
+    e.elite = kinds[sim.rng.int(0, kinds.length - 1)];
+    e.hp = e.maxHp = Math.round(e.maxHp * 1.5);
+    if (e.elite === 'shielded') e.shield = e.shieldMax = Math.round(e.maxHp * 0.6);
+  }
   s.enemies.push(e);
   return e;
 }
@@ -777,6 +794,7 @@ export function update(sim, dt, input = {}) {
     updateZone(sim);
     return;
   }
+  if (s.t > 3) comms(sim, 'start');
   updateRooms(sim);
   updateWaves(sim);
   updateEcho(sim);
@@ -1134,7 +1152,7 @@ function damagePlayer(sim, dmg, src, fromAngle = null) {
     return;
   }
   const md = sim.cache.mods;
-  const amount = Math.max(1, Math.round(dmg * (hasGear(s, 'duster') ? 0.8 : 1) * md.armour));
+  const amount = Math.max(1, Math.round(dmg * (hasGear(s, 'duster') ? 0.8 : 1) * md.armour * (s.dealHurt || 1)));
   p.hp = Math.max(0, p.hp - amount);
   p.hurtT = 0.3;
   p.lastHitBy = src ? { kind: src.kind, name: src.name ?? null } : null;
@@ -1165,6 +1183,47 @@ function nearestInteractable(sim) {
     if (d < range && d < bestD) { best = it; bestD = d; }
   }
   return best;
+}
+
+/** Someone talks in your ear: once per beat per run (see COMMS). */
+function comms(sim, beat) {
+  const s = sim.state, line = s.config.comms?.[beat];
+  if (!line || (s.commsSaid || []).includes(beat)) return;
+  s.commsSaid = [...(s.commsSaid || []), beat];
+  emit(sim, 'comms', { who: line[0], text: line[1] });
+}
+
+/** A black-market deal: something good now, paid for until the run ends. */
+function takeDeal(sim, it) {
+  const s = sim.state, p = s.player, d = DEALS[it.deal];
+  if (!d) return;
+  const g = d.give, t = d.take;
+  if (g.relicLuck) { const r = rollRelic(sim, g.relicLuck); if (r) dropItem(sim, it.x, it.y + 40, { relic: r }); }
+  if (g.coin) s.coin += g.coin;
+  if (g.heal) p.hp = p.maxHp;
+  if (g.pulses) p.pulses += g.pulses;
+  if (g.lootMul) s.lootMul = (s.lootMul || 1) * g.lootMul;
+  if (g.damage) s.dealDamage = (s.dealDamage || 1) * g.damage;
+  if (t.maxHp) { p.maxHp = Math.max(40, p.maxHp - t.maxHp); p.hp = Math.min(p.hp, p.maxHp); }
+  if (t.clock) s.clockOffset += t.clock;
+  if (t.elite) s.eliteBonus = (s.eliteBonus || 0) + t.elite;
+  if (t.hurt) s.dealHurt = (s.dealHurt || 1) * t.hurt;
+  if (t.hunters) {
+    const kinds = Object.keys(s.config.level?.mix || { bandit: 1 }).filter((k) => ENEMIES[k] && !ENEMIES[k].boss && k !== 'brute');
+    for (let k = 0, tries = 0; k < t.hunters && tries < 60; tries++) {
+      const a = sim.rng.range(0, TAU), dd = sim.rng.range(380, 620);
+      const x = p.x + Math.cos(a) * dd, y = p.y + Math.sin(a) * dd;
+      if (solidPx(sim, x, y)) continue;
+      const e = addEnemy(sim, kinds[sim.rng.int(0, Math.max(0, kinds.length - 1))] || 'bandit', x, y, { forceElite: true });
+      e.spawnT = 0.8;
+      alertEnemy(sim, e, p.x, p.y, false);
+      emit(sim, 'beam_in', { x: e.x, y: e.y, id: e.id });
+      k++;
+    }
+  }
+  s.deals = (s.deals || 0) + 1;
+  emit(sim, 'toast', { text: `Deal taken: ${d.offer}. Paid for with ${d.cost}.`, tone: 'story', long: true });
+  emit(sim, 'deal', { x: it.x, y: it.y });
 }
 
 function updateInteract(sim, dt, input) {
@@ -1207,8 +1266,15 @@ function completeInteract(sim, it) {
   const s = sim.state, p = s.player;
   it.done = true;
   const toast = (text, tone = 'good', long = false) => emit(sim, 'toast', { text, tone, long });
+  if (it.kind === 'uplink') { takeDeal(sim, it); return; }
+  if (it.kind === 'log') {
+    s.logFound = true;
+    toast('An intake record. Get it home and it goes in your journal.', 'story', true);
+    emit(sim, 'log_found', { x: it.x, y: it.y });
+    return;
+  }
   if (it.kind === 'cache') {
-    const mult = s.config.character.trait === 'scavenger' ? 1.3 : 1;
+    const mult = (s.config.character.trait === 'scavenger' ? 1.3 : 1) * (s.lootMul || 1);
     const found = it.loot.map((l) => ({ name: l.name, value: Math.round(l.value * mult) }));
     s.carried.loot.push(...found);
     const bits = found.map((l) => `${l.name} (¢${l.value})`);
@@ -1230,6 +1296,7 @@ function completeInteract(sim, it) {
     emit(sim, 'loot', { x: it.x, y: it.y, value: found.reduce((a, l) => a + l.value, 0), text: bits.join(', '), id: it.id });
   } else if (it.kind === 'objective') {
     const obj = s.config.objective || {};
+    if (it.role === 'primary') comms(sim, 'objective');
     switch (it.item) {
       case 'stake':
       case 'relay': {
@@ -1305,6 +1372,7 @@ const EXIT_TEXT = {
 function startExtraction(sim, it) {
   const s = sim.state;
   s.extract = { active: true, t: 0, id: it.id };
+  comms(sim, 'extract');
   noise(sim, it.x, it.y, 460, 'player');
   emit(sim, 'extract_start', { x: it.x, y: it.y, variant: it.variant });
   emit(sim, 'toast', { text: EXIT_TEXT[it.variant] || EXIT_TEXT.horse, tone: 'warn' });
@@ -1634,7 +1702,8 @@ function updateEnemy(sim, e, dt) {
     e.vy *= k;
   }
   const ox = e.x, oy = e.y;
-  moveBody(sim, e, e.vx * dt, e.vy * dt);
+  const quick = e.elite === 'swift' ? 1.35 : 1;
+  moveBody(sim, e, e.vx * dt * quick, e.vy * dt * quick);
   if (move && Math.hypot(e.x - ox, e.y - oy) < speed * dt * 0.2) {
     e.stuckT += dt;
     if (e.stuckT > 0.8) e.path = null;
@@ -1888,6 +1957,11 @@ function damageEnemy(sim, e, dmg, ang, stagger = false) {
     emit(sim, 'target_hit', { x: e.x, y: e.y, angle: ang });
     return;
   }
+  if (e.shield > 0) {
+    const soak = Math.min(e.shield, dmg);
+    e.shield -= soak; dmg -= soak;
+    emit(sim, 'shield_hit', { x: e.x, y: e.y, id: e.id, broke: e.shield <= 0 });
+  }
   e.hp -= dmg;
   e.hitT = 0.12;
   emit(sim, 'enemy_hit', { x: e.x, y: e.y, angle: ang, kind: e.kind, amount: Math.round(dmg), id: e.id });
@@ -1939,6 +2013,14 @@ function killEnemy(sim, e, ang) {
     if (sim.rng.chance(Math.min(0.9, 0.62 * md.luck))) {
       const shells = Object.keys(p.mags).some((g) => GUNS[g].ammo === 'shells') && sim.rng.chance(0.4);
       s.pickups.push({ id: s.nextId++, kind: 'ammo', ammo: shells ? 'shells' : 'cartridges', x: e.x + jit(), y: e.y + jit(), amount: shells ? sim.rng.int(3, 5) : sim.rng.int(6, 11) });
+    }
+  }
+  if (e.elite) {
+    const jit = () => sim.rng.range(-14, 14);
+    for (let k = 0; k < 3; k++) s.pickups.push({ id: s.nextId++, kind: 'cash', x: e.x + jit(), y: e.y + jit(), amount: sim.rng.int(4, 9) });
+    if (sim.rng.chance(0.3 / (1 + 1.5 * (s.drops || 0)))) { const d = rollDrop(sim, 1.5); if (d) dropItem(sim, e.x, e.y + 30, d); }
+    if (e.elite === 'volatile') {
+      s.bombs.push({ id: s.nextId++, owner: 'enemy', src: { kind: e.kind, name: 'a volatile ' + def.name }, x0: e.x, y0: e.y, x: e.x, y: e.y, t: 0, flight: 0.01, fuse: 0.75, r: 92, damage: 24, landed: false });
     }
   }
   if (flaring) emit(sim, 'toast', { text: 'Scout down before the flare went up.', tone: 'good' });
@@ -2038,7 +2120,7 @@ function burst(sim, b) {
 function bulletHits(sim, b, x0, y0, x1, y1) {
   const s = sim.state;
   const md = sim.cache.mods;
-  const boost = md.damage * (s.player.hp < s.player.maxHp / 2 ? md.berserk : 1);
+  const boost = md.damage * (s.dealDamage || 1) * (s.player.hp < s.player.maxHp / 2 ? md.berserk : 1);
   if (b.owner === 'player' || b.owner === 'echo') {
     for (const e of s.enemies) {
       if (e.dead || b.hit.includes(e.id)) continue;
@@ -2238,6 +2320,7 @@ function updateNight(sim) {
   if (!s.warned.dusk && tt >= dusk - 40) {
     s.warned.dusk = true;
     emit(sim, 'toast', { text: 'Lockdown in under a minute. Finish up and get out.', tone: 'warn' });
+    comms(sim, 'lockdown');
   }
   if (!s.warned.night && tt >= night) {
     s.warned.night = true;
@@ -2374,6 +2457,7 @@ function endExpedition(sim, outcome) {
     done: objectiveDone(s),
     carried: { loot: [...s.carried.loot.map((l) => ({ ...l })), ...(s.coin > 1 ? [{ name: 'Loose coin, at the fence rate', value: Math.floor(s.coin / 2) }] : [])], items: [...s.carried.items], effects: s.carried.effects },
     floor: s.floor,
+    logFound: Boolean(s.logFound), deals: s.deals || 0,
     carry: { hp: p.hp, mags: { ...p.mags }, gun: p.gun, relics: [...p.relics], pulses: p.pulses, ammo: { ...p.ammo }, bandages: p.bandages, dynamite: p.dynamite, coin: s.coin, kills: s.kills },
     relics: [...p.relics], guns: Object.keys(p.mags),
     burned: s.burned,
@@ -2419,6 +2503,8 @@ export function focusPrompt(sim) {
   else if (it.kind === 'board') label = 'Read the job board';
   else if (it.kind === 'ride') label = 'Take the lift out';
   else if (it.kind === 'grave') label = 'Read the name';
+  else if (it.kind === 'uplink') label = `Black-market uplink. Hold to take ${DEALS[it.deal]?.offer}; it costs ${DEALS[it.deal]?.cost}`;
+  else if (it.kind === 'log') label = 'Download the intake record';
   else label = 'Use';
   return {
     kind: it.kind, label, hold: it.duration > 0,

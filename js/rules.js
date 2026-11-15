@@ -11,7 +11,7 @@
 
 import {
   CHAPTERS, JOBS, GEAR, SUPPLIES, INVESTMENTS, TRAITS, PERKS, CLINIC_PRICE, GUNS, UPGRADES, AMMO, CARRY, ITEMS, SHOPS, TELEGRAMS,
-  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER, HERO,
+  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER, HERO, LOGS, COMMS,
 } from './content.js';
 import { makeRng, mixSeed } from './rng.js';
 
@@ -37,7 +37,7 @@ function shell() {
     seed: 1, rolls: 0, createdAt: Date.now(), cash: 0, prosperity: 0, rep: { meridian: 0, riders: 0 },
     investments: [], armory: { guns: [], upgrades: [] }, chapter: 0,
     character: null, candidates: null, fallen: [], bounty: null, plugins: [], deaths: 0,
-    ledger: [], ledgerSeq: 0, pendingChoice: null, activeExpedition: null, expeditionCount: 0, jobsDone: 0, jobsOnce: [],
+    ledger: [], ledgerSeq: 0, pendingChoice: null, activeExpedition: null, expeditionCount: 0, jobsDone: 0, jobsOnce: [], logs: [],
   };
 }
 
@@ -194,7 +194,7 @@ const bossLabel = (kind) => (kind === 'foreman' ? 'Kill Director Voss' : kind ==
 function floorConfig(base, floor, seed, pool) {
   const F = DESCENT.floors[floor - 1];
   return {
-    ...base, floor, seed: seed >>> 0, title: `${DESCENT.title}: floor ${floor}, ${F.name}`,
+    ...base, floor, seed: seed >>> 0, eliteChance: 0.08 + floor * 0.04, title: `${DESCENT.title}: floor ${floor}, ${F.name}`,
     level: { gen: 'descent', floor, seed: seed >>> 0, pool },
     objective: { kind: 'kill', enemy: F.boss, label: F.bossName ? `Kill ${F.bossName}` : bossLabel(F.boss), zone: '' },
   };
@@ -456,6 +456,7 @@ export function beginExpedition(c, missionId, seed) {
   const config = {
     mode: 'ride', expeditionId: id, missionId, seed: seed >>> 0, title: offer.title,
     intro: def.hint || def.brief,
+    comms: COMMS[kind === 'story' ? def.id : kind === 'descent' ? 'descent' : 'job'] || null,
     level: {
       ...def.level, seed: seed >>> 0, tier,
       threat: +((def.level.threat ?? 1) * (kind === 'job' ? 1 + tier * 0.07 : 1)).toFixed(3),
@@ -474,6 +475,8 @@ export function beginExpedition(c, missionId, seed) {
     bounty,
     sundownBonus: c.investments.includes('watchtower') ? 90 : 0,
     companion: c.investments.includes('deputy'),
+    // elites grow more common as the story goes on
+    eliteChance: Math.min(0.2, 0.05 + 0.018 * tierOf(c)),
   };
   if (kind === 'descent') return { ok: true, config: { ...floorConfig({ ...config, descent: true }, 1, seed, config.pool), intro: def.hint } };
   return { ok: true, config };
@@ -542,6 +545,11 @@ export function resolveExpedition(c, report) {
 
   if (report.outcome === 'extracted' || report.outcome === 'fled') {
     const kept = report.outcome === 'extracted';
+    // an intake record found and carried home goes in the journal: the next one in the story
+    if (kept && report.logFound && (c.logs || []).length < LOGS.length) {
+      c.logs = [...(c.logs || []), c.logs?.length ?? 0];
+      summary.lines.push({ label: `Intake record: ${LOGS[c.logs.length - 1].title}`, value: 'In your journal', tone: 'good' });
+    }
     const lootTotal = kept ? Math.round(loot.reduce((s, l) => s + (l.value | 0), 0) * (c.investments.includes('coachline') ? 1.2 : 1)) : 0;
     if (lootTotal > 0) {
       c.cash += lootTotal;
@@ -689,6 +697,7 @@ export function fromSavePayload(payload) {
   c.ledgerSeq = Math.max(num(raw.ledgerSeq, 0), ...c.ledger.map((e) => e.n), 0);
   c.expeditionCount = Math.max(0, Math.round(num(raw.expeditionCount, 0)));
   c.jobsDone = Math.max(0, Math.round(num(raw.jobsDone, 0)));
+  c.logs = Array.isArray(raw.logs) ? raw.logs.filter((n) => Number.isInteger(n) && n >= 0 && n < LOGS.length) : [];
   c.jobsOnce = Array.isArray(raw.jobsOnce) ? raw.jobsOnce.filter((j) => JOBS[j]?.once) : [];
   // a TIN rebuilt before the side jobs existed stays rebuilt
   if (c.investments.includes('deputy') && !c.jobsOnce.includes('tin_voice')) c.jobsOnce.push('tin_core', 'tin_servos', 'tin_voice');

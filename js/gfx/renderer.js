@@ -1,7 +1,7 @@
 // The third-person view: an over-the-shoulder camera on the 2D sim. The sim's
 // plane is the ground (sim x -> world x, sim y -> world z, 32 units = 1 m).
 // This module reads the sim and never writes it.
-import { TILE as TS, PX, ENEMIES, WEAPONS, GUNS, RELICS, JUMP, SOLID, OPAQUE, BLOCKS_SHOT, ITEMS } from '../content.js';
+import { TILE as TS, PX, ENEMIES, WEAPONS, GUNS, RELICS, JUMP, SOLID, OPAQUE, BLOCKS_SHOT, ITEMS, ELITES } from '../content.js';
 import { castRay, isVisible, visionRadius, nightFactor, darkness, clockTime, CLOCK, PLAYER, haunted, focusPrompt } from '../sim.js';
 import { buildWorld } from './world.js';
 import { createActors, LOOKS, drifterLook } from './actors.js';
@@ -297,6 +297,18 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
         g.add(mesh);
         o.spin = mesh;
       }
+    } else if (it.kind === 'uplink') {
+      // a street terminal with a pink screen: the black market
+      const t = assets.mesh('cyber/computer', 'street'); t.castShadow = true; g.add(t);
+      const scr = new THREE.Mesh(G.box, basic('#ff3fa4', { opacity: 0.9 }));
+      scr.scale.set(0.55, 0.4, 0.04); scr.position.set(0, 1.45, 0.42); g.add(scr);
+      const ring = new THREE.Mesh(G.ring, basic('#ff3fa4', { opacity: 0.7, side: THREE.DoubleSide })); ring.scale.setScalar(1.1); ring.position.y = 0.05; g.add(ring);
+      o.lamp = scr;
+    } else if (it.kind === 'log') {
+      // a data spike in the floor, glowing gold
+      const spike = new THREE.Mesh(G.crystal, new THREE.MeshBasicMaterial({ color: col('#ffd23f'), toneMapped: false }));
+      spike.scale.set(0.35, 0.8, 0.35); spike.position.y = 0.9; g.add(spike); o.spin = spike;
+      const ring = new THREE.Mesh(G.ring, basic('#ffd23f', { opacity: 0.7, side: THREE.DoubleSide })); ring.scale.setScalar(0.6); ring.position.y = 0.05; g.add(ring);
     } else if (it.kind === 'gun' || it.kind === 'relic' || it.kind === 'ware') {
       const tier = it.gun ? GUNS[it.gun].tier || 1 : it.relic ? RELICS[it.relic].tier : 1;
       const glow = it.heal ? '#ff6a6a' : ['', '#e8dcc0', '#7fe0ff', '#ff9af0'][tier];
@@ -753,6 +765,14 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           }
           emit(dust, { x: X, y: GUN_Y, z: Z, vy: 0.3, life: 0.8, size: 0.3, grow: 2.5, a: 0.4, color: '#b08660', drag: 3 });
           break;
+        case 'shield_hit': {
+          for (let i = 0; i < (e.broke ? 18 : 4); i++) emit(sparks, { x: X + (Math.random() - 0.5) * 0.6, y: 0.8 + Math.random() * 1.2, z: Z + (Math.random() - 0.5) * 0.6, vx: (Math.random() - 0.5) * 4, vy: Math.random() * 3, vz: (Math.random() - 0.5) * 4, life: 0.3, size: 0.12, color: '#3fe0ff' });
+          break;
+        }
+        case 'synergy': {
+          for (let i = 0; i < 40; i++) { const a = (i / 40) * Math.PI * 2; emit(sparks, { x: X, y: 1.2, z: Z, vx: Math.cos(a) * 5, vy: 1 + Math.random() * 2, vz: Math.sin(a) * 5, life: 0.6, size: 0.14, color: i % 2 ? '#ff3fa4' : '#3fe0ff' }); }
+          break;
+        }
         case 'enemy_hit': {
           r.hitMarker = 0.14;
           const a = actorOf(e.id);
@@ -880,6 +900,9 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
         case 'toast':
           toast(r, e.text, e.tone, e.long);
           break;
+        case 'comms':
+          r.comms = { who: e.who, text: e.text, age: 0, life: 4 + e.text.length * 0.045 };
+          break;
         case 'enter_zone':
           if (e.name) r.banner = { text: e.name.toUpperCase(), life: 2.6, max: 2.6 };
           break;
@@ -950,6 +973,24 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       const want = e.atk.phase === 'windup' || e.state === 'dash' ? e.atk.angle : e.facing;
       a.face = turn(a.face, want, dt * 12);
       actors.place(a, e.x * U, e.y * U, a.face);
+      if (e.elite && !a.eliteRing) {
+        // an elite wears its modifier: a ring at its feet, and a bubble while its shield holds
+        const c = ELITES[e.elite].colour;
+        a.eliteRing = new THREE.Mesh(G.ring, basic(c, { opacity: 0.85, side: THREE.DoubleSide, blending: THREE.AdditiveBlending }));
+        a.eliteRing.scale.setScalar(e.r * U * 1.9);
+        a.root.add(a.eliteRing);
+        if (e.elite === 'shielded') {
+          a.bubble = new THREE.Mesh(G.sphere, basic(c, { opacity: 0.18, blending: THREE.AdditiveBlending }));
+          a.bubble.scale.set(e.r * U * 2.2, e.r * U * 3.6, e.r * U * 2.2);
+          a.bubble.position.y = e.r * U * 2.6;
+          a.root.add(a.bubble);
+        }
+      }
+      if (a.eliteRing) {
+        a.eliteRing.position.y = 0.05;
+        a.eliteRing.material.opacity = 0.6 + Math.sin(r.time * 6 + e.id) * 0.25;
+        if (a.bubble) { a.bubble.visible = e.shield > 0; a.bubble.material.opacity = 0.08 + 0.2 * (e.shield / (e.shieldMax || 1)); }
+      }
       if (!far || (r.frame & 3) === 0) {
         actors.update(a, far ? dt * 4 : dt, {
           speed: Math.hypot(e.vx, e.vy) * U, armed: hot || e.atk.phase === 'windup',

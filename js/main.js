@@ -403,6 +403,9 @@ function dispatch(events) {
       case 'echo_shot': audio.play('echoShot'); break;
       case 'buddy_shot': audio.play('e_pistol', 0.5); break;
       case 'enemy_hit': audio.play('hit', 0.8); break;
+      case 'shield_hit': audio.play(e.broke ? 'zap' : 'graze', 0.6); break;
+      case 'synergy': audio.play('chapter'); break;
+      case 'wave': audio.play('alarm', 0.8); break;
       case 'target_hit': audio.play('target'); break;
       case 'enemy_killed': audio.play('kill'); if (e.boss) audio.play('extracted'); break;
       case 'player_hit': audio.play('hurt'); vibrate(30); break;

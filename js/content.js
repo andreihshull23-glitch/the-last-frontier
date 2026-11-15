@@ -109,6 +109,26 @@ export const RELICS = {
   second_wind: { name: 'Second wind', desc: 'Once per floor, a killing blow leaves you at 30 health instead.', mod: { revive: 1 }, tier: 3 },
 };
 
+/** Two relics that work together give a third effect on top. */
+export const SYNERGIES = {
+  ricochet_storm: { name: 'Ricochet storm', needs: ['rubber_slugs', 'ship_glass'], desc: 'Shots bounce once more and pierce once more.', mod: { bounce: 1, pierce: 1 } },
+  firehose: { name: 'Firehose', needs: ['hair_trigger', 'deep_pockets'], desc: 'A further 15% rate of fire.', mod: { rate: 1.15 } },
+  gunrunner: { name: 'Gunrunner', needs: ['quick_boots', 'ghost_step'], desc: 'Faster still, and dodges recover sooner.', mod: { speed: 1.08, dodge: 1.3 } },
+  leech: { name: 'Leech', needs: ['blood_tithe', 'berserk'], desc: 'Kills heal 4 more.', mod: { lifesteal: 4 } },
+  storm_caller: { name: 'Storm caller', needs: ['static_field', 'core_shard'], desc: 'Lightning arcs twice as often, and machines take more.', mod: { static: 1, robot: 1.2 } },
+  fortune: { name: 'Fortune', needs: ['lucky_coin', 'magnet_coil'], desc: 'Coins worth 50% more, drops more likely still.', mod: { coin: 1.5, luck: 1.3 } },
+  overdrive: { name: 'Overdrive', needs: ['overclock', 'twin_link'], desc: 'Reload and recharge 30% faster again.', mod: { reload: 1.3 } },
+  last_stand: { name: 'Last stand', needs: ['second_wind', 'scrap_plating'], desc: 'Take a further 15% less damage.', mod: { armour: 0.85 } },
+  glass_cannon: { name: 'Glass cannon', needs: ['hollow_point', 'berserk'], desc: '+20% damage.', mod: { damage: 1.2 } },
+};
+
+/** Elite enemies: a modifier, more health, better pickings. */
+export const ELITES = {
+  shielded: { name: 'Shielded', colour: '#3fe0ff', desc: 'A shield soaks damage until it breaks.' },
+  swift: { name: 'Swift', colour: '#ffd23f', desc: 'Moves and fires faster.' },
+  volatile: { name: 'Volatile', colour: '#ff5a3a', desc: 'Explodes when it dies. Step away.' },
+};
+
 /** The pulse: a charge that wipes enemy fire off the screen. */
 export const PULSE = { start: 2, radius: 760, stun: 2.2, knock: 320 };
 export const JUMP = { time: 0.52, low: 12, cost: 0, cooldown: 0.15 };
@@ -679,4 +699,94 @@ export const CRAWL = {
     'You are Rook. Deleted four years ago over a debt that was never yours. You take jobs for creds: out into the districts, down the shafts, and back before lockdown.',
     'Usually back.',
   ],
+};
+
+/**
+ * Black-market uplinks: one per level. Hold use to take the deal; walk away to refuse it.
+ * give/take are applied by the sim (takeDeal).
+ */
+export const DEALS = {
+  glass: { offer: 'a rare relic', cost: '30 maximum health, for the rest of the run', give: { relicLuck: 4 }, take: { maxHp: 30 } },
+  debt: { offer: 'a relic and 40 coin', cost: 'lockdown comes 90 seconds sooner', give: { relicLuck: 1.5, coin: 40 }, take: { clock: 90 } },
+  bait: { offer: 'full health and two pulse charges', cost: 'three elite hunters are sent after you, now', give: { heal: true, pulses: 2 }, take: { hunters: 3 } },
+  marked: { offer: 'double value from every cache', cost: 'every enemy that turns up from now on is likelier to be elite', give: { lootMul: 2 }, take: { elite: 0.3 } },
+  overclock: { offer: '+25% damage for the rest of the run', cost: 'you take 25% more damage', give: { damage: 1.25 }, take: { hurt: 1.25 } },
+};
+
+/** Intake records: one can be found on each run and read in the journal at home. They tell the story underneath the story. */
+export const LOGS = [
+  { title: 'Intake memo 0001', text: 'Per WARDEN recommendation, registry deletions will be routed to sublevel intake rather than released to the lower floors. Projected savings: considerable. Projected complaints: none, by definition.' },
+  { title: 'Foundry shift note', text: 'Line 4 cores came up warm again. The new ones hum. Nobody on the floor likes standing next to them. Requesting earplugs. Request denied: not in budget.' },
+  { title: 'Calloway shift, last entry', text: 'Sealed the lower gate at 0300. Forty of us went down to do it. The key is in the vault. Something on the other side of the gate knows our names now. It says them back, in the wrong order.' },
+  { title: 'Compliance query, A. Quill', text: 'Query: where do intake transfers go after sublevel 3? Response from WARDEN: Intake is a closed process. Query logged. Your diligence has been noted. (Compliance officer Quill was deleted from the registry eleven days later.)' },
+  { title: 'Site 9 lab note', text: 'The asset does not obey. It trades. Give it a person, and a core grown from it will make one machine obey WARDEN perfectly. The exchange rate is improving. Not for the people.' },
+  { title: 'Voss, personal log', text: 'Replaced the left hand today. It does not shake when I sign the intake orders. I keep the old one in a drawer. I am not sure why.' },
+  { title: 'Unlisted broadcast, unaired', text: 'If you are hearing this, the relays are down and the machines cannot hear you either. Talk to each other. Write down your names. Somebody has to remember them.' },
+  { title: 'Husk interview, partial', text: 'Q: What is your name? A: Shift begins at six. Q: Do you remember the deck? A: Shift begins at six. Q: Do you know where you are? A: Below. It is warm below. Shift begins.' },
+  { title: 'WARDEN, quarterly summary', text: 'Output: 104% of target. Headcount: 61% of target, trending down. Customer satisfaction: no customers responded. Recommendation: continue.' },
+  { title: 'Unsigned note, Mercy Deck', text: 'Rook came back again. Third time this month. The clinic says the plug-ins are holding. I say nobody comes back that often for the money. Ask what she is looking for. (Unsent.)' },
+];
+
+/**
+ * Comms: who talks in your ear during a run, and what they say. Keys are chapter ids, 'job', and
+ * 'descent'. Beats: start (a few seconds in), wave (the first ambush), objective (taken), lockdown
+ * (a minute left), extract (on the way out).
+ */
+export const COMMS = {
+  shipment: {
+    start: ['Quill', 'You are on the Slump feed now. The case is at the Saints\' camp. Do not open it. I mean that.'],
+    wave: ['Quill', 'They are coming out of the walls. That is the Saints. Machines would have been quieter.'],
+    objective: ['Quill', 'It is warm through the casing? Fine. Do not think about why. Get it to the lift.'],
+    extract: ['Quill', 'Good. Bring it to the customs hall and keep your hands off the seals.'],
+  },
+  courier: {
+    start: ['Nell', 'Teo went down by the old maglev stop. His satchel will still be on him. They never take the satchel. They do not read.'],
+    wave: ['Nell', 'Sentry units. First time they have come this far down. Somebody upstairs is paying attention.'],
+    objective: ['Nell', 'That is the plan of Site 9. Teo died for that paper. Do not let it be for nothing.'],
+    extract: ['Nell', 'Drinks are on June tonight. She does not know that yet.'],
+  },
+  site9: {
+    start: ['Nell', 'Site 9. A lab level with no floor number. Eli has the door codes. Eli wants you to know the codes are rude.'],
+    wave: ['Eli', 'Correction: the codes are rude AND expired. Apologies. Run.'],
+    objective: ['Quill', 'That ledger has my old department\'s stamp on every page. Bring it home. I need to read it twice.'],
+    extract: ['Quill', 'Somebody has to decide who reads that ledger. I would rather it was not me.'],
+  },
+  relays: {
+    start: ['Quill', 'Three relay masts. Overload them and a whole district stops hearing WARDEN. Tess wants the scrap.'],
+    wave: ['Tess', 'Lot of hardware coming at you. Try to leave me some of it in one piece.'],
+    extract: ['Eli', 'District gone quiet. Machines standing in the street like they forgot their lines. I have never been so happy.'],
+  },
+  mine: {
+    start: ['Quill', 'The Calloway shift sealed the gate and kept the key. Forty of them. None came up. Watch the dark.'],
+    wave: ['Nell', 'Something woke up down there. More than one something.'],
+    objective: ['Quill', 'The bore key. It is cold, is it not? Get it out of there before it gets colder.'],
+    extract: ['Quill', 'I put the names back on the Wall while you were down. All forty.'],
+  },
+  hollow: {
+    start: ['Nell', 'This is the Hollow. Keep moving. If you see yourself, do not stop to say hello.'],
+    wave: ['Eli', 'My sensors report: no. Just no. Turning them off for my own wellbeing.'],
+    objective: ['Nell', 'You have the shard. It will copy you now. Walk where you have not walked. Shoot where you have not shot.'],
+    extract: ['Nell', 'You came back. I had a bet with June. I am buying the drinks again.'],
+  },
+  foundry: {
+    start: ['Tess', 'The Overseer runs the whole line. Kill it and the foundry stops. I would love to see one up close. From a distance.'],
+    wave: ['Tess', 'Fresh off the line, those. Still warm. Shoot the joints.'],
+    extract: ['Quill', 'The line is quiet. First time in seven years. Listen to it.'],
+  },
+  foreman: {
+    start: ['Quill', 'Voss is at the freight depot. He signed every intake order in that ledger. End it.'],
+    wave: ['Voss', 'You are a rounding error, runner. I have deleted better.'],
+    extract: ['Quill', 'It is done. Come home, Rook.'],
+  },
+  job: {
+    start: ['Eli', 'Feed open. I will tell you if anything big is coming. I will probably tell you too late.'],
+    wave: ['Eli', 'Big things coming. As promised: late.'],
+    objective: ['Eli', 'Got it? Good. Now everybody else knows you have got it.'],
+    lockdown: ['Eli', 'Lockdown in a minute. The doors here will not wait for you.'],
+    extract: ['Eli', 'Signal clean. Welcome back, runner.'],
+  },
+  descent: {
+    start: ['Nell', 'The freight shaft. Every floor is worse than the last, and every floor pays. Do not get greedy.'],
+    wave: ['Nell', 'They seal the rooms behind you. So kill everything. Simple.'],
+  },
 };

@@ -1,6 +1,6 @@
 // Screen-space HUD drawn on a 2D canvas above the 3D view: objectives, map,
 // vitals, weapons, markers over things in the world, prompts and toasts.
-import { TILE as TS, PX, MACRO, ENEMIES, GUNS, GUN_ORDER, ITEMS, SOLID, ROCK, WATER, INDOOR, GROUND, RELICS } from './content.js';
+import { TILE as TS, PX, MACRO, ENEMIES, GUNS, GUN_ORDER, ITEMS, SOLID, ROCK, WATER, INDOOR, GROUND, RELICS, ELITES, SYNERGIES } from './content.js';
 import { PLAYER, CLOCK, clockTime, nightFactor, objectiveList, objectiveDone, unsecuredValue, focusPrompt, bossState, currentGun, angleDiff } from './sim.js';
 
 export const FONT_DISPLAY = '"Jersey 15", "Arial Narrow", "Helvetica Neue", sans-serif';
@@ -250,7 +250,18 @@ function drawWorldOverlays(r, ctx, sim, dt, b, ui) {
     if (!q.front) continue;
     const suspicious = e.suspicion > 0.05 && e.suspicion < 1 && e.state !== 'engage' && e.state !== 'dormant';
     let top = q.y;
-    if (visible && e.hp < e.maxHp && !def.boss && dist < 46) {
+    if (visible && e.elite && dist < 40) {
+      ctx.font = `700 11px ${FONT_MONO}`; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillText(ELITES[e.elite].name.toUpperCase(), q.x + 1, q.y - 9);
+      ctx.fillStyle = ELITES[e.elite].colour; ctx.fillText(ELITES[e.elite].name.toUpperCase(), q.x, q.y - 10);
+      top -= 12;
+    }
+    if (visible && e.shield > 0 && dist < 46) {
+      const bw = 38, f = clamp(e.shield / (e.shieldMax || 1), 0, 1);
+      ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(q.x - bw / 2 - 1, q.y + 2, bw + 2, 4);
+      ctx.fillStyle = '#3fe0ff'; ctx.fillRect(q.x - bw / 2, q.y + 3, bw * f, 2);
+    }
+    if (visible && (e.hp < e.maxHp || e.elite) && !def.boss && dist < 46) {
       const bw = 38, f = clamp(e.hp / e.maxHp, 0, 1);
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(q.x - bw / 2 - 1, q.y - 4, bw + 2, 6);
       ctx.fillStyle = def.ai === 'swarm' ? HOLLOW : BLOOD; ctx.fillRect(q.x - bw / 2, q.y - 3, bw * f, 4);
@@ -539,6 +550,32 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     label(ctx, `LEAVING · ${left2.toFixed(1)}s · STAY IN THE CIRCLE`, w / 2, by + 15, SAGE, `800 14px ${FONT_DISPLAY}`);
     ctx.fillStyle = 'rgba(169,201,143,0.25)'; ctx.fillRect(bx + 10, by + 22, bw - 20, 5);
     ctx.fillStyle = SAGE; ctx.fillRect(bx + 10, by + 22, (bw - 20) * (s.extract.t / PLAYER.extractTime), 5);
+  }
+
+  // comms: a voice in your ear, typed out, bottom left above the vitals
+  if (r.comms && !town) {
+    const cm = r.comms;
+    cm.age += dt;
+    if (cm.age > cm.life) r.comms = null;
+    else {
+      const a = clamp(Math.min(cm.age * 4, (cm.life - cm.age) * 2), 0, 1);
+      const shown = cm.text.slice(0, Math.floor(cm.age * 55));
+      const cw = Math.min(compact ? 300 : 380, w - 32);
+      ctx.font = `500 ${compact ? 11.5 : 12.5}px ${FONT_MONO}`;
+      const lines = wrap(ctx, cm.text, cw - 24);
+      const ch = 30 + lines.length * 16;
+      const cx = vitalsX, cy = (r.touch ? h * 0.42 : vitalsY - 46) - ch;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = 'rgba(10,9,24,0.86)'; ctx.fillRect(cx, cy, cw, ch);
+      ctx.fillStyle = LAMP; ctx.fillRect(cx, cy, 3, ch);
+      ctx.textAlign = 'left';
+      ctx.fillStyle = LAMP; ctx.font = `700 ${compact ? 12 : 13}px ${FONT_MONO}`;
+      ctx.fillText(`◉ ${cm.who.toUpperCase()} // COMMS`, cx + 12, cy + 18);
+      ctx.fillStyle = INK; ctx.font = `500 ${compact ? 11.5 : 12.5}px ${FONT_MONO}`;
+      let used = 0;
+      lines.forEach((l, i) => { const part = shown.slice(used, used + l.length + 1); used += l.length + 1; ctx.fillText(part, cx + 12, cy + 36 + i * 16); });
+      ctx.globalAlpha = 1;
+    }
   }
 
   // toasts

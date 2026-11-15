@@ -146,7 +146,7 @@ function lineUp(sim, kinds) {
   for (const e of live) { e.x = 60; e.y = 60; }
   return kinds.map((kind, i) => {
     const e = live[i];
-    e.kind = kind; e.hp = e.maxHp = 1000; e.r = ENEMIES[kind].radius;
+    e.kind = kind; e.hp = e.maxHp = 1000; e.r = ENEMIES[kind].radius; e.elite = null; e.shield = 0;
     e.x = p.x + 90 + i * 40; e.y = p.y;
     return e;
   });
@@ -363,4 +363,27 @@ test('walking into a place brings in its wave, once', () => {
   run(sim, 0.5, {});
   assert.equal(s.enemies.length >= before + L.waves[w].units.length, true);
   assert.equal(s.waves[w], true);
+});
+
+test('every black-market deal pays out and charges its price', async () => {
+  const { DEALS } = await import('../js/content.js');
+  for (const id of Object.keys(DEALS)) {
+    const c = campaign();
+    const { sim } = ride(c, R.availableMissions(c)[0].id);
+    const s = sim.state, p = s.player;
+    const up = s.interactables.find((i) => i.kind === 'uplink');
+    assert.ok(up, 'the district has an uplink');
+    up.deal = id;
+    for (const e of s.enemies) { e.x = 60; e.y = 60; }
+    const before = { maxHp: p.maxHp, clock: s.clockOffset, enemies: s.enemies.length, pulses: p.pulses, coin: s.coin };
+    p.x = up.x + 30; p.y = up.y;
+    for (let i = 0; i < 90 && !up.done; i++) update(sim, 1 / 60, { interactHeld: true });
+    assert.ok(up.done, `${id}: deal taken`);
+    const t = DEALS[id].take;
+    if (t.maxHp) assert.ok(p.maxHp < before.maxHp, id);
+    if (t.clock) assert.ok(s.clockOffset > before.clock, id);
+    if (t.hunters) assert.ok(s.enemies.filter((e) => e.elite).length >= 1, id);
+    if (t.elite) assert.ok(s.eliteBonus > 0, id);
+    if (t.hurt) assert.ok(s.dealHurt > 1, id);
+  }
 });
