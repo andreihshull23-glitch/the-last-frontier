@@ -162,8 +162,8 @@ function build(spec, seed) {
     } else if (r.role === 'camp') {
       paint(L, r.tx + 4, r.ty + 4, r.tx + r.tw - 5, r.ty + r.th - 5, GROUND.camp);
       campfire(L, cx, cz, true);
-      place(L, 'nat/bed_floor', cx - 2.6, cz - 1.6, { r: 0.6, s: 1.2, solid: false }); place(L, 'nat/bed_floor', cx + 2.4, cz - 2.2, { r: -0.5, s: 1.2, solid: false });
-      place(L, 'nat/bed_floor', cx - 1.8, cz + 2.6, { r: 2.2, s: 1.2, solid: false });
+      place(L, 'station/bed-single', cx - 2.6, cz - 1.6, { r: 0.6, s: 0.6, t: 'deckprop', solid: 'low' }); place(L, 'station/bed-single', cx + 2.4, cz - 2.2, { r: -0.5, s: 0.6, t: 'deckprop', solid: 'low' });
+      place(L, 'station/bed-single', cx - 1.8, cz + 2.6, { r: 2.2, s: 0.6, t: 'deckprop', solid: 'low' });
       crate(L, cx + 4.2, cz + 1.6, 0.4, 1.0); crate(L, cx + 4.4, cz + 2.7, 1.0, 0.7); barrel(L, cx - 4.6, cz + 0.6);
       for (const [u, v] of [[-2, 1.2], [2.2, 1], [0.4, -2.4], [3.6, -0.6], [-3.8, -2.2]]) posts.push({ x: P(cx + u), y: P(cz + v), faction: 'outlaw', depth: roomDepth(r) });
       caches.push({ x: P(cx - 4.6), y: P(cz - 2.6), tier: 1 });

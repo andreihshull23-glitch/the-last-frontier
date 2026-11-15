@@ -233,7 +233,7 @@ export function skinBlocks(L, rng, o = {}) {
       if (other === 0) {
         const roll = rng.next();
         const kind = roll < 0.12 ? 'scifi/wallband-straight-broken' : roll < 0.4 ? 'scifi/wallastra-straight-flat' : 'scifi/wallband-straight';
-        place(L, kind, cx + dx * M, cz + dy * M, { r: Math.atan2(-dy, dx), s: [1, 1.47, 1], t: o.tint || 'deckwall', solid: false, shade: 0.9 + rng.next() * 0.2 });
+        place(L, kind, cx + dx * M, cz + dy * M, { r: Math.atan2(-dy, dx), s: [1, 1.47, 1], t: o.tint || 'deckwall', solid: 'auto', shade: 0.9 + rng.next() * 0.2 });
         box(L, ex, 0, ez, along ? M : 0.2, LOW, along ? 0.2 : M, '#0e0f18');
         if (rng.chance(0.7)) glow(ex + dx * 0.16, LOW - 0.16, ez + dy * 0.16, along ? M : 0.07, 0.07, along ? 0.07 : M, neon);
         const fx = cx + dx * (M / 2 + 0.26), fz = cz + dy * (M / 2 + 0.26), face = Math.atan2(dx, dy);
@@ -275,7 +275,7 @@ function roundCorner(L, mx, my, r, rng) {
     }
   }
   for (const [tx, ty] of tiles) setTile(L, tx, ty, WALL | ROCK, 40);
-  place(L, 'cave/template-corner', cx, cz, { r, solid: false, shade: 0.95 + rng.next() * 0.1 });
+  place(L, 'cave/template-corner', cx, cz, { r, solid: 'wall', shade: 0.95 + rng.next() * 0.1 });
 }
 
 // ---- buildings -------------------------------------------------------------

@@ -25,9 +25,9 @@ export const THEMES = {
     ground: { ...BASE_GROUND, [G.sand]: [118, 98, 84], [G.trail]: [128, 108, 90], [G.rockfloor]: [104, 86, 76], [G.mine]: [112, 94, 80], [G.camp]: [96, 78, 66] },
     cap: [34, 28, 28], rockTint: 'mine', dark: true,
   },
-  works: { ground: { ...BASE_GROUND, [G.mine]: [128, 108, 92], [G.plank]: [150, 110, 72] }, cap: [44, 36, 34], rockTint: 'mine' },
-  foundry: { ground: BASE_GROUND, cap: [48, 40, 34], rockTint: null },
-  ship: { ground: BASE_GROUND, cap: [34, 35, 44], rockTint: null },
+  works: { ground: { ...CITY_GROUND, [G.deck]: [72, 60, 62], [G.grate]: [44, 36, 40], [G.plank]: [92, 80, 84] }, cap: [20, 14, 16], rockTint: 'mine' },
+  foundry: { ground: { ...CITY_GROUND, [G.deck]: [62, 70, 92], [G.grate]: [38, 42, 58] }, cap: [14, 16, 24], rockTint: null },
+  ship: { ground: { ...CITY_GROUND, [G.hull]: [52, 44, 72], [G.glow]: [150, 110, 255] }, cap: [16, 12, 24], rockTint: null },
   deck: {
     ground: CITY_GROUND,
     cap: [15, 16, 25], rockTint: null,
@@ -175,7 +175,7 @@ export function buildWorld(assets, L, opts = {}) {
   const glowM = new Merger(assets);
   for (const p of L.pieces) addPiece(p.glow ? glowM : sectorAt(p.x, p.z), p);
   if (!glowM.empty) {
-    const mesh = new THREE.Mesh(glowM.build(), new THREE.MeshBasicMaterial({ vertexColors: true }));
+    const mesh = new THREE.Mesh(glowM.build(), assets.glowMaterial());
     group.add(mesh);
   }
 

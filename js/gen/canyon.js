@@ -355,10 +355,18 @@ function post(ctx, p, F, u, v, faction, a = null) {
   ctx.posts.push({ x: P(F.X + u), y: P(F.Z + v), faction, a, poi: p.type });
 }
 function cacheAt(ctx, F, u, v, tier = 0) { ctx.caches.push({ x: P(F.X + u), y: P(F.Z + v), tier }); }
+/** A squatter's shack: a container with one side open, a tarp, a light. (Once a tent.) */
 function tent(L, x, z, r, kind = 0) {
-  if (kind === 0) place(L, 'forest/tent', x, z, { r, s: 1.0, t: 'canvas' });
-  else if (kind === 1) place(L, 'nat/tent_detailedOpen', x, z, { r, s: 1.15 });
-  else place(L, 'nat/tent_smallClosed', x, z, { r, s: 1.2 });
+  place(L, kind === 1 ? 'station/container-flat' : 'station/container-flat-open', x, z, { r, s: 0.85, t: kind === 2 ? 'tent_red' : 'deckprop' });
+  const g = box(L, x, 1.6, z, 0.06, 0.06, 1.8, ['#ff3fa4', '#3fe0ff', '#ffb43f'][kind % 3], { r }); g.glow = true;
+}
+/** Things that were wood and canvas once. */
+function cot(L, x, z, r) { place(L, 'station/bed-single', x, z, { r, s: 0.6, t: 'deckprop', solid: 'low' }); }
+function bench(L, x, z, r) { box(L, x, 0, z, 1.4, 0.45, 0.42, '#3a3e52', { r, c2: '#22252f', solid: true }); }
+function fence(L, x, z, r) { place(L, 'cyber/fence', x, z, { r, s: [2.2, 0.62, 1], t: 'street', solid: 'auto' }); }
+function sign(L, x, z, r) {
+  box(L, x, 0, z, 0.12, 2.0, 0.12, '#3a3e52', { c2: '#22252f', solid: true });
+  const p = place(L, 'cyber/sign-small-2', x, z, { y: 2.1, r, t: 'neonsign', solid: false }); p.glow = true;
 }
 function fenceLine(L, x0, z0, x1, z1, o = {}) {
   // a tall wire fence: you can see and shoot through it, but not walk through it
@@ -381,10 +389,10 @@ const BUILDERS = {
     const cx = F.W / 2, cz = F.D / 2;
     hitchRail(L, ...F.at(cx - 2.2, cz - 2.4), 0, 3);
     horse(L, ...F.at(cx - 2.2, cz - 1.3), Math.PI, '#7a4e30');
-    place(L, 'nat/sign', ...F.at(cx + 2.6, cz - 2.6), { r: 0.4 });
+    sign(L, ...F.at(cx + 2.6, cz - 2.6), 0.4);
     campfire(L, ...F.at(cx + 1.6, cz + 1.8), false);
-    place(L, 'nat/bed_floor', ...F.at(cx + 3.4, cz + 2.2), { r: 0.8, s: 1.2, solid: false });
-    place(L, 'nat/log', ...F.at(cx + 0.4, cz + 3.0), { r: 1.2, solid: false });
+    cot(L, ...F.at(cx + 3.4, cz + 2.2), 0.8);
+    bench(L, ...F.at(cx + 0.4, cz + 3.0), 1.2);
     return { name: 'Lift landing', startAt: F.sim(cx + 0.4, cz + 0.2), exitAt: F.sim(cx - 2.2, cz - 0.1) };
   },
   coach_stop({ L, rng }, p) {
@@ -394,7 +402,7 @@ const BUILDERS = {
     horse(L, ...F.at(cx + 3.4, cz - 1.75), Math.PI / 2, '#3b2a20', { saddle: false });
     horse(L, ...F.at(cx + 3.4, cz - 0.65), Math.PI / 2, '#8a5a36', { saddle: false });
     lampPost(L, ...F.at(cx - 3.2, cz + 1.4));
-    place(L, 'nat/sign', ...F.at(cx - 2.6, cz + 2.8), { r: -0.3 });
+    sign(L, ...F.at(cx - 2.6, cz + 2.8), -0.3);
     barrel(L, ...F.at(cx - 1.4, cz + 3.4)); crate(L, ...F.at(cx - 0.4, cz + 3.5), 0.3, 0.8);
     return { name: 'Tram stop', exitAt: F.sim(cx, cz + 1.5) };
   },
@@ -404,14 +412,14 @@ const BUILDERS = {
     const cx = F.W / 2, cz = F.D / 2;
     paint(L, p.tx + 6, p.ty + 5, p.tx + p.tw - 7, p.ty + p.th - 6, GROUND.camp);
     campfire(L, ...F.at(cx, cz), true);
-    for (let k = 0; k < 4; k++) { const a = k * 1.57 + 0.4; place(L, 'nat/log', ...F.at(cx + Math.cos(a) * 2.2, cz + Math.sin(a) * 2.2), { r: -a, solid: false, s: 1.2 }); }
+    for (let k = 0; k < 4; k++) { const a = k * 1.57 + 0.4; bench(L, ...F.at(cx + Math.cos(a) * 2.2, cz + Math.sin(a) * 2.2), -a + Math.PI / 2); }
     tent(L, ...F.at(cx - 6, cz - 4.2), 0.5, 0); tent(L, ...F.at(cx + 6.2, cz - 3.8), -0.6, 0);
     tent(L, ...F.at(cx - 6.4, cz + 3.6), 2.2, 1); tent(L, ...F.at(cx + 5.2, cz + 4.4), 3.6, 2);
     wagon(L, ...F.at(cx + 1.5, cz - 5.6), 1.3, { load: true });
     barrel(L, ...F.at(cx - 2.6, cz - 5.0)); barrel(L, ...F.at(cx - 3.4, cz - 5.3), { c: '#7a5a3a' });
     crate(L, ...F.at(cx + 7.6, cz + 0.8), 0.3, 1.0); crate(L, ...F.at(cx + 7.4, cz + 1.9), 0.9, 0.7);
     crate(L, ...F.at(cx - 8.2, cz - 0.6), 0.2, 0.9);
-    for (const [u, v, r] of [[cx - 3, cz + 6.8, 0], [cx, cz + 6.8, 0], [cx + 3, cz + 6.8, 0]]) if (rng.chance(0.7)) place(L, 'nat/fence_simple', ...F.at(u, v), { centre: true,  r });
+    for (const [u, v, r] of [[cx - 3, cz + 6.8, 0], [cx, cz + 6.8, 0], [cx + 3, cz + 6.8, 0]]) if (rng.chance(0.7)) fence(L, ...F.at(u, v), r);
     flag(L, ...F.at(cx + 0.9, cz - 2.2), 1.3, 'tent_red');
     for (const [u, v] of [[cx - 2.4, cz + 1.4], [cx + 2.6, cz + 1.2], [cx + 0.4, cz - 3.2], [cx - 5.2, cz - 1.2], [cx + 4.6, cz + 0.2], [cx - 1, cz + 5.2], [cx + 8, cz - 5], [cx - 8.4, cz + 5.6]]) post(ctx, p, F, u, v, 'outlaw');
     cacheAt(ctx, F, cx - 7.6, cz - 2.2, 1); cacheAt(ctx, F, cx + 7.4, cz - 1.6, 0);
@@ -424,22 +432,24 @@ const BUILDERS = {
     const barn = building(L, rng, { x: p.tx + 27, y: p.ty + 5, mw: 2, md: 2, style: 'red', doors: [{ side: 's', at: 0, wide: true }], windows: 0 });
     // inside the house
     const hx = metres(house.in.x0), hz = metres(house.in.y0);
-    place(L, 'nat/bed', hx + 1.0, hz + 1.3, { s: 1.1 });
+    cot(L, hx + 1.0, hz + 1.3, 0);
     table(L, hx + 5.2, hz + 2.2);
     shelfWall(L, hx + 6.4, hz + 0.34, 0, 2.6);
     // barn
     const bx = metres(barn.in.x0), bz = metres(barn.in.y0);
-    box(L, bx + 1.0, 0, bz + 1.0, 1.2, 0.8, 0.9, '#d9b443', { c2: '#b08a2e', solid: true });
-    box(L, bx + 4.4, 0, bz + 0.9, 1.2, 0.8, 0.9, '#d9b443', { c2: '#b08a2e', solid: true, r: 0.5 });
+    crate(L, bx + 1.0, bz + 1.0, 0, 1.0); crate(L, bx + 4.4, bz + 0.9, 0.5, 0.9);
     // the field
     const fx0 = p.tx + 5, fy0 = p.ty + 25, fx1 = p.tx + 23, fy1 = p.ty + 30;
     paint(L, fx0, fy0, fx1, fy1, GROUND.field);
-    const crop = rng.chance(0.5) ? 'nat/crops_cornStageD' : 'nat/crops_wheatStageB';
-    for (let ty = fy0 + 1; ty <= fy1; ty += 2) for (let tx = fx0 + 1; tx <= fx1; tx += 2) {
-      if (rng.chance(0.82)) place(L, crop, centreM(tx), centreM(ty), { solid: false, r: rng.next() * 6, s: 0.8 + rng.next() * 0.4 });
+    // grow beds under lamps: long troughs, lit green, with walkways between
+    for (let ty = fy0 + 1; ty <= fy1 - 1; ty += 3) {
+      const x0 = metres(fx0) + 0.6, x1 = metres(fx1 + 1) - 0.6, z = centreM(ty);
+      box(L, (x0 + x1) / 2, 0, z, x1 - x0, 0.7, 0.7, '#2a2d40', { c2: '#1a1c2a', solid: true });
+      const g = box(L, (x0 + x1) / 2, 0.7, z, x1 - x0 - 0.1, 0.06, 0.56, '#5dff9a'); g.glow = true;
+      for (let x = x0 + 0.4; x < x1 - 0.2; x += 0.55) box(L, x, 0.76, z, 0.3, 0.28 + rng.next() * 0.2, 0.3, rng.chance(0.5) ? '#3f8a4a' : '#2f6e3a');
     }
-    for (let k = 0; k < 4; k++) place(L, 'nat/crop_pumpkin', ...F.at(13.2 + k * 0.9, 14.4 + (k % 2) * 0.5), { solid: false, s: 0.9 });
-    for (let u = metres(fx0) - 0.3; u < metres(fx1 + 1); u += 3) place(L, 'nat/fence_simple', u + 1.5, metres(fy0) - 0.6, { centre: true, });
+    L.lights.push({ x: metres((fx0 + fx1) / 2), y: 1.6, z: metres((fy0 + fy1) / 2), c: [0.4, 1, 0.6], r: 9, kind: 'neon' });
+    for (let u = metres(fx0) - 0.3; u < metres(fx1 + 1); u += 3) fence(L, u + 1.5, metres(fy0) - 0.6, 0);
     well(L, ...F.at(16.8, 12.4));
     trough(L, ...F.at(18.9, 10.3), 1.57);
     barrel(L, ...F.at(1.2, 8.2));
@@ -492,7 +502,7 @@ const BUILDERS = {
     cyl(L, lx + 10.2, 0, lz + 1.6, 0.55, 1.5, '#8b6fb5', { c2: '#4a3a6a', solid: true, seg: 8 });   // a specimen tank
     L.lights.push({ x: lx + 10.2, y: 1.2, z: lz + 1.6, c: [0.6, 0.45, 1], r: 6, kind: 'glow' });
     const bx = metres(bar.in.x0), bz = metres(bar.in.y0);
-    place(L, 'nat/bed', bx + 0.9, bz + 1.2, { s: 1.0 }); place(L, 'nat/bed', bx + 2.4, bz + 1.2, { s: 1.0 }); place(L, 'nat/bed', bx + 3.9, bz + 1.2, { s: 1.0 });
+    cot(L, bx + 0.9, bz + 1.2, 0); cot(L, bx + 2.4, bz + 1.2, 0); cot(L, bx + 3.9, bz + 1.2, 0);
     // watch tower and yard clutter
     const tx = F.X + x1 - 3.2, tz = F.Z + z1 - 3.4;
     place(L, 'forest/building-structure', tx, tz, { s: 1.2, t: 'dark' });
@@ -512,8 +522,8 @@ const BUILDERS = {
     // sandbag walls
     for (const [u, v, r, len] of [[5, 11.4, 0, 3.2], [11.6, 11.8, 0.3, 2.8], [12.8, 6.4, 1.57, 3]]) {
       const [bx, bz] = F.at(u, v);
-      box(L, bx, 0, bz, len, 0.5, 0.7, '#b8a888', { r, c2: '#8a7a5e', solid: true });
-      box(L, bx, 0.5, bz, len - 0.4, 0.4, 0.55, '#c4b494', { r, c2: '#9a8a6e' });
+      box(L, bx, 0, bz, len, 0.9, 0.6, '#3a3e52', { r, c2: '#22252f', solid: true });
+      const g = box(L, bx, 0.9, bz, len, 0.04, 0.64, '#ff5a3a', { r }); g.glow = true;
     }
     const [tx, tz] = F.at(12.6, 3.4);
     place(L, 'forest/building-structure', tx, tz, { s: 1.2, t: 'dark' });
@@ -602,7 +612,7 @@ const BUILDERS = {
     const cx = F.W / 2, cz = F.D / 2;
     tent(L, ...F.at(cx - 2.6, cz - 1.6), 0.6, 2); tent(L, ...F.at(cx + 2.4, cz - 2), -0.4, 1);
     campfire(L, ...F.at(cx, cz + 0.8), false);
-    crate(L, ...F.at(cx + 3, cz + 1.8), 0.4, 0.8); place(L, 'nat/bed_floor', ...F.at(cx - 2.2, cz + 2.4), { r: 2, s: 1.2, solid: false });
+    crate(L, ...F.at(cx + 3, cz + 1.8), 0.4, 0.8); cot(L, ...F.at(cx - 2.2, cz + 2.4), 2);
     L.lights.push({ x: F.X + cx + 3, y: 1.0, z: F.Z + cz + 1.8, c: hollow ? [0.6, 0.5, 1] : [1, 0.7, 0.4], r: 7, kind: 'lantern' });
     post(ctx, p, F, cx - 0.6, cz + 2.6, 'hollow');
     cacheAt(ctx, F, cx + 0.6, cz - 1.8, 1); cacheAt(ctx, F, cx - 3.6, cz + 0.6, 0);

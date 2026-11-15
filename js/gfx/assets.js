@@ -223,6 +223,12 @@ export function createAssets() {
     if (!glass) glass = patch(new (T().MeshLambertMaterial)({ vertexColors: true, transparent: true, opacity: 0.38, depthWrite: false }));
     return glass;
   }
+  /** Unlit, for neon and screens: the same sRGB handling as everything else, no shading. */
+  let glow = null;
+  function glowMaterial() {
+    if (!glow) glow = patch(new (T().MeshBasicMaterial)({ vertexColors: true }));
+    return glow;
+  }
   function makeMaterial(opts) { return patch(new (T().MeshLambertMaterial)({ vertexColors: true, ...opts })); }
 
   function mesh(name, tint) {
@@ -234,7 +240,7 @@ export function createAssets() {
   function clips() { return packs.get('chr').json.clips; }
   function names(id) { return Object.keys(packs.get(id).json.models).map((k) => id + '/' + k); }
 
-  return { load, has, raw, people, tint: (name) => tints.get(name), colors, geometry, mesh, registerTint, worldMaterial, skinnedMaterial, glassMaterial, makeMaterial, rig, clips, names, packs };
+  return { load, has, raw, people, tint: (name) => tints.get(name), colors, geometry, mesh, registerTint, worldMaterial, skinnedMaterial, glassMaterial, glowMaterial, makeMaterial, rig, clips, names, packs };
 }
 
 // ---- merging ---------------------------------------------------------------

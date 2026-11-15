@@ -82,11 +82,11 @@ export const LOOKS = {
 };
 // One runner. The index is kept for old saves; everybody is Rook now.
 const DRIFTER_BODIES = [['man', 'Swat', null, null]];
-export function drifterLook(index, gear = []) {
+export function drifterLook(index, gear = [], plugin = null) {
   const n = DRIFTER_BODIES.length;
   const i = ((index % n) + n) % n;
   const [fam, model, tint, h] = DRIFTER_BODIES[i];
-  return { fam, model, tint, hat: h ? hat(h) : null, key: 'drifter' + i };
+  return { fam, model, tint, hat: h ? hat(h) : null, plugin, key: 'drifter' + i + (plugin ? '|' + plugin : '') };
 }
 
 function registerCharacterTints(assets) {
@@ -324,8 +324,161 @@ export function createActors(assets) {
       gun: null, gunKind: null, speed: 0, shootT: 9, meleeT: 9, oneShot: null, oneT: 0,
       dead: false, deadT: 0, roll: 0, flash: 0, face: undefined,
     };
+    if (look.plugin && !opts.ghost) addPlugin(a, look.plugin);
     if (look.gun) setGun(a, look.gun);
     return a;
+  }
+
+  // Guns held in one hand. Everything longer is shouldered and steadied with the left hand.
+  const ONE_HAND = /^(qg\/(Revolver|Pistol)|gun\/blaster-[bikow])/;
+  const twoHanded = (kind) => !ONE_HAND.test(kind);
+  const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), qc = new THREE.Quaternion();
+  const va = new THREE.Vector3(), vb = new THREE.Vector3(), vc = new THREE.Vector3(), vd = new THREE.Vector3(), ve = new THREE.Vector3();
+  /** Turn a bone by a rotation given in world space. */
+  function rotateWorld(bone, q) {
+    bone.getWorldQuaternion(qa);
+    bone.parent.getWorldQuaternion(qb);
+    bone.quaternion.copy(qb.invert().multiply(q.clone().multiply(qa)));
+    bone.updateMatrixWorld(true);
+  }
+  /**
+   * Two-bone reach: bend upper and lower so that `end` lands on `target`, the elbow bending toward
+   * `pole`. All positions are in the figure's space (the figure stands at the origin).
+   */
+  function reach(upper, lower, end, target, pole) {
+    const A = upper.getWorldPosition(new THREE.Vector3()), B = lower.getWorldPosition(new THREE.Vector3()), C = end.getWorldPosition(new THREE.Vector3());
+    const l1 = A.distanceTo(B), l2 = B.distanceTo(C);
+    const toT = vd.copy(target).sub(A);
+    const d = Math.min(toT.length(), (l1 + l2) * 0.999), dir = toT.normalize();
+    const cosA = Math.max(-1, Math.min(1, (l1 * l1 + d * d - l2 * l2) / (2 * l1 * d)));
+    const u = ve.copy(pole).addScaledVector(dir, -pole.dot(dir)).normalize();
+    const elbow = A.clone().addScaledVector(dir, l1 * cosA).addScaledVector(u, l1 * Math.sqrt(1 - cosA * cosA));
+    rotateWorld(upper, qc.setFromUnitVectors(va.copy(B).sub(A).normalize(), vb.copy(elbow).sub(A).normalize()));
+    const B2 = lower.getWorldPosition(new THREE.Vector3()), C2 = end.getWorldPosition(new THREE.Vector3());
+    const goal = A.clone().addScaledVector(dir, d);
+    rotateWorld(lower, qc.setFromUnitVectors(va.copy(C2).sub(B2).normalize(), vb.copy(goal).sub(B2).normalize()));
+  }
+  const boneOf = (a, name) => { const i = a.rig.findIndex((b) => b.name === name); return i >= 0 ? a.bones[i] : null; };
+  /** Shoulder the gun: both arms reach for it. Returns false when this rig has no left arm to use. */
+  function shoulder(a, kind) {
+    const fam = a.look.fam;
+    if (fam !== 'man' && fam !== 'woman' && !(fam === 'cyber' && a.look.model === 'Character')) return false;
+    const uR = boneOf(a, 'UpperArm.R'), lR = boneOf(a, 'LowerArm.R'), uL = boneOf(a, 'UpperArm.L'), lL = boneOf(a, 'LowerArm.L');
+    const eL = boneOf(a, 'Wrist.L') || boneOf(a, 'Hand.L');
+    if (!uR || !lR || !uL || !lL || !eL) return false;
+    const sR = uR.getWorldPosition(new THREE.Vector3()), sL = uL.getWorldPosition(new THREE.Vector3());
+    const span = sR.distanceTo(sL), side = Math.sign(sR.x - sL.x) || -1, s = a.scale;
+    // the grip sits in front of the right shoulder, a little in toward the chest and below it
+    const grip = new THREE.Vector3(sR.x - side * span * 0.3, sR.y - 0.1 * s, sR.z + 0.2 * s);
+    reach(uR, lR, a.hand, grip, new THREE.Vector3(side * 0.7, -1, -0.2));
+    const blaster = kind.startsWith('gun/');
+    const box = blaster ? MODEL_BOX[kind] : assets.raw(kind).bb;
+    const sz = blaster ? 0.66 : 1;
+    const front = Math.max(0.12, box[5] * sz * s);
+    // the support hand goes as far up the gun as this arm will reach
+    const armLen = uL.getWorldPosition(va).distanceTo(lL.getWorldPosition(vb)) + lL.getWorldPosition(vb).distanceTo(eL.getWorldPosition(vc));
+    const fore = new THREE.Vector3(grip.x, grip.y + (blaster ? 0.02 : 0.0) * s, grip.z);
+    for (let t = Math.min(0.42 * s, front * 0.62); t >= 0.08 * s; t -= 0.01 * s) {
+      fore.z = grip.z + t;
+      if (fore.distanceTo(sL) <= armLen * 0.97) break;
+    }
+    reach(uL, lL, eL, fore, new THREE.Vector3(-side * 0.6, -1, -0.3));
+    return true;
+  }
+  /** Copy the arm bones' current rotations into a pose. */
+  function readArms(a, pose) {
+    for (const b of a.armIdx) { const q = a.bones[b].quaternion, o = b * 7 + 3; pose[o] = q.x; pose[o + 1] = q.y; pose[o + 2] = q.z; pose[o + 3] = q.w; }
+  }
+
+  // ---- plug-ins you can see ---------------------------------------------------
+  // Each fitted plug-in shows as hardware on the body: lit parts drawn unshaded, plate drawn shaded.
+  // Parts are laid out on the rest pose in the figure's own space (metres, facing +z, right hand at -x),
+  // then parented to a bone so they move with it.
+  const glowMat = new Map(), plateMat = new THREE.MeshLambertMaterial({ color: new THREE.Color(0x2a2c38).convertSRGBToLinear() });
+  const glowOf = (c) => { if (!glowMat.has(c)) glowMat.set(c, new THREE.MeshBasicMaterial({ color: new THREE.Color(c).convertSRGBToLinear() })); return glowMat.get(c); };
+  const UP = new THREE.Vector3(0, 1, 0);
+  function partOn(a, boneName, geo, mat, at, q = null) {
+    const bone = boneOf(a, boneName);
+    if (!bone) return;
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.matrixAutoUpdate = false;
+    const want = new THREE.Matrix4().compose(at, q || new THREE.Quaternion(), new THREE.Vector3(1, 1, 1));
+    mesh.matrix.copy(bone.matrixWorld).invert().multiply(want);
+    mesh.castShadow = mat === plateMat;
+    bone.add(mesh);
+    (a.parts = a.parts || []).push(mesh);
+  }
+  /** A bar laid along a limb, from t0 to t1 of the way between two bones, pushed out by `off`. */
+  function along(a, from, to, t0, t1, w, mat, off = new THREE.Vector3()) {
+    const A = boneOf(a, from), B = boneOf(a, to);
+    if (!A || !B) return;
+    const pa = A.getWorldPosition(new THREE.Vector3()), pb = B.getWorldPosition(new THREE.Vector3());
+    const d = pb.clone().sub(pa), len = d.length() * (t1 - t0);
+    const mid = pa.clone().addScaledVector(d, (t0 + t1) / 2).add(off);
+    partOn(a, from, new THREE.BoxGeometry(w, len, w), mat, mid, new THREE.Quaternion().setFromUnitVectors(UP, d.normalize()));
+  }
+  function ring(a, from, to, t, r, c) {
+    const A = boneOf(a, from), B = boneOf(a, to);
+    if (!A || !B) return;
+    const pa = A.getWorldPosition(new THREE.Vector3()), pb = B.getWorldPosition(new THREE.Vector3());
+    const d = pb.clone().sub(pa);
+    partOn(a, from, new THREE.CylinderGeometry(r, r, 0.018, 12, 1, true), glowOf(c), pa.clone().addScaledVector(d, t), new THREE.Quaternion().setFromUnitVectors(UP, d.normalize()));
+  }
+  function boxAt(a, boneName, ref, off, size, mat) {
+    const R = boneOf(a, ref);
+    if (!R) return;
+    partOn(a, boneName, new THREE.BoxGeometry(size[0], size[1], size[2]), mat, R.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(...off)));
+  }
+  const PLUGIN_PARTS = {
+    nighteyes(a) { // a visor across the eyes
+      // over the helmet's own visor: a lit slit, and a lens unit at each temple
+      boxAt(a, 'Head', 'Head', [0, 0.115, 0.17], [0.2, 0.022, 0.012], glowOf(0x3fe0ff));
+      for (const x of [-0.13, 0.13]) boxAt(a, 'Head', 'Head', [x, 0.115, 0.1], [0.04, 0.06, 0.08], plateMat);
+    },
+    steady(a) { // a targeting eyepiece and its aerial
+      boxAt(a, 'Head', 'Head', [-0.055, 0.115, 0.172], [0.05, 0.05, 0.012], glowOf(0xff3a3a));
+      boxAt(a, 'Head', 'Head', [-0.135, 0.13, 0.04], [0.04, 0.08, 0.09], plateMat);
+      boxAt(a, 'Head', 'Head', [-0.14, 0.21, 0.03], [0.012, 0.1, 0.012], glowOf(0xff3a3a));
+    },
+    fleet(a) { // servo struts down the backs of the calves
+      for (const s of ['L', 'R']) {
+        along(a, 'LowerLeg.' + s, 'Foot.' + s, 0.1, 0.85, 0.04, plateMat, new THREE.Vector3(0, 0, -0.07));
+        along(a, 'LowerLeg.' + s, 'Foot.' + s, 0.15, 0.8, 0.016, glowOf(0xffb43f), new THREE.Vector3(0, 0, -0.095));
+      }
+    },
+    leather(a) { // plates on the shoulders and chest, with lit seams
+      for (const s of ['L', 'R']) {
+        along(a, 'UpperArm.' + s, 'LowerArm.' + s, 0.05, 0.6, 0.15, plateMat);
+        ring(a, 'UpperArm.' + s, 'LowerArm.' + s, 0.72, 0.075, 0x3fe0ff);
+      }
+      boxAt(a, 'Chest', 'Chest', [0, 0.06, 0.115], [0.22, 0.14, 0.03], plateMat);
+      boxAt(a, 'Chest', 'Chest', [0, 0.06, 0.132], [0.18, 0.012, 0.006], glowOf(0x3fe0ff));
+    },
+    scavenger(a) { // a scanner on the left forearm
+      along(a, 'LowerArm.L', 'Wrist.L', 0.3, 0.92, 0.13, plateMat);
+      const A = boneOf(a, 'LowerArm.L'), B = boneOf(a, 'Wrist.L');
+      if (A && B) { const pa = A.getWorldPosition(new THREE.Vector3()), pb = B.getWorldPosition(new THREE.Vector3()); partOn(a, 'LowerArm.L', new THREE.BoxGeometry(0.11, 0.014, 0.08), glowOf(0x5dff9a), pa.lerp(pb, 0.62).add(new THREE.Vector3(0, 0.068, 0))); }
+    },
+    loader(a) { // coils round the right forearm
+      for (const t of [0.35, 0.55, 0.75]) ring(a, 'LowerArm.R', 'Wrist.R', t, 0.072, 0xff3fa4);
+    },
+    coolhead(a) { // a cooling pack on the back, piped to the neck
+      boxAt(a, 'Chest', 'Chest', [0, 0.02, -0.13], [0.17, 0.2, 0.07], plateMat);
+      for (const x of [-0.05, 0.05]) boxAt(a, 'Chest', 'Chest', [x, 0.02, -0.168], [0.02, 0.16, 0.008], glowOf(0x6fa8ff));
+      boxAt(a, 'Neck', 'Neck', [0, 0.0, -0.08], [0.06, 0.08, 0.03], plateMat);
+    },
+    powder(a) { // charges racked across the chest
+      for (const x of [-0.07, 0, 0.07]) {
+        boxAt(a, 'Chest', 'Chest', [x, -0.04, 0.125], [0.045, 0.09, 0.04], plateMat);
+        boxAt(a, 'Chest', 'Chest', [x, 0.01, 0.135], [0.03, 0.012, 0.03], glowOf(0xffb43f));
+      }
+    },
+  };
+  function addPlugin(a, id) {
+    a.root.updateMatrixWorld(true);
+    // every runner carries the jack the plug-ins go into
+    boxAt(a, 'Neck', 'Neck', [0, 0.01, -0.075], [0.035, 0.035, 0.02], glowOf(0x3fe0ff));
+    PLUGIN_PARTS[id]?.(a);
   }
 
   /** Put a gun in the right hand so that it points straight ahead in the aiming pose. */
@@ -345,6 +498,8 @@ export function createActors(assets) {
     sample(a, aim.clip, aim.hold !== null ? aim.hold * aim.clip.dur : 0, false, a.target);
     applyPose(a, a.target);
     a.root.updateMatrixWorld(true);
+    a.twoHands = twoHanded(kind) && shoulder(a, kind);
+    if (a.twoHands) { readArms(a, a.target); a.root.updateMatrixWorld(true); }
     const handW = a.hand.matrixWorld;
     const p = new THREE.Vector3().setFromMatrixPosition(handW);
     const s = a.scale;

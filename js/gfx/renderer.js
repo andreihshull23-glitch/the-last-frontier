@@ -355,10 +355,10 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
   function ensurePlayer(sim) {
     const W = r.world, s = sim.state;
     const ch = s.config.character;
-    const key = `${ch.look}|${ch.gear.join(',')}`;
+    const key = `${ch.look}|${ch.gear.join(',')}|${ch.trait || ''}`;
     if (!W.player || W.player.key !== key) {
       if (W.player) actors.dispose(W.player);
-      W.player = actors.make(drifterLook(ch.look ?? 0, ch.gear), { player: true });
+      W.player = actors.make(drifterLook(ch.look ?? 0, ch.gear, ch.trait || null), { player: true });
       W.player.key = key;
       W.group.add(W.player.root);
     }

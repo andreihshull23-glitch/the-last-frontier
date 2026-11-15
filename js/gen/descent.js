@@ -10,26 +10,29 @@ import { TM } from './common.js';
 const P = (m) => m * PX;
 const TAU = Math.PI * 2;
 const M = MACRO * TM; // one cell is 4 m
+/** A box drawn unlit: neon. */
+function glowBox(L, ...a) { const p = box(L, ...a); p.glow = true; return p; }
 
 /** Colours and light for each floor. */
-// The look is a frontier one first: timber, rust and lantern light. The machines and the ship show
-// through it more the deeper you go, as dull copper trim on floor two and a dim glow on floor three.
+// Three floors below the deck. The Lower Works is the Saints' ground: rusted plate, sodium lamps and
+// their pink paint. The Foundry is Meridian's own line, clean steel under white strip light. The Hull
+// is where the Hollow has got into the metal, and everything glows violet.
 export const FLOOR_LOOK = {
   works: {
-    floor: GROUND.mine, wall: null, trim: '#7a5236', cover: '#8a6a4e', cover2: '#5c4632', pillar: '#6e4a30', lamp: [1, 0.74, 0.4], lampBox: '#f2c46a', timber: '#7a5236',
-    ambient: { sky: '#8a7a6a', ground: '#5a4636', hemi: 0.7, sun: '#ffd9a8', sunI: 0.42, fog: '#1c1612', near: 26, far: 90 },
+    floor: GROUND.deck, stripe: GROUND.grate, wall: '#3a2a26', wall2: '#1c1416', trim: '#ff3fa4', cover: '#3a3038', cover2: '#1e1a22', pillar: '#3a2e30',
+    lamp: [1, 0.62, 0.5], lampBox: '#ffc890', frame: '#2c2428', neon: '#ff3fa4', neon2: '#ffb43f', wallTint: 'workswall',
+    ambient: { sky: '#8a6a6a', ground: '#3a2830', hemi: 0.66, sun: '#ffc08a', sunI: 0.36, fog: '#140d10', near: 24, far: 88 },
   },
   foundry: {
-    // riveted iron plate gone to rust, shored with timber
-    floor: GROUND.deck, stripe: GROUND.grate, wall: '#6a5446', wall2: '#3a2e26', trim: '#8a6240', cover: '#8a6a4e', cover2: '#4a382c', pillar: '#5a483c', lamp: [1, 0.7, 0.38], lampBox: '#f0b860', timber: '#6e4a30',
-    rivets: '#8a7060', glowEvery: 0, wallTint: 'rustwall', machines: true,
-    ambient: { sky: '#9a8a78', ground: '#4a3c30', hemi: 0.74, sun: '#ffd9a8', sunI: 0.42, fog: '#191411', near: 26, far: 92 },
+    floor: GROUND.deck, stripe: GROUND.grate, wall: '#2e3446', wall2: '#151926', trim: '#3fe0ff', cover: '#384058', cover2: '#1a1e2c', pillar: '#2e3446',
+    lamp: [0.8, 0.92, 1], lampBox: '#e8f4ff', frame: '#262c3c', neon: '#3fe0ff', neon2: '#dfe8ff', wallTint: 'deckwall', machines: true,
+    ambient: { sky: '#7a88b0', ground: '#2a3040', hemi: 0.7, sun: '#cfe0ff', sunI: 0.4, fog: '#0c0f18', near: 26, far: 92 },
   },
   ship: {
-    // the hull itself: dark ribbed metal, with the miners' timber and lanterns strung through it
-    floor: GROUND.hull, stripe: GROUND.glow, wall: '#3c3e4c', wall2: '#22232e', trim: '#4f9aa6', cover: '#6a5a4a', cover2: '#3a3028', pillar: '#44465a', lamp: [1, 0.74, 0.42], lampBox: '#f0b860', timber: '#6e4a30',
-    rivets: '#55586a', glowEvery: 3, glow: [0.45, 0.85, 0.95], wallTint: 'hullwall',
-    ambient: { sky: '#8088a0', ground: '#3a3440', hemi: 0.72, sun: '#e8dcc8', sunI: 0.38, fog: '#121218', near: 26, far: 92 },
+    floor: GROUND.hull, stripe: GROUND.glow, wall: '#2c2640', wall2: '#140f20', trim: '#a070ff', cover: '#342c48', cover2: '#1a1426', pillar: '#2c2640',
+    lamp: [0.7, 0.55, 1], lampBox: '#c8a8ff', frame: '#241e34', neon: '#a070ff', neon2: '#5dff9a', wallTint: 'hullwall',
+    glowEvery: 3, glow: [0.6, 0.45, 1],
+    ambient: { sky: '#7a70a8', ground: '#2a2238', hemi: 0.7, sun: '#d8c8ff', sunI: 0.34, fog: '#0d0a16', near: 26, far: 92 },
   },
 };
 
@@ -56,6 +59,8 @@ function build(spec, seed) {
   L.seed = seed;
   L.rock.fill(1);
   const open = (x, y) => { if (x >= 1 && y >= 1 && x < mw - 1 && y < mh - 1) L.rock[y * mw + x] = 0; };
+
+  const glow = (...a) => glowBox(L, ...a);
 
   // ---- rooms ---------------------------------------------------------------------
   const rooms = [];
@@ -110,8 +115,7 @@ function build(spec, seed) {
 
   // ---- walls ---------------------------------------------------------------------------
   for (const r of rooms) { r.tx = r.x * MACRO; r.ty = r.y * MACRO; r.tw = r.w * MACRO; r.th = r.h * MACRO; reserve(L, r.tx, r.ty, r.tx + r.tw - 1, r.ty + r.th - 1); }
-  if (!look.wall) skinRock(L, rng, { tiers: false, roundChance: 0.3 });
-  else {
+  {
     // built walls: flat panels with a lit strip, instead of rock
     for (let my = 0; my < mh; my++) for (let mx = 0; mx < mw; mx++) {
       if (!L.rock[my * mw + mx]) continue;
@@ -125,11 +129,12 @@ function build(spec, seed) {
         // a kit panel stands in the open cell against this face (the kit models its walls on the cell's -x edge)
         const kind = rng.chance(0.16) ? 'scifi/wallband-straight-broken' : rng.chance(0.25) ? 'scifi/shortwall-metalplates-straight' : 'scifi/wallband-straight';
         const tall = kind.includes('shortwall') ? 2.2 : 1.47;
-        place(L, kind, cx + dx * M, cz + dy * M, { r: Math.atan2(-dy, dx), s: [1, tall, 1], t: look.wallTint, solid: false });
+        place(L, kind, cx + dx * M, cz + dy * M, { r: Math.atan2(-dy, dx), s: [1, tall, 1], t: look.wallTint, solid: 'auto' });
         box(L, ex, 0, ez, along ? M : 0.2, 4.4, along ? 0.2 : M, look.wall2);
         box(L, ex + dx * 0.14, 4.3, ez + dy * 0.14, along ? M : 0.3, 0.12, along ? 0.3 : M, look.trim);
-        // timber shoring against the plate, as in the works above
-        if (rng.chance(0.35)) box(L, ex + dx * 0.3, 0, ez + dy * 0.3, 0.24, 4.3, 0.24, look.timber, { c2: look.cover2 });
+        // a line of light along the top, and now and then a pipe run down the plate
+        if (rng.chance(0.6)) glow(ex + dx * 0.2, 4.1, ez + dy * 0.2, along ? M : 0.06, 0.06, along ? 0.06 : M, rng.chance(0.75) ? look.neon : look.neon2);
+        if (rng.chance(0.25)) cyl(L, ex + dx * 0.3, 0, ez + dy * 0.3, 0.14, 4.3, look.frame, { seg: 8 });
       }
     }
   }
@@ -142,23 +147,24 @@ function build(spec, seed) {
   }
 
   // ---- what stands in a room -------------------------------------------------------------
-  const lamp = (x, z, h = 3.6) => { L.lights.push({ x, y: h, z, c: look.lamp, r: 13, kind: 'lantern' }); box(L, x, h, z, 0.5, 0.14, 0.5, look.lampBox); };
+  const lamp = (x, z, h = 3.6) => { L.lights.push({ x, y: h, z, c: look.lamp, r: 13, kind: 'lantern' }); box(L, x, h + 0.1, z, 0.7, 0.1, 0.36, look.frame); glow(x, h, z, 0.6, 0.06, 0.26, look.lampBox); };
   /** Low cover: stops bullets and bodies, but a jump clears it. */
   const cover = (x, z, sx, sz) => {
-    // freight crates from the surface, stacked as cover
-    box(L, x, 0, z, sx * 0.96, 0.96, sz * 0.96, look.cover2, { solid: true });
+    // freight cases on a pallet, stacked as cover, with a strip of light along the base
+    box(L, x, 0, z, sx * 0.96, 0.12, sz * 0.96, look.cover2, { solid: true });
     const long = sx >= sz, n = Math.max(1, Math.round((long ? sx : sz) / 1.0));
     for (let k = 0; k < n; k++) {
-      const o = ((k + 0.5) / n - 0.5) * (long ? sx : sz);
-      place(L, 'west/crate', x + (long ? o : 0), z + (long ? 0 : o), { r: long ? 0 : Math.PI / 2, s: [(long ? sx / n : sz / n) / 0.83, 1.0 / 0.39, (long ? sz : sx) / 0.65], solid: false });
+      const o = ((k + 0.5) / n - 0.5) * (long ? sx : sz), c = Math.min(sx, sz) * 0.92;
+      place(L, 'scifi/prop-crate4', x + (long ? o : 0), z + (long ? 0 : o), { y: 0.12 + c / 2 * 0.72, r: (k % 2) * 0.08, s: [c / 1.2, 0.72 * c / 1.2, c / 1.2], t: look.wallTint, solid: false });
     }
-    if (rng.chance(0.5)) place(L, 'west/lantern', x, z, { y: 1.0, solid: false, r: rng.next() * 6 });
+    glow(x, 0.12, z, sx * 0.98, 0.04, sz * 0.98, look.neon);
     for (let a = -sx / 2 + 0.125; a < sx / 2; a += 0.25) for (let b = -sz / 2 + 0.125; b < sz / 2; b += 0.25) addFlags(L, Math.floor((x + a) / TM), Math.floor((z + b) / TM), BLOCKS_SHOT, 10);
   };
   const pillar = (x, z) => {
     if (look.wallTint) {
       box(L, x, 0, z, 0.9, 0.01, 0.9, look.cover2, { solid: 'wall' });
       place(L, 'scifi/column-simple', x, z, { s: [1.6, 0.9, 0.9], t: look.wallTint, solid: false });
+      glow(x, 2.2, z, 0.98, 0.06, 0.98, look.neon);
     } else {
       box(L, x, 0, z, 0.9, 4.4, 0.9, look.pillar, { c2: look.cover2, solid: 'wall' });
       box(L, x, 2.4, z, 1.02, 0.1, 1.02, look.cover2);
@@ -167,8 +173,8 @@ function build(spec, seed) {
   };
   L.rooms = [];
   const rect = (r) => ({ X: r.tx * TM, Z: r.ty * TM, W: r.tw * TM, D: r.th * TM });
-  const NAMES = { entrance: 'The lift', combat: null, chest: 'The strongroom', shop: 'The fence', boss: F.bossName ? 'The deep face' : F.theme === 'ship' ? 'The heart' : 'The line' };
-  const COMBAT_NAMES = { works: ['The ore face', 'The timber yard', 'The powder store', 'The crusher', 'The sump', 'The cage room'], foundry: ['Assembly', 'The press floor', 'Core storage', 'The test range', 'Coolant bay', 'Dispatch'], ship: ['The ribs', 'The cold deck', 'The choir', 'The lens', 'The nursery', 'The wake'] }[F.theme];
+  const NAMES = { entrance: 'The lift', combat: null, chest: 'The stash', shop: 'The fence', boss: F.bossName ? 'The deep face' : F.theme === 'ship' ? 'The heart' : 'The line' };
+  const COMBAT_NAMES = { works: ['The pump room', 'Paint shop', 'The charge store', 'The crusher', 'The sump', 'The cage room'], foundry: ['Assembly', 'The press floor', 'Core storage', 'The test range', 'Coolant bay', 'Dispatch'], ship: ['The ribs', 'The cold deck', 'The choir', 'The lens', 'The nursery', 'The wake'] }[F.theme];
   let combatNo = 0, liftAt = null;
   for (const r of rooms) {
     const f = rect(r), cx = f.X + f.W / 2, cz = f.Z + f.D / 2;
@@ -194,19 +200,20 @@ function build(spec, seed) {
         const roll = rng.next();
         const free = !(L.flags[Math.floor(pz / TM) * L.w + Math.floor(px / TM)] & SOLID);
         if (!free) continue;
-        if (roll < 0.34) { place(L, rng.chance(0.5) ? 'west/barrel-a' : 'west/barrel-b', px, pz, { r: rng.next() * 6, solid: 'low' }); if (rng.chance(0.4)) place(L, 'west/bucket', px + (px < cx ? 0.8 : -0.8), pz, { solid: false, r: rng.next() * 6 }); }
-        else if (roll < 0.5) place(L, 'west/pickaxe', px, pz, { r: rng.next() * 6, solid: false });
-        else if (roll < 0.62) place(L, 'west/wheel-a', px, pz, { r: rng.next() * 6, solid: false });
+        if (roll < 0.34) { place(L, 'scifi/prop-barrel-large', px, pz, { r: rng.next() * 6, t: look.wallTint, solid: 'low' }); if (rng.chance(0.4)) place(L, 'scifi/prop-cable-1', px + (px < cx ? 0.8 : -0.8), pz, { solid: false, r: rng.next() * 6, t: look.wallTint }); }
+        else if (roll < 0.5) place(L, 'cyber/tank', px, pz, { r: rng.next() * 6, s: 0.8, t: 'street', solid: 'low' });
+        else if (roll < 0.62) place(L, 'cyber/light-square', px, pz, { r: rng.next() * 6, t: 'street', solid: 'low' });
         else if (roll < 0.72 && look.machines && r.w >= 4) place(L, 'factory/hopper-square', px + (px < cx ? 0.5 : -0.5), pz + (pz < cz ? 0.5 : -0.5), { s: 0.7, t: 'machine', solid: 'wall' });
         else if (roll < 0.8 && look.wallTint) place(L, 'scifi/prop-computer', px, pz, { r: Math.atan2(cx - px, cz - pz), t: look.wallTint, solid: 'low' });
-        else if (roll < 0.88) place(L, 'west/ladder', px, pz + (pz < cz ? -0.75 : 0.75), { solid: false, r: 0 });
+        else if (roll < 0.88) place(L, 'scifi/prop-vent-big', px, pz, { solid: false, y: 0.02, t: look.wallTint });
       }
     }
     if (r.role === 'entrance') {
-      place(L, 'west/cart-a', cx + 2.6, cz + 2.4, { r: 0.4, centre: true, solid: false, s: 0.9 });
+      place(L, 'station/container-wide', cx + 2.8, cz + 2.4, { r: 0.4, s: 0.8, t: 'deckprop' });
       paint(L, Math.floor((cx - 1.6) / TM), Math.floor((cz - 1.6) / TM), Math.floor((cx + 1.6) / TM), Math.floor((cz + 1.6) / TM), GROUND.plank);
-      for (const [a, b] of [[-1.7, -1.7], [1.7, -1.7], [-1.7, 1.7], [1.7, 1.7]]) box(L, cx + a, 0, cz + b, 0.22, 4, 0.22, look.pillar);
+      for (const [a, b] of [[-1.7, -1.7], [1.7, -1.7], [-1.7, 1.7], [1.7, 1.7]]) { box(L, cx + a, 0, cz + b, 0.22, 4, 0.22, look.pillar); glow(cx + a, 0.3, cz + b, 0.24, 3.2, 0.06, '#ffd23f'); }
       box(L, cx, 3.9, cz, 3.7, 0.18, 3.7, look.cover2);
+      const ring = cyl(L, cx, 0.02, cz, 1.5, 0.03, '#ffd23f', { seg: 18 }); ring.glow = true;
       L.start = { x: P(cx), y: P(cz), a: -Math.PI / 2 };
     } else if (r.role === 'combat' || r.role === 'boss') {
       // cover laid out in a few patterns, always leaving lanes through the middle
@@ -218,21 +225,22 @@ function build(spec, seed) {
       else { for (const [a, b] of [[-1.3, -1.1], [1.3, -1.1], [-1.3, 1.1], [1.3, 1.1]]) pillar(cx + a * qx, cz + b * qz); cover(cx, cz - qz * 1.3, 3, 1.0); cover(cx, cz + qz * 1.3, 3, 1.0); }
       if (r.role === 'boss') liftAt = [P(cx), P(f.Z + 2.4)];
     } else if (r.role === 'chest') {
-      box(L, cx, 0, cz, 2.2, 0.16, 2.2, look.trim);
+      box(L, cx, 0, cz, 2.2, 0.16, 2.2, look.cover2);
+      glow(cx, 0.16, cz, 2.3, 0.03, 2.3, look.neon);
       L.lights.push({ x: cx, y: 1.4, z: cz, c: [1, 0.85, 0.4], r: 9, kind: 'glow' });
       r.chest = [P(cx), P(cz)];
-      for (let k = 0; k < 7; k++) place(L, 'west/gold-bar', cx - 0.8 + rng.next() * 1.6, cz + 0.9 + rng.next() * 0.5, { r: rng.next() * 6, s: 1.6, solid: false });
-      place(L, 'west/lantern', cx - 1.1, cz - 0.8, { solid: false });
+      for (let k = 0; k < 5; k++) { const p = place(L, k % 2 ? 'cyber/collectible-board' : 'cyber/collectible-gear', cx - 0.9 + k * 0.45, cz + 1.3, { y: 0.3, r: rng.next() * 6, s: 0.6, solid: false }); p.glow = true; }
     } else if (r.role === 'shop') {
       box(L, cx, 0, f.Z + 1.4, f.W - 3, 0.9, 0.8, look.cover, { c2: look.cover2, solid: true });
       box(L, cx, 0.9, f.Z + 1.4, f.W - 2.8, 0.06, 0.9, look.cover2);
       r.wares = [-1, 0, 1].map((k) => [P(cx + k * 2.6), P(cz + 1.2)]);
       for (const [wx, wy] of r.wares) cyl(L, wx / PX, 0, wy / PX, 0.5, 0.25, look.cover2, { top: 0.42 });
-      // a fence does business off a bar top: bottles, a lamp, somewhere to sit
-      for (let k = 0; k < 5; k++) place(L, ['west/bottle-a', 'west/bottle-b', 'west/bottle-c', 'west/bottle-d'][k % 4], cx - (f.W - 3.6) / 2 + k * ((f.W - 3.6) / 4), f.Z + 1.4, { y: 0.96, s: 1.4, solid: false });
-      place(L, 'west/lantern', cx, f.Z + 1.4, { y: 0.96, solid: false });
-      place(L, 'west/table-b', f.X + f.W - 1.7, cz + 2.2, { solid: 'low' });
-      place(L, 'west/chair', f.X + f.W - 2.7, cz + 2.2, { r: Math.PI / 2, solid: false });
+      // a fence does business off a counter: a lit edge, a screen, somewhere to sit
+      glow(cx, 0.5, f.Z + 1.82, f.W - 3.2, 0.05, 0.04, look.neon);
+      place(L, 'cyber/computer', cx + (f.W - 3.6) / 2, f.Z + 1.4, { y: 0.96, r: 0, s: 0.6, t: 'street', solid: false });
+      L.signs.push({ text: 'FENCE', x: cx, y: 3.0, z: f.Z + 0.25, w: 2.6, h: 0.7, nx: 0, nz: 1, glow: true, bg: '#0a0b14', fg: look.neon2 });
+      place(L, 'station/table', f.X + f.W - 1.9, cz + 2.2, { s: 0.6, t: 'deckprop', solid: 'low' });
+      place(L, 'station/chair', f.X + f.W - 3.1, cz + 2.2, { r: Math.PI / 2, s: 0.62, t: 'deckprop', solid: false });
     }
   }
   if (!L.start || !liftAt) return null;
@@ -244,11 +252,12 @@ function build(spec, seed) {
     const mx = i % mw, my = Math.floor(i / mw);
     const alongX = !L.rock[my * mw + mx - 1] || !L.rock[my * mw + mx + 1];
     if (n % 2 === 0) lamp(cx, cz, 3.7);
-    else if (look.timber) {
-      // a timber set: two legs and a cap
-      const [ax, az, bx, bz] = alongX ? [cx, cz - 1.7, cx, cz + 1.7] : [cx - 1.7, cz, cx + 1.7, cz];
-      box(L, ax, 0, az, 0.26, 3.5, 0.26, look.timber, { c2: look.cover2 }); box(L, bx, 0, bz, 0.26, 3.5, 0.26, look.timber, { c2: look.cover2 });
-      box(L, cx, 3.4, cz, alongX ? 0.3 : 3.7, 0.26, alongX ? 3.7 : 0.3, look.timber, { c2: look.cover2 });
+    else {
+      // a steel frame across the corridor, lit along its underside
+      const [ax, az, bx, bz] = alongX ? [cx, cz - 1.75, cx, cz + 1.75] : [cx - 1.75, cz, cx + 1.75, cz];
+      box(L, ax, 0, az, 0.26, 3.5, 0.26, look.frame, { c2: look.cover2 }); box(L, bx, 0, bz, 0.26, 3.5, 0.26, look.frame, { c2: look.cover2 });
+      box(L, cx, 3.4, cz, alongX ? 0.3 : 3.8, 0.26, alongX ? 3.8 : 0.3, look.frame, { c2: look.cover2 });
+      glow(cx, 3.36, cz, alongX ? 0.08 : 3.4, 0.04, alongX ? 3.4 : 0.08, look.neon);
     }
     if (look.glow && n % 5 === 2) L.lights.push({ x: cx, y: 0.6, z: cz, c: look.glow, r: 7, kind: 'glow' });
     n++;
@@ -318,6 +327,7 @@ function build(spec, seed) {
   L.name = F.name;
   L.clock = { start: 'none' };
   L.ambient = look.ambient;
+  L.neon = true;
   L.floor = floorNo;
   return L;
 }

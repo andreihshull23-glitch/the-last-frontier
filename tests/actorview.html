@@ -31,6 +31,8 @@
   const which = (q.get('set') || 'enemies');
   let list = [];
   if (which === 'drifters') list = Array.from({ length: 12 }, (_, i) => ['drifter ' + i, drifterLook(i, i % 3 === 0 ? ['lantern', 'duster'] : []), { player: true, gun: ['qg/Revolver_1', 'qg/Shotgun_4', 'qg/Shotgun_SawedOff', 'qg/SubmachineGun_1', 'qg/SniperRifle_5', 'gun/blaster-d', 'gun/blaster-f'][i % 7] }]);
+  else if (which === 'plugins') list = (q.get('only') ? q.get('only').split(',') : ['nighteyes', 'steady', 'fleet', 'leather', 'scavenger', 'loader', 'coolhead', 'powder']).map((id) => [id, drifterLook(0, [], id), { player: true, gun: 'qg/Revolver_1' }]);
+  else if (which === 'guns') list = ['qg/Revolver_1', 'qg/Shotgun_4', 'qg/Shotgun_SawedOff', 'qg/SubmachineGun_1', 'qg/SniperRifle_5', 'gun/blaster-d', 'gun/blaster-f', 'gun/blaster-h', 'gun/blaster-e'].map((g) => [g, drifterLook(0, []), { player: true, gun: g }]);
   else if (which === 'all') { const fam = q.get('fam'); list = Object.keys(assets.people.get(fam).json.models).map((m) => [fam + ' / ' + m.replace(/_/g, ' '), { fam, model: m }, {}]); }
   else if (which === 'robots') list = ['guard','scout','foreman'].map((k) => [k, { ...LOOKS[k], gun: null, scale: 1 }, {}]);
   else if (which === 'enemies') list = ['bandit', 'gunman', 'dynamiter', 'brute', 'bounty', 'walker', 'husk', 'trooper', 'guard', 'scout', 'enforcer', 'crusher', 'overseer', 'turret', 'foreman', 'warden', 'deputy'].map((k) => [k, LOOKS[k], {}]);
@@ -49,6 +51,7 @@
     if (mode === 'melee') a.meleeT = 0.2;
     if (mode === 'shoot') a.shootT = 0;
     for (let k = 0; k < 30; k++) actors.update(a, t / 30, { speed: mode === 'walk' ? 3 : mode === 'run' ? 6.5 : 0, armed: mode !== 'idle' && mode !== 'walk' && mode !== 'run', sit: mode === 'sit' });
+    (window.DBG = window.DBG || []).push([name, a.twoHands, a.ikDebug]);
     tags.push({ name, x, z });
   });
   const rows = Math.ceil(list.length / cols);
@@ -57,7 +60,7 @@
   const span = +(q.get('span') || Math.max(rows * 2.2, cols * cell * H / W * 0.6));
   const cam = new THREE.OrthographicCamera(-span * W / H, span * W / H, span, -span, 0.1, 300);
   cam.position.set(cx + Math.sin(az) * Math.cos(el) * 60, Math.sin(el) * 60 + 1, cz + Math.cos(az) * Math.cos(el) * 60);
-  cam.lookAt(cx, 1.0, cz);
+  cam.lookAt(cx, +(q.get('ly') || 1.0), cz);
   renderer.render(scene, cam);
   for (const tg of tags) {
     const v = new THREE.Vector3(tg.x, -0.15, tg.z + 0.9).project(cam);

@@ -57,7 +57,7 @@ export function generateTown(spec = {}) {
       const ex = cx + dx * (M / 2 - 0.12), ez = cz + dy * (M / 2 - 0.12);
       const along = dx === 0;
       const kind = rng.chance(0.3) ? 'scifi/wallastra-straight-flat' : 'scifi/wallband-straight';
-      place(L, kind, cx + dx * M, cz + dy * M, { r: Math.atan2(-dy, dx), s: [1, 1.47, 1], t: 'deckwall', solid: false });
+      place(L, kind, cx + dx * M, cz + dy * M, { r: Math.atan2(-dy, dx), s: [1, 1.47, 1], t: 'deckwall', solid: 'auto' });
       box(L, ex, 0, ez, along ? M : 0.2, WALL_H, along ? 0.2 : M, DARK2);
       const tube = box(L, ex + dx * 0.16, WALL_H - 0.16, ez + dy * 0.16, along ? M : 0.07, 0.07, along ? 0.07 : M, dy > 0 ? NEON.pink : NEON.cyan);
       tube.glow = true;
