@@ -295,6 +295,30 @@ function build(spec, seed) {
     }
   }
 
+  // ---- waves: taking what is in the vault wakes the level up; so does walking into a nest
+  L.waves = [];
+  const kinds = Object.entries(spec.mix || {}).filter(([k]) => k !== 'brute' && !ENEMIES[k]?.boss).flatMap(([k, n]) => Array(Math.max(1, n)).fill(k));
+  const near = (cx, cy, n, minD, maxD) => {
+    const out = [];
+    for (let i = 0; i < 300 && out.length < n; i++) {
+      const at = freeSpot(P(14), null);
+      if (!at) continue;
+      const d = Math.hypot(at[0] - cx, at[1] - cy);
+      if (d < P(minD) || d > P(maxD) || out.some((q) => Math.hypot(q[0] - at[0], q[1] - at[1]) < P(2.5))) continue;
+      out.push(at);
+    }
+    return out;
+  };
+  const wave = (on, x, y, r, n, minD, maxD, extra = {}) => {
+    const spots = near(x, y, n, minD, maxD);
+    if (spots.length) L.waves.push({ on, x, y, r, ...extra, units: spots.map((q) => ({ kind: kinds[rng.int(0, kinds.length - 1)], x: q[0], y: q[1] })) });
+  };
+  if (kinds.length && o.kind === 'item') wave('objective', vault.objective[0], vault.objective[1], 0, Math.round(5 * threat), 12, 34, { item: o.item });
+  for (const r of rooms.filter((q) => q.role === 'nest' || q.role === 'camp').slice(0, 2)) {
+    const cx = (r.x + r.w / 2) * MACRO * TILE, cy = (r.y + r.h / 2) * MACRO * TILE;
+    if (kinds.length) wave('enter', cx, cy, Math.max(r.w, r.h) * MACRO * TILE * 0.4, Math.round(3 * threat), 10, 22);
+  }
+
   // ---- what there is to find --------------------------------------------------------------
   const worth = 1.3 + (spec.tier ?? 0) * 0.25;
   for (const c of caches) {

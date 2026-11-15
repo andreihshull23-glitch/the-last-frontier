@@ -124,6 +124,7 @@ export function createSim(config, level) {
     kills: carry ? carry.kills : 0,
     coin: carry ? carry.coin : 0,
     rooms: level.rooms ? level.rooms.map((r) => ({ id: r.id, state: r.waves.length ? 'idle' : 'cleared', wave: 0 })) : null,
+    waves: level.waves ? level.waves.map(() => false) : null,
     floor: config.floor || 0,
     boss: null,
     report: null,
@@ -323,6 +324,30 @@ function spawnWave(sim, room, st) {
     if (sp.target) e.known = true;
     emit(sim, 'beam_in', { x: e.x, y: e.y, id: e.id });
   }
+}
+const WAVE_TEXT = {
+  enter: ['Movement on the rooftops. They were waiting for you.', 'Contact. More of them, coming in from the side streets.', 'Ambush. Find cover.', 'They heard you come in.'],
+  objective: ['You have it. Everything in the district knows it.', 'Alarms. They are converging on you. Get out.', 'That tripped something. Here they come.'],
+};
+/** District waves: walking into a place, or taking the objective, brings the held-back enemies in. */
+function updateWaves(sim) {
+  const s = sim.state, p = s.player, L = sim.level;
+  if (!s.waves || p.hp <= 0) return;
+  L.waves.forEach((w, i) => {
+    if (s.waves[i]) return;
+    const go = w.on === 'enter' ? Math.hypot(p.x - w.x, p.y - w.y) < w.r : s.carried.items.includes(w.item);
+    if (!go) return;
+    s.waves[i] = true;
+    for (const u of w.units) {
+      const e = addEnemy(sim, u.kind, u.x, u.y, { facing: Math.atan2(p.y - u.y, p.x - u.x) });
+      e.spawnT = 0.6 + sim.rng.next() * 0.5;
+      alertEnemy(sim, e, p.x, p.y, false);
+      emit(sim, 'beam_in', { x: e.x, y: e.y, id: e.id });
+    }
+    const lines = WAVE_TEXT[w.on];
+    emit(sim, 'toast', { text: lines[sim.rng.int(0, lines.length - 1)], tone: 'bad' });
+    emit(sim, 'wave', { x: w.x, y: w.y, count: w.units.length });
+  });
 }
 function updateRooms(sim) {
   const s = sim.state, p = s.player;
@@ -753,6 +778,7 @@ export function update(sim, dt, input = {}) {
     return;
   }
   updateRooms(sim);
+  updateWaves(sim);
   updateEcho(sim);
   updateEnemies(sim, dt);
   updateBullets(sim, dt);
@@ -1192,7 +1218,7 @@ function completeInteract(sim, it) {
     // the better the cache, the better the odds of a gun or a relic beside it
     // finds are rare, and each one makes the next rarer on this level
     const scarce = 1 / (1 + 1.5 * (s.drops || 0));
-    if (sim.rng.chance(((it.tier >= 2 ? 0.55 : it.tier === 1 ? 0.14 : 0.03) * scarce))) {
+    if (it.tier >= 2 || sim.rng.chance((it.tier === 1 ? 0.14 : 0.03) * scarce)) {   // a gold cache always pays
       const d = rollDrop(sim, sim.cache.mods.luck * (1 + it.tier * 0.5));
       if (d) { const a = Math.atan2(p.y - it.y, p.x - it.x); dropItem(sim, it.x + Math.cos(a) * 30, it.y + Math.sin(a) * 30, d); bits.push(d.gun ? `a ${GUNS[d.gun].name.toLowerCase()}` : RELICS[d.relic].name.toLowerCase()); }
     }

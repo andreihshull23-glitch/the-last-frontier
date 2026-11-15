@@ -265,8 +265,12 @@ export function build(spec, seed) {
   if (spec.enforcers) mix.guard = (mix.guard || 0) + 2;
   const postsOf = (faction) => ctx.posts.filter((q) => q.faction === faction || faction === 'any');
   const usedPosts = new Set();
+  // about a third of the district waits off-stage and arrives in waves (see below)
+  const held = [];
   for (const [kind, n] of Object.entries(mix)) {
-    const count = Math.max(kind === 'brute' || kind === 'crusher' ? 0 : 1, Math.round(n * threat));
+    const total = Math.max(kind === 'brute' || kind === 'crusher' ? 0 : 1, Math.round(n * threat));
+    const count = total - Math.floor(total * 0.4);
+    for (let k = count; k < total; k++) held.push(kind);
     const faction = FACTION_OF[kind] || 'any';
     for (let k = 0; k < count; k++) {
       let at = null, facing = null, home = null;
@@ -290,6 +294,41 @@ export function build(spec, seed) {
     const camp = pois.find((p) => p.type === 'bandit_camp') || pois[pois.length - 1];
     const at = freeSpot(camp.tx + 2, camp.ty + 2, camp.tx + camp.tw - 3, camp.ty + camp.th - 3, safe, 2) || freeSpot(18, 18, L.w - 19, L.h - 19, safe, 2);
     if (at) L.spawns.push({ kind: 'bounty', x: at[0], y: at[1], name: spec.bounty.name, notoriety: spec.bounty.notoriety });
+  }
+
+  // ---- waves: walking into a place sets off an ambush; taking the objective brings everyone else
+  // Each wave arrives from spots out of the way, 13 to 24 m off, and comes straight for you.
+  L.waves = [];
+  const ring = (cx, cy, n, minD, maxD) => {
+    const out = [];
+    for (let i = 0; i < 160 && out.length < n; i++) {
+      const a = rng.next() * TAU, d = P(minD + rng.next() * (maxD - minD));
+      const tx = Math.floor((cx + Math.cos(a) * d) / TILE), ty = Math.floor((cy + Math.sin(a) * d) / TILE);
+      if (tx < 4 || ty < 4 || tx >= L.w - 4 || ty >= L.h - 4 || reach[ty * L.w + tx] < 0 || !clearAround(L, tx, ty, 1, true)) continue;
+      const x = tileCentre(tx), y = tileCentre(ty);
+      if (Math.hypot(x - L.start.x, y - L.start.y) < P(18) || out.some((q) => Math.hypot(q[0] - x, q[1] - y) < P(2.5))) continue;
+      out.push([x, y]);
+    }
+    return out;
+  };
+  const places = pois.filter((p) => p.type !== 'trailhead' && p.type !== 'coach_stop');
+  const objPlace = o.kind === 'item' || o.kind === 'kill' ? obj : null;
+  let hi = 0;
+  // reinforcements: past what was held back, each wave is topped up from the district's mix
+  const pool = Object.entries(mix).filter(([k]) => !ENEMIES[k]?.boss && k !== 'brute' && k !== 'crusher' && k !== 'bounty').flatMap(([k, n]) => Array(Math.max(1, n)).fill(k));
+  const take = (n) => { const out = []; for (let k = 0; k < n; k++) out.push(hi < held.length ? held[hi++] : pool[rng.int(0, pool.length - 1)]); return out; };
+  const shares = places.length + (o.kind === 'item' ? 1.5 : 0);
+  for (const p of places) {
+    const kinds = take(Math.max(3, Math.round(held.length / Math.max(1, shares)), Math.round(2.6 * threat)));
+    const cx = (p.tx + p.tw / 2) * TILE, cy = (p.ty + p.th / 2) * TILE;
+    const spots = ring(cx, cy, kinds.length, 13, 22);
+    if (!spots.length) continue;
+    L.waves.push({ on: 'enter', x: cx, y: cy, r: Math.max(p.tw, p.th) * TILE * 0.42, place: p.name || p.type, units: kinds.slice(0, spots.length).map((kind, i) => ({ kind, x: spots[i][0], y: spots[i][1] })) });
+  }
+  if (o.kind === 'item' && objPlace) {
+    const kinds = take(Math.max(held.length - hi, Math.round(4 * threat)));
+    const spots = ring(objPlace.objective[0], objPlace.objective[1], kinds.length, 16, 26);
+    if (spots.length) L.waves.push({ on: 'objective', item: o.item, x: objPlace.objective[0], y: objPlace.objective[1], r: 0, units: kinds.slice(0, spots.length).map((kind, i) => ({ kind, x: spots[i][0], y: spots[i][1] })) });
   }
 
   // ---- what there is to find ----------------------------------------------------------

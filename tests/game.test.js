@@ -349,3 +349,18 @@ test('TIN is only rebuilt after the three TIN jobs', () => {
   c.jobsOnce = ['tin_core', 'tin_servos', 'tin_voice'];
   assert.equal(R.canInvest(c, 'deputy').ok, true);
 });
+
+test('walking into a place brings in its wave, once', () => {
+  const c = campaign();
+  const { sim } = ride(c, R.availableMissions(c)[0].id);
+  const L = sim.level, s = sim.state;
+  const w = L.waves.findIndex((q) => q.on === 'enter');
+  assert.ok(w >= 0, 'the district has waves');
+  const before = s.enemies.length;
+  s.player.x = L.waves[w].x; s.player.y = L.waves[w].y; s.player.hp = s.player.maxHp = 99999;
+  run(sim, 0.2, {});
+  assert.equal(s.enemies.length, before + L.waves[w].units.length);
+  run(sim, 0.5, {});
+  assert.equal(s.enemies.length >= before + L.waves[w].units.length, true);
+  assert.equal(s.waves[w], true);
+});
