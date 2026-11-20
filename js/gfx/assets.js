@@ -195,8 +195,16 @@ export function createAssets() {
   }
 
   // sRGB vertex colours -> linear, in the shader.
-  function patch(mat) {
+  // a rim of light round characters, so they read against dark streets; one colour for the whole scene
+  const rim = { color: { value: null }, power: { value: 2.6 } };
+  function patch(mat, withRim = false) {
     mat.onBeforeCompile = (shader) => {
+      if (withRim) {
+        if (!rim.color.value) rim.color.value = new (T().Color)(0.25, 0.55, 0.7);
+        shader.uniforms.rimColor = rim.color; shader.uniforms.rimPower = rim.power;
+        shader.vertexShader = 'varying vec3 vRimN;\nvarying vec3 vRimV;\n' + shader.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vRimN = normalize( transformedNormal );\n  vRimV = -mvPosition.xyz;');
+        shader.fragmentShader = 'uniform vec3 rimColor;\nuniform float rimPower;\nvarying vec3 vRimN;\nvarying vec3 vRimV;\n' + shader.fragmentShader.replace('#include <output_fragment>', '#include <output_fragment>\n  float rimK = pow( 1.0 - clamp( abs( dot( normalize( vRimN ), normalize( vRimV ) ) ), 0.0, 1.0 ), rimPower );\n  gl_FragColor.rgb += rimColor * rimK;');
+      }
       shader.vertexShader = shader.vertexShader.replace('#include <color_vertex>', [
         '#if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )',
         '  vColor = vec3( 1.0 );',
@@ -229,7 +237,9 @@ export function createAssets() {
     if (!glow) glow = patch(new (T().MeshBasicMaterial)({ vertexColors: true }));
     return glow;
   }
-  function makeMaterial(opts) { return patch(new (T().MeshLambertMaterial)({ vertexColors: true, ...opts })); }
+  function makeMaterial(opts, withRim = false) { return patch(new (T().MeshLambertMaterial)({ vertexColors: true, ...opts }), withRim); }
+  /** The rim light's colour, set per level to match its lighting. */
+  function setRim(r, g, b, power = 2.6) { if (!rim.color.value) rim.color.value = new (T().Color)(); rim.color.value.setRGB(r, g, b); rim.power.value = power; }
 
   function mesh(name, tint) {
     const m = new (T().Mesh)(geometry(name, tint), name.endsWith('#glass') ? glassMaterial() : worldMaterial());
@@ -240,7 +250,7 @@ export function createAssets() {
   function clips() { return packs.get('chr').json.clips; }
   function names(id) { return Object.keys(packs.get(id).json.models).map((k) => id + '/' + k); }
 
-  return { load, has, raw, people, tint: (name) => tints.get(name), colors, geometry, mesh, registerTint, worldMaterial, skinnedMaterial, glassMaterial, glowMaterial, makeMaterial, rig, clips, names, packs };
+  return { load, has, raw, people, tint: (name) => tints.get(name), colors, geometry, mesh, registerTint, worldMaterial, skinnedMaterial, glassMaterial, glowMaterial, makeMaterial, setRim, rig, clips, names, packs };
 }
 
 // ---- merging ---------------------------------------------------------------

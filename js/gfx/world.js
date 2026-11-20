@@ -54,6 +54,46 @@ function valueNoise(x, y, seed) {
 const OLD_KIT = /^(nat|west|forest|arena)\/(?!rock_|stone_|rocks)/;
 const hexRgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
 
+// Baked light: every lamp, sign and window in the level tints the surfaces around it, once, when the
+// level is built. Colour spills onto floors and walls without paying for real lights every frame.
+const SPILL = { neon: 1.0, lantern: 0.75, window: 0.45, glow: 0.85, fire: 0.9, shaft: 1.1 };
+function bakeLight(m, lights) {
+  if (!lights.length || m.empty) return;
+  const CELL = 8, grid = new Map();
+  for (const l of lights) {
+    const k = SPILL[l.kind] ?? 0.6;
+    const R = Math.min(14, (l.r || 8) * 1.1);
+    const e = { x: l.x, y: l.y ?? 2, z: l.z, R, c: l.c, k };
+    const x0 = Math.floor((l.x - R) / CELL), x1 = Math.floor((l.x + R) / CELL), z0 = Math.floor((l.z - R) / CELL), z1 = Math.floor((l.z + R) / CELL);
+    for (let gz = z0; gz <= z1; gz++) for (let gx = x0; gx <= x1; gx++) {
+      const key = gx * 73856093 ^ gz * 19349663;
+      if (!grid.has(key)) grid.set(key, []);
+      grid.get(key).push(e);
+    }
+  }
+  const P = m.pos, N = m.nrm, C = m.col;
+  for (let i = 0; i < m.n; i++) {
+    const x = P[i * 3], y = P[i * 3 + 1], z = P[i * 3 + 2];
+    const list = grid.get(Math.floor(x / CELL) * 73856093 ^ Math.floor(z / CELL) * 19349663);
+    if (!list) continue;
+    const nx = N[i * 3] / 127, ny = N[i * 3 + 1] / 127, nz = N[i * 3 + 2] / 127;
+    let r = 0, g = 0, b = 0;
+    for (const l of list) {
+      const dx = l.x - x, dy = l.y - y, dz = l.z - z;
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (d >= l.R) continue;
+      const f = (1 - d / l.R) ** 2 * l.k;
+      const ndl = d > 0.01 ? Math.max(0.2, (dx * nx + dy * ny + dz * nz) / d) : 1;
+      r += l.c[0] * f * ndl; g += l.c[1] * f * ndl; b += l.c[2] * f * ndl;
+    }
+    if (r + g + b < 0.003) continue;
+    const o = i * 4;
+    C[o] = Math.min(255, C[o] * (1 + 1.3 * r) + 255 * 0.09 * r);
+    C[o + 1] = Math.min(255, C[o + 1] * (1 + 1.3 * g) + 255 * 0.09 * g);
+    C[o + 2] = Math.min(255, C[o + 2] * (1 + 1.3 * b) + 255 * 0.09 * b);
+  }
+}
+
 export function buildWorld(assets, L, opts = {}) {
   const THREE = window.THREE;
   const theme = THEMES[L.theme] || THEMES.red;
@@ -182,6 +222,7 @@ export function buildWorld(assets, L, opts = {}) {
   const sectorMeshes = [];
   for (const m of sectors) {
     if (m.empty) continue;
+    if (opts.bakeLight !== false) bakeLight(m, L.lights);
     const mesh = new THREE.Mesh(m.build(), mat);
     mesh.castShadow = true; mesh.receiveShadow = true;
     group.add(mesh);

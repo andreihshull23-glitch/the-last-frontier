@@ -312,7 +312,7 @@ export function createActors(assets) {
     });
     const material = opts.ghost
       ? assets.makeMaterial({ skinning: true, transparent: true, opacity: 0.42, depthWrite: false, emissive: new THREE.Color(0.1, 0.3, 0.45) })
-      : assets.makeMaterial({ skinning: true });
+      : assets.makeMaterial({ skinning: true }, true);
     const mesh = new THREE.SkinnedMesh(geometryFor(look, opts.ghost), material);
     mesh.castShadow = !opts.ghost;
     mesh.frustumCulled = false;

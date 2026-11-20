@@ -7,6 +7,7 @@ import { buildWorld } from './world.js';
 import { createActors, LOOKS, drifterLook } from './actors.js';
 import { Merger } from './assets.js';
 import { registerTints } from './tints.js';
+import { createPost } from './post.js';
 import { drawHUD, toast } from '../hud.js';
 
 const U = 1 / PX;            // sim units -> metres
@@ -43,6 +44,10 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
   gl.toneMapping = THREE.ACESFilmicToneMapping;
   gl.toneMappingExposure = 0.98;
   gl.shadowMap.type = THREE.PCFSoftShadowMap;
+  // bloom and grading on the better quality tiers; the cheapest tier renders straight to the screen
+  let post = null;
+  try { post = createPost(gl); } catch (err) { console.warn('No post-processing', err); }
+  const bufSize = new THREE.Vector2();
   registerTints(assets);
   const actors = createActors(assets);
 
@@ -344,6 +349,10 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     disposeWorld();
     const L = sim.level;
     const built = buildWorld(assets, L, { seed: (L.seed || 1) & 0xffff });
+    if (L.theme === 'hollow' || L.theme === 'ship') assets.setRim(0.45, 0.3, 0.75);
+    else if (L.theme === 'works') assets.setRim(0.6, 0.3, 0.4);
+    else if (L.neon || L.city || L.ambient) assets.setRim(0.22, 0.5, 0.7);
+    else assets.setRim(0.18, 0.2, 0.24);
     const group = new THREE.Group();
     group.add(built.group);
     scene.add(group);
@@ -1252,7 +1261,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       const neon = l.kind === 'neon';
       glows.C[n * 3] = l.c[0]; glows.C[n * 3 + 1] = l.c[1] * (neon ? 1 : 0.8); glows.C[n * 3 + 2] = l.c[2] * (neon ? 1 : 0.6);
       glows.S[n] = (fire ? 1.5 : l.kind === 'window' ? 1.3 : l.kind === 'shaft' ? 3.2 : neon ? 1.5 : 0.9) * flick;
-      glows.A[n] = (fire ? 0.5 : 0.16) + dark * (fire ? 0.3 : 0.5);
+      glows.A[n] = ((fire ? 0.5 : 0.16) + dark * (fire ? 0.3 : 0.5)) * (post && QUALITY[r.quality].fx >= 0.7 ? 0.55 : 1);   // bloom does most of the work when it is on
       n++;
       if (fire && Math.random() < 0.3) emit(sparks, { x: l.x + (Math.random() - 0.5) * 0.3, y: 0.4, z: l.z + (Math.random() - 0.5) * 0.3, vx: (Math.random() - 0.5) * 0.3, vy: 1 + Math.random(), vz: (Math.random() - 0.5) * 0.3, life: 1, size: 0.07, color: '#ffb35c', drag: 0.5 });
     }
@@ -1409,7 +1418,12 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     stepSystem(sparks, dt);
     stepSystem(dust, dt);
     updateEnvironment(sim, dt);
-    gl.render(scene, camera);
+    const fx = QUALITY[r.quality].fx;
+    if (post && fx >= 0.7 && r.post !== false) {
+      gl.getDrawingBufferSize(bufSize);
+      try { post.render(scene, camera, bufSize.x, bufSize.y, { msaa: r.quality === 0, bloom: sim.level.neon || sim.level.city || sim.level.ambient ? 1.0 : 0.6 }); }
+      catch (err) { console.warn('Post-processing failed; drawing directly', err); post = null; gl.setRenderTarget(null); gl.render(scene, camera); }
+    } else gl.render(scene, camera);
     hud.setTransform(r.view.dpr, 0, 0, r.view.dpr, 0, 0);
     hud.clearRect(0, 0, r.view.w, r.view.h);
     if (!ui.noHud) drawHUD(r, hud, sim, dt, ui);
