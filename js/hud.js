@@ -1,6 +1,7 @@
 // Screen-space HUD drawn on a 2D canvas above the 3D view: objectives, map,
 // vitals, weapons, markers over things in the world, prompts and toasts.
 import { TILE as TS, PX, MACRO, ENEMIES, GUNS, GUN_ORDER, ITEMS, SOLID, ROCK, WATER, INDOOR, GROUND, RELICS, ELITES, SYNERGIES } from './content.js';
+import { edgeBlood } from './gfx/gore.js';
 import { PLAYER, CLOCK, clockTime, nightFactor, objectiveList, objectiveDone, unsecuredValue, focusPrompt, bossState, currentGun, angleDiff } from './sim.js';
 
 export const FONT_DISPLAY = '"Jersey 15", "Arial Narrow", "Helvetica Neue", sans-serif';
@@ -450,12 +451,21 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
   const left = 12 + ins.left, top = 12 + ins.top, right = w - 12 - ins.right, bottom = h - 12 - ins.bottom;
 
   if (r.vignette) ctx.drawImage(r.vignette, 0, 0, w, h);
-  if (!town && (p.hurtT > 0 || p.hp < p.maxHp * 0.3)) {
-    const pulse = p.hp < p.maxHp * 0.3 ? 0.18 + Math.sin(r.time * 6) * 0.08 : 0;
-    const alpha = Math.max(pulse, (p.hurtT / 0.3) * 0.32);
-    const g = ctx.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.3, w / 2, h / 2, Math.hypot(w, h) * 0.6);
-    g.addColorStop(0, 'rgba(150,20,10,0)'); g.addColorStop(1, `rgba(150,20,10,${alpha})`);
-    ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
+  // blood creeping in from the sides when Rook is hit; at low health some of it stays, pulsing
+  if (!town) {
+    const low = p.hp < p.maxHp * 0.3 ? 0.35 + Math.sin(r.time * 5) * 0.08 : 0;
+    const k = Math.max(low, Math.min(1, (r.blood || 0) * 1.2));
+    if (k > 0.01) {
+      if (!r.bloodImg) r.bloodImg = edgeBlood(512);
+      const bw = Math.min(w * 0.3, h * 0.42), ease = 1 - (1 - k) * (1 - k);
+      const off = (1 - ease) * bw;
+      ctx.save();
+      ctx.globalAlpha = Math.min(1, 0.25 + k);
+      ctx.drawImage(r.bloodImg, -off, 0, bw, h);
+      ctx.translate(w + off, 0); ctx.scale(-1, 1);
+      ctx.drawImage(r.bloodImg, 0, 0, bw, h);
+      ctx.restore();
+    }
   }
   r.hitDirs = r.hitDirs.filter((d) => (d.t -= dt) > 0);
   for (const d of r.hitDirs) {

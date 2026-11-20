@@ -592,9 +592,11 @@ export function createActors(assets) {
     if (a.look.fam === 'alien') creature(a, dt);
     if (a.gun && a.gunBase) {
       // recoil: the gun kicks back and up, then settles
-      const k = a.shootT < 0.16 ? Math.sin((a.shootT / 0.16) * Math.PI) * (1 - a.shootT / 0.16) : 0;
+      // `kickK` is set per shot: a shotgun or rifle kicks harder than an SMG
+      const kk = a.kickK ?? 1, dur = 0.12 + 0.06 * Math.min(2, kk);
+      const k = a.shootT < dur ? Math.sin((a.shootT / dur) * Math.PI) * (1 - a.shootT / dur) : 0;
       if (k > 0.001 || a.kicked) {
-        a.gun.matrix.copy(a.gunBase).multiply(m4.makeRotationX(-k * 0.28)).multiply(recoilT.makeTranslation(0, 0, -k * 0.06));
+        a.gun.matrix.copy(a.gunBase).multiply(m4.makeRotationX(-k * 0.42 * kk)).multiply(recoilT.makeTranslation(0, 0, -k * 0.12 * kk));
         a.kicked = k > 0.001;
       }
     }

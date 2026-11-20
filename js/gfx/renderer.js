@@ -8,6 +8,7 @@ import { createActors, LOOKS, drifterLook } from './actors.js';
 import { Merger } from './assets.js';
 import { registerTints } from './tints.js';
 import { createPost } from './post.js';
+import { createGore } from './gore.js';
 import { drawHUD, toast } from '../hud.js';
 
 const U = 1 / PX;            // sim units -> metres
@@ -182,6 +183,11 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
   const sparks = makeSystem(900, true);
   const dust = makeSystem(600, false);
   const glows = makeSystem(160, true);     // lamp and fire halos, rebuilt per level
+  const gore = createGore(THREE, scene);
+  /** What a kind of enemy bleeds. */
+  const fluidOf = (kind) => (ENEMIES[kind]?.robot ? 'oil' : ENEMIES[kind]?.hollow ? 'ichor' : 'blood');
+  /** Sparks for machines: a bright fan thrown back along the shot. */
+  const machineSparks = (x, y, z, ang, n) => { for (let i = 0; i < n; i++) { const an = ang + (Math.random() - 0.5) * 2.2, sp = 2 + Math.random() * 6; emit(sparks, { x, y, z, vx: Math.cos(an) * sp, vy: 1 + Math.random() * 4, vz: Math.sin(an) * sp, grav: 14, life: 0.3 + Math.random() * 0.4, size: 0.05, color: i % 4 ? '#ffd58a' : '#9fdcff', drag: 1.5 }); } };
   // ---- weather: rain over the open districts, drifting motes everywhere else (presentation only) ----
   const RAIN_N = 900, MOTE_N = 260, RAIN_BOX = 26, MOTE_BOX = 14;
   const rainPos = new Float32Array(RAIN_N * 6), rainSeed = new Float32Array(RAIN_N * 3);
@@ -292,6 +298,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     if (W.echo) actors.dispose(W.echo);
     if (W.buddy) actors.dispose(W.buddy);
     W.group.traverse((o) => { if (o.userData.own) { o.geometry?.dispose?.(); } });
+    gore.clear();
     r.world = null;
   }
 
@@ -779,7 +786,15 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           r.kick = Math.min(1.9, heavy);
           r.shake = Math.max(r.shake, 2.4 * heavy);
           flashAt(X, GUN_Y, Z, 3.5 * heavy, bolt || undefined);
-          if (bolt) { emit(sparks, { x: X, y: GUN_Y, z: Z, life: 0.07, size: 0.5 * Math.max(1, heavy), color: bolt }); if (W.player) W.player.shootT = 0; break; }
+          if (W.player) W.player.kickK = Math.min(2, 0.6 + heavy * 0.6);
+          if (bolt) {
+            // muzzle flash: a white-hot core, a coloured bloom, and a few sparks spat forward
+            emit(sparks, { x: X, y: GUN_Y, z: Z, life: 0.05, size: 0.35 * Math.max(1, heavy), color: '#ffffff' });
+            emit(sparks, { x: X, y: GUN_Y, z: Z, life: 0.08, size: 0.75 * Math.max(1, heavy), color: bolt });
+            for (let i = 0; i < 4 + 2 * heavy; i++) { const a = e.angle + (Math.random() - 0.5) * 0.5, sp = 5 + Math.random() * 6; emit(sparks, { x: X, y: GUN_Y, z: Z, vx: Math.cos(a) * sp, vy: (Math.random() - 0.3) * 1.5, vz: Math.sin(a) * sp, life: 0.07 + Math.random() * 0.06, size: 0.05, color: bolt, drag: 8 }); }
+            if (W.player) W.player.shootT = 0;
+            break;
+          }
           for (let i = 0; i < 8 * heavy; i++) {
             const a = e.angle + (Math.random() - 0.5) * (e.kind === 'shotgun' ? 1.1 : 0.7);
             const sp = 4 + Math.random() * 7;
@@ -825,10 +840,13 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           emit(sparks, { x: X, y: GUN_Y, z: Z, life: 0.08, size: 0.5, color: '#9fe8ff' });
           break;
         case 'impact':
-          for (let i = 0; i < 5; i++) {
-            const a = e.angle + Math.PI + (Math.random() - 0.5) * 2;
-            emit(sparks, { x: X, y: GUN_Y, z: Z, vx: Math.cos(a) * (1 + Math.random() * 3), vy: Math.random() * 3, vz: Math.sin(a) * (1 + Math.random() * 3), grav: 9, life: 0.25 + Math.random() * 0.2, size: 0.05, color: e.owner === 'echo' ? '#9fe8ff' : '#f7d79a', drag: 2 });
+          // a bolt hitting a wall: a flash, a spray of sparks bouncing back off it
+          emit(sparks, { x: X, y: GUN_Y, z: Z, life: 0.06, size: 0.45, color: '#fff2d8' });
+          for (let i = 0; i < 11; i++) {
+            const a = e.angle + Math.PI + (Math.random() - 0.5) * 2.2, sp = 1.5 + Math.random() * 5;
+            emit(sparks, { x: X, y: GUN_Y, z: Z, vx: Math.cos(a) * sp, vy: Math.random() * 4, vz: Math.sin(a) * sp, grav: 12, life: 0.25 + Math.random() * 0.3, size: 0.05, color: e.owner === 'echo' ? '#9fe8ff' : i % 3 ? '#ffd58a' : '#ff8a4a', drag: 1.5 });
           }
+          if (e.owner === 'player' && isVisible(sim, e.x, e.y)) flashAt(X, GUN_Y, Z, 1.6, '#ffc890', 0.05);
           emit(dust, { x: X, y: GUN_Y, z: Z, vy: 0.3, life: 0.8, size: 0.3, grow: 2.5, a: 0.4, color: '#b08660', drag: 3 });
           break;
         case 'shield_hit': {
@@ -857,6 +875,18 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
             const sp = 3 + Math.random() * 5;
             emit(sparks, { x: hx, y: 0.9 + Math.random() * 0.4, z: hz, vx: Math.cos(an) * sp, vy: 1 + Math.random() * 3, vz: Math.sin(an) * sp, grav: 12, life: 0.18 + Math.random() * 0.16, size: 0.06, color: hollow ? '#c9b8ff' : i % 3 ? '#ffd27a' : '#ff8a4a', drag: 2 });
           }
+          const fluid = fluidOf(e.kind);
+          if (fluid === 'oil') machineSparks(hx, 1.0, hz, e.angle, big ? 22 : 12);
+          else {
+            // a spray thrown through and out the back, a mark where the shot went in, drops on the floor
+            if (a) gore.mark(a, fluid, e.angle + Math.PI);
+            const spray = fluid === 'ichor' ? '#9a70ff' : '#6e0a08';
+            for (let i = 0; i < (big ? 12 : 7); i++) {
+              const an = e.angle + (Math.random() - 0.5) * 0.9, sp = 2 + Math.random() * 4;
+              emit(dust, { x: X, y: 1.1 + Math.random() * 0.3, z: Z, vx: Math.cos(an) * sp, vy: Math.random() * 1.5, vz: Math.sin(an) * sp, grav: 11, life: 0.35 + Math.random() * 0.2, size: 0.09, a: 0.95, color: spray, drag: 1.5 });
+            }
+            if (Math.random() < (big ? 0.8 : 0.35)) gore.floor(fluid, X + Math.cos(e.angle) * (0.4 + Math.random() * 0.6), Z + Math.sin(e.angle) * (0.4 + Math.random() * 0.6), 0.25 + Math.random() * 0.3, e.angle);
+          }
           for (let i = 0; i < 6; i++) {
             const an = e.angle + (Math.random() - 0.5) * 1.3;
             emit(dust, { x: X, y: 1.0, z: Z, vx: Math.cos(an) * (1 + Math.random() * 2.5), vy: Math.random() * 1.5, vz: Math.sin(an) * (1 + Math.random() * 2.5), grav: 9, life: 0.4, size: 0.07, a: 0.9, color: hollow ? '#b9a8ff' : '#8a2a1e', drag: 3 });
@@ -875,8 +905,20 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
             W.corpses.push({ a, t: 0 });
             if (W.corpses.length > 18) { const old = W.corpses.shift(); actors.dispose(old.a); }
           }
-          if (!ENEMIES[e.kind]?.hollow) decal(X + Math.cos(e.angle) * 0.4, Z + Math.sin(e.angle) * 0.4, 0.5 + Math.random() * 0.3);
-          else for (let i = 0; i < 18; i++) emit(sparks, { x: X, y: 0.3 + Math.random() * 1.5, z: Z, vx: (Math.random() - 0.5) * 2, vy: 0.5 + Math.random(), vz: (Math.random() - 0.5) * 2, life: 0.9, size: 0.08, color: '#b9a8ff', drag: 1 });
+          {
+            // where they fell: a pool under them, a streak thrown back along the killing shot, and on the
+            // wall behind them if there is one close enough
+            const fluid = fluidOf(e.kind), ca = Math.cos(e.angle), sa = Math.sin(e.angle);
+            gore.floor(fluid, X + ca * 0.5, Z + sa * 0.5, 1.0 + Math.random() * 0.6, e.angle);
+            gore.floor(fluid, X + ca * 1.4, Z + sa * 1.4, 1.2 + Math.random() * 0.5, e.angle, true);
+            const d = castRay(sim, e.x, e.y, ca, sa, 3 * 32);
+            if (d < 3 * 32) {
+              const wx = (e.x + ca * (d - 2)) * U, wz = (e.y + sa * (d - 2)) * U;
+              gore.wall(fluid, wx, 0.8 + Math.random() * 0.7, wz, 0.8 + Math.random() * 0.6, e.angle);
+            }
+            if (fluid === 'oil') { machineSparks(X, 1.0, Z, e.angle, 40); if (a) a.sparkT = 6; }
+          }
+          if (ENEMIES[e.kind]?.hollow) for (let i = 0; i < 18; i++) emit(sparks, { x: X, y: 0.3 + Math.random() * 1.5, z: Z, vx: (Math.random() - 0.5) * 2, vy: 0.5 + Math.random(), vz: (Math.random() - 0.5) * 2, life: 0.9, size: 0.08, color: '#b9a8ff', drag: 1 });
           break;
         }
         case 'target_hit':
@@ -888,6 +930,13 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           r.shake = Math.max(r.shake, 7);
           if (e.fromAngle !== null && e.fromAngle !== undefined) r.hitDirs.push({ a: e.fromAngle, t: 1.1 });
           if (W.player) W.player.flash = 1;
+          r.blood = Math.min(1, (r.blood || 0) + 0.35 + e.amount / 60);
+          if (W.player) {
+            const from = e.fromAngle ?? W.player.face ?? 0;
+            gore.mark(W.player, 'blood', from);
+            const p = W.player.root.position;
+            gore.floor('blood', p.x + (Math.random() - 0.5) * 0.5, p.z + (Math.random() - 0.5) * 0.5, 0.2 + Math.random() * 0.2, from + Math.PI);
+          }
           break;
         case 'dodge':
           if (W.player) W.player.roll = 1;
@@ -961,7 +1010,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           floatText(e.x, e.y, `+${e.amount}`, '#a9c98f');
           break;
         case 'bandage':
-          if (W.player) { W.player.oneShot = 'interact-right'; W.player.oneT = 0; }
+          if (W.player) { W.player.oneShot = 'interact-right'; W.player.oneT = 0; gore.clean(W.player); }
           break;
         case 'extract_start':
           for (let i = 0; i < 36; i++) {
@@ -1083,6 +1132,8 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     W.corpses = W.corpses.filter((c) => {
       c.t += dt;
       if (c.t < 1.2) actors.update(c.a, dt, {});
+      // a dead machine keeps shorting out for a few seconds
+      if (c.a.sparkT > 0 && c.t < c.a.sparkT && Math.random() < dt * 6) { const p = c.a.root.position; machineSparks(p.x + (Math.random() - 0.5) * 0.6, 0.3 + Math.random() * 0.6, p.z + (Math.random() - 0.5) * 0.6, Math.random() * TAU, 5); }
       if (c.t > 11) c.a.root.position.y -= dt * 0.35;
       if (c.t > 14) { actors.dispose(c.a); return false; }
       return true;
@@ -1487,6 +1538,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     r.touch = Boolean(ui.touch);
     r.pad = ui.pad || null;
     r.kick = Math.max(0, r.kick - dt * 9);
+    r.blood = Math.max(0, (r.blood || 0) - dt * 0.45);
     r.hitMarker = Math.max(0, r.hitMarker - dt);
     r.shake = Math.max(0, r.shake - dt * 30);
     if (!ui.cameraUpdated) r.updateCamera(sim, dt);

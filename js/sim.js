@@ -819,6 +819,7 @@ export function update(sim, dt, input = {}) {
 function updatePlayer(sim, dt, input) {
   const s = sim.state, p = s.player, trait = s.config.character.trait;
   p.fireCd = Math.max(0, p.fireCd - dt);
+  p.bloom = Math.max(0, (p.bloom || 0) - dt * 3);
   p.iframes = Math.max(0, p.iframes - dt);
   p.hurtT = Math.max(0, p.hurtT - dt);
   p.recoverT = Math.max(0, p.recoverT - dt);
@@ -1104,7 +1105,9 @@ function shoot(sim, g, shells) {
   // every fifth shot throws lightning, with the static field
   if (md.static && p.shotCount % 5 === 0 && !g.chain) g = { ...g, chain: 1, chainRange: 230 };
   const steady = trait === 'steady' && !g.pellets ? 1.2 : 1;
-  const spread = g.spread * (shells > 1 ? 1.35 : 1) * (g.pellets && trait === 'coolhead' ? 0.65 : 1) * (p.sprinting ? 2.2 : 1);
+  // bloom: keep the trigger down and the shots wander; it settles in about half a second
+  const spread = (g.spread + 0.012) * (shells > 1 ? 1.35 : 1) * (g.pellets && trait === 'coolhead' ? 0.65 : 1) * (p.sprinting ? 2.2 : 1) * (1 + (p.bloom || 0));
+  p.bloom = Math.min(1.6, (p.bloom || 0) + (g.cooldown < 0.2 ? 0.1 : 0.35));
   for (let i = 0; i < pellets; i++) {
     const a = p.aim + (g.pellets ? (sim.rng.next() + sim.rng.next() - 1) * spread : (sim.rng.next() * 2 - 1) * spread + (i > 0 ? (i % 2 ? 0.07 : -0.07) * Math.ceil(i / 2) : 0));
     firePlayerShot(sim, g, a, Math.round(g.damage * steady), i === 0 ? p.gun : null);
@@ -1120,7 +1123,7 @@ function firePlayerShot(sim, g, angle, damage, sound, heavy = false) {
   const ti = tileIdx(sim, mx, my);
   const blocked = ti < 0 || sim.cache.flags[ti] & BLOCKS_SHOT;
   const ox = blocked ? p.x : mx, oy = blocked ? p.y : my;
-  const speed = g.speed * (g.pellets ? 0.9 + sim.rng.next() * 0.2 : 1);
+  const speed = g.speed * (g.pellets ? 0.88 + sim.rng.next() * 0.24 : 0.94 + sim.rng.next() * 0.12);
   spawnBullet(sim, { x: ox, y: oy, angle, speed, damage, owner: 'player', life: g.range / speed, kind: p.gun, stagger: sound !== 'fan' && !g.pellets,
     pierce: g.pierce || 0, robotMul: g.robotMul || 1, chain: g.chain || 0, chainRange: g.chainRange || 0, stun: g.stun || 0, heavy,
     bounce: g.bounce || 0, explode: g.explode || null });
