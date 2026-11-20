@@ -37,9 +37,9 @@ because both are paid services with their own accounts and credits.
 
 ## Next steps, in order
 
-1. **Confirm the art pass and publish it.** Run `npm test`, `tests/smoke.mjs` and `tests/looks.mjs`.
-   Look at the screenshots, especially the city sky (re-rendered with the towers pushed back and
-   smaller windows, because the first version filled the view overhead). Then republish the artifact.
+1. **Done (Version 17):** the art pass is published, with scanned Poly Haven surface detail
+   (`tools/detail-from-photos.py`) and the city sky pushed back to the horizon. Kenney's site refuses
+   scripted downloads, so its UI packs have to be uploaded by hand if wanted.
 2. **Pick a new name with the owner.** "The Last Frontier" is from the old Western version.
    Candidates: **UNLISTED** (the deleted people and the resistance; the favourite so far), Spire Runner,
    Mercy Deck, Intake. Then change it in `index.html` (`<title>`, meta description), `play.html`,
