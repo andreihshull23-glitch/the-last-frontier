@@ -182,6 +182,50 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
   const sparks = makeSystem(900, true);
   const dust = makeSystem(600, false);
   const glows = makeSystem(160, true);     // lamp and fire halos, rebuilt per level
+  // ---- weather: rain over the open districts, drifting motes everywhere else (presentation only) ----
+  const RAIN_N = 900, MOTE_N = 260, RAIN_BOX = 26, MOTE_BOX = 14;
+  const rainPos = new Float32Array(RAIN_N * 6), rainSeed = new Float32Array(RAIN_N * 3);
+  for (let i = 0; i < RAIN_N; i++) { rainSeed[i * 3] = Math.random(); rainSeed[i * 3 + 1] = Math.random(); rainSeed[i * 3 + 2] = Math.random(); }
+  const rainGeo = new THREE.BufferGeometry();
+  rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+  const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0x9fb8e8, transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false }));
+  rain.frustumCulled = false; rain.visible = false; rain.renderOrder = 6;
+  scene.add(rain);
+  const motePos = new Float32Array(MOTE_N * 3), moteSeed = new Float32Array(MOTE_N * 4);
+  for (let i = 0; i < MOTE_N * 4; i++) moteSeed[i] = Math.random();
+  const moteGeo = new THREE.BufferGeometry();
+  moteGeo.setAttribute('position', new THREE.BufferAttribute(motePos, 3));
+  const motes = new THREE.Points(moteGeo, new THREE.PointsMaterial({ color: 0xffd9b0, size: 0.045, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending, depthWrite: false }));
+  motes.frustumCulled = false; motes.visible = false; motes.renderOrder = 6;
+  scene.add(motes);
+  const wrap = (v, c, half) => c - half + ((((v - (c - half)) % (2 * half)) + 2 * half) % (2 * half));
+  function updateWeather(sim) {
+    const L = sim.level, raining = Boolean(L.city) && L.theme !== 'hollow' && QUALITY[r.quality].fx >= 0.5;
+    const cx = camera.position.x, cz = camera.position.z, t = r.time;
+    rain.visible = raining; motes.visible = !raining && QUALITY[r.quality].fx >= 0.5;
+    if (raining) {
+      // each streak falls 14 m/s with a little wind, wrapped into a box that follows the camera
+      for (let i = 0; i < RAIN_N; i++) {
+        const sx = rainSeed[i * 3], sz = rainSeed[i * 3 + 2], sy = rainSeed[i * 3 + 1];
+        const y = 14 - (((t * 14 + sy * 14) % 14));
+        const x = wrap(sx * 400 + t * 1.5, cx, RAIN_BOX), z = wrap(sz * 400 + t * 0.6, cz, RAIN_BOX);
+        const o = i * 6;
+        rainPos[o] = x; rainPos[o + 1] = y; rainPos[o + 2] = z;
+        rainPos[o + 3] = x - 0.05; rainPos[o + 4] = y - 0.55; rainPos[o + 5] = z - 0.02;
+      }
+      rainGeo.attributes.position.needsUpdate = true;
+    } else if (motes.visible) {
+      const hollow = L.theme === 'hollow';
+      motes.material.color.set(hollow ? 0xb8a0ff : L.theme === 'deck' ? 0x9fdcff : 0xffd9b0);
+      for (let i = 0; i < MOTE_N; i++) {
+        const q = moteSeed.subarray(i * 4, i * 4 + 4);
+        motePos[i * 3] = wrap(q[0] * 300 + Math.sin(t * 0.3 + q[3] * 6) * 0.8 + t * 0.15, cx, MOTE_BOX);
+        motePos[i * 3 + 1] = 0.3 + ((q[1] * 5 + t * 0.08 * (0.5 + q[2])) % 5);
+        motePos[i * 3 + 2] = wrap(q[2] * 300 + Math.cos(t * 0.25 + q[0] * 6) * 0.8, cz, MOTE_BOX);
+      }
+      moteGeo.attributes.position.needsUpdate = true;
+    }
+  }
   const cTmp = new THREE.Color();
   function emit(sys, p) {
     if (sys.list.length >= sys.capacity * QUALITY[r.quality].fx) sys.list.shift();
@@ -791,6 +835,10 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           for (let i = 0; i < (e.broke ? 18 : 4); i++) emit(sparks, { x: X + (Math.random() - 0.5) * 0.6, y: 0.8 + Math.random() * 1.2, z: Z + (Math.random() - 0.5) * 0.6, vx: (Math.random() - 0.5) * 4, vy: Math.random() * 3, vz: (Math.random() - 0.5) * 4, life: 0.3, size: 0.12, color: '#3fe0ff' });
           break;
         }
+        case 'shield_up': {
+          for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; emit(sparks, { x: X + Math.cos(a) * 0.7, y: 0.2, z: Z + Math.sin(a) * 0.7, vx: 0, vy: 3.5, vz: 0, life: 0.5, size: 0.1, color: '#3fe0ff' }); }
+          break;
+        }
         case 'synergy': {
           for (let i = 0; i < 40; i++) { const a = (i / 40) * Math.PI * 2; emit(sparks, { x: X, y: 1.2, z: Z, vx: Math.cos(a) * 5, vy: 1 + Math.random() * 2, vz: Math.sin(a) * 5, life: 0.6, size: 0.14, color: i % 2 ? '#ff3fa4' : '#3fe0ff' }); }
           break;
@@ -799,7 +847,16 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           r.hitMarker = 0.14;
           const a = actorOf(e.id);
           if (a) a.flash = 1;
-          const hollow = Boolean(ENEMIES[e.kind]?.hollow);
+          const hollow = Boolean(ENEMIES[e.kind]?.hollow), big = e.amount >= 50;
+          r.shake = Math.max(r.shake, big ? 2.6 : 1.4);
+          // a hot pop where the shot landed, and sparks thrown back along the shot
+          const hx = X - Math.cos(e.angle) * 0.25, hz = Z - Math.sin(e.angle) * 0.25;
+          emit(sparks, { x: hx, y: 1.05, z: hz, life: 0.07, size: big ? 0.9 : 0.6, color: '#fff4e0' });
+          for (let i = 0; i < (big ? 14 : 8); i++) {
+            const an = e.angle + Math.PI + (Math.random() - 0.5) * 1.6;
+            const sp = 3 + Math.random() * 5;
+            emit(sparks, { x: hx, y: 0.9 + Math.random() * 0.4, z: hz, vx: Math.cos(an) * sp, vy: 1 + Math.random() * 3, vz: Math.sin(an) * sp, grav: 12, life: 0.18 + Math.random() * 0.16, size: 0.06, color: hollow ? '#c9b8ff' : i % 3 ? '#ffd27a' : '#ff8a4a', drag: 2 });
+          }
           for (let i = 0; i < 6; i++) {
             const an = e.angle + (Math.random() - 0.5) * 1.3;
             emit(dust, { x: X, y: 1.0, z: Z, vx: Math.cos(an) * (1 + Math.random() * 2.5), vy: Math.random() * 1.5, vz: Math.sin(an) * (1 + Math.random() * 2.5), grav: 9, life: 0.4, size: 0.07, a: 0.9, color: hollow ? '#b9a8ff' : '#8a2a1e', drag: 3 });
@@ -1063,6 +1120,15 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       }
       a.face = turn(a.face, n.facing, dt * 8);
       actors.place(a, n.x * U, n.y * U, a.face);
+      // life on the deck: keepers work their counters, customers talk with their hands, and anyone
+      // standing still waves when Rook comes close (presentation only, so plain Math.random is fine)
+      if (!n.moving && !a.oneShot) {
+        a.busyT = (a.busyT ?? 2 + Math.random() * 6) - dt;
+        const near = Math.hypot(s.player.x - n.x, s.player.y - n.y) < 90;
+        if (near && !a.waved) { a.oneShot = 'wave'; a.waved = true; }
+        else if (a.busyT <= 0 && (n.patron || n.role === 'keeper' || n.fixed)) { a.oneShot = Math.random() < 0.8 ? 'interact' : 'wave'; a.busyT = 4 + Math.random() * 7; }
+        if (!near && Math.hypot(s.player.x - n.x, s.player.y - n.y) > 200) a.waved = false;
+      }
       actors.update(a, dt, { speed: n.moving ? 1.8 : 0, armed: false });
     }
   }
@@ -1440,6 +1506,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     stepSystem(sparks, dt);
     stepSystem(dust, dt);
     updateEnvironment(sim, dt);
+    updateWeather(sim);
     const fx = QUALITY[r.quality].fx;
     if (post && fx >= 0.7 && r.post !== false) {
       gl.getDrawingBufferSize(bufSize);

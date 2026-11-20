@@ -124,7 +124,7 @@ export const SYNERGIES = {
 
 /** Elite enemies: a modifier, more health, better pickings. */
 export const ELITES = {
-  shielded: { name: 'Shielded', colour: '#3fe0ff', desc: 'A shield soaks damage until it breaks.' },
+  shielded: { name: 'Shielded', colour: '#3fe0ff', desc: 'A shield soaks damage until it breaks, and recharges if you let it out of the fight.' },
   swift: { name: 'Swift', colour: '#ffd23f', desc: 'Moves and fires faster.' },
   volatile: { name: 'Volatile', colour: '#ff5a3a', desc: 'Explodes when it dies. Step away.' },
 };

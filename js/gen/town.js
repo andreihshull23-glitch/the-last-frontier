@@ -15,24 +15,26 @@ const DARK = '#161822', DARK2 = '#0e0f18', STEEL = '#2a2d40', STEEL2 = '#1a1c2a'
 const rgb = (h) => [parseInt(h.slice(1, 3), 16) / 255, parseInt(h.slice(3, 5), 16) / 255, parseInt(h.slice(5, 7), 16) / 255];
 
 // North and south of the concourse, west to east. x0 and w are in macro cells.
+// Stalls stand shoulder to shoulder, split by partition walls, so the deck is a short walk end to end.
 const BAYS = [
   { id: 'saloon', side: 'n', x0: 3, w: 4, col: NEON.pink },
-  { id: 'store', side: 'n', x0: 8, w: 3, col: NEON.amber },
-  { id: 'hall', side: 'n', x0: 12, w: 4, col: NEON.cyan },
-  { id: 'gunsmith', side: 'n', x0: 17, w: 3, col: NEON.red },
+  { id: 'store', side: 'n', x0: 7, w: 3, col: NEON.amber },
+  { id: 'hall', side: 'n', x0: 10, w: 4, col: NEON.cyan },
+  { id: 'gunsmith', side: 'n', x0: 14, w: 3, col: NEON.red },
   { id: 'stable', side: 's', x0: 3, w: 3, col: NEON.gold },
-  { id: 'outfitter', side: 's', x0: 7, w: 3, col: NEON.violet },
-  { id: 'clinic', side: 's', x0: 11, w: 3, col: NEON.green },
-  { id: 'telegraph', side: 's', x0: 15, w: 2, col: NEON.cyan },
+  { id: 'outfitter', side: 's', x0: 6, w: 3, col: NEON.violet },
+  { id: 'clinic', side: 's', x0: 9, w: 3, col: NEON.green },
+  { id: 'telegraph', side: 's', x0: 12, w: 2, col: NEON.cyan },
 ];
-const ROW_N = 6, ROW_S = 8;     // the concourse is macro rows 6 to 8
+const ROW_N = 6, ROW_S = 7;     // the concourse is macro rows 6 and 7
+const EAST = 17;                // the range (north) and the Wall (south) are macro columns 17 to 19
 const BAY_D = 2;                // a stall is two cells deep
 
 export function generateTown(spec = {}) {
   const rng = makeRng((spec.seed ?? 20251) | 0);
   const invest = spec.investments || [];
   const prosperity = spec.prosperity ?? 0;
-  const L = createLevel('town', 'deck', 26, 13);
+  const L = createLevel('town', 'deck', EAST + 4, 12);
   L.name = 'Mercy Deck';
   L.neon = true;
   L.ambient = { sky: '#7078c0', ground: '#3c2c50', hemi: 0.66, sun: '#8fa0ff', sunI: 0.2, fog: '#0b0a16', near: 24, far: 96 };
@@ -41,10 +43,11 @@ export function generateTown(spec = {}) {
   // ---- the shape of the deck ---------------------------------------------------
   L.rock.fill(1);
   const open = (x0, y0, x1, y1) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) L.rock[y * mw + x] = 0; };
-  open(1, ROW_N, 23, ROW_S);                                   // the concourse, lift lobby at its west end
+  open(1, ROW_N, EAST + 2, ROW_S);                             // the concourse
+  open(1, ROW_N - 1, 2, ROW_S + 1);                            // the lift lobby at its west end
   for (const b of BAYS) b.side === 'n' ? open(b.x0, ROW_N - BAY_D, b.x0 + b.w - 1, ROW_N - 1) : open(b.x0, ROW_S + 1, b.x0 + b.w - 1, ROW_S + BAY_D);
-  open(21, 1, 23, ROW_N - 1);                                  // the range
-  open(21, ROW_S + 1, 23, 11);                                 // the Wall
+  open(EAST, 1, EAST + 2, ROW_N - 1);                          // the range
+  open(EAST, ROW_S + 1, EAST + 2, ROW_S + 3);                  // the Wall
 
   // ---- walls: kit panels on a dark plate, a line of light along the top -----------
   for (let my = 0; my < mh; my++) for (let mx = 0; mx < mw; mx++) {
@@ -64,6 +67,16 @@ export function generateTown(spec = {}) {
     }
   }
 
+  // ---- partitions between neighbouring stalls (and the lobby, and the range) -------------
+  const partition = (xm, z0, z1, north) => {
+    const x = xm * M, zc = (z0 + z1) / 2, d = z1 - z0;
+    box(L, x, 0, zc, 0.4, WALL_H, d, DARK2, { c2: DARK, solid: 'wall' });
+    const tube = box(L, x, WALL_H - 0.16, zc, 0.07, 0.07, d, north ? NEON.cyan : NEON.pink);
+    tube.glow = true;
+  };
+  for (const xm of [3, 7, 10, 14, EAST]) partition(xm, (ROW_N - BAY_D) * M, ROW_N * M, true);
+  for (const xm of [3, 6, 9, 12]) partition(xm, (ROW_S + 1) * M, (ROW_S + 1 + BAY_D) * M, false);
+
   // ---- floor --------------------------------------------------------------------
   for (let ty = 0; ty < L.h; ty++) for (let tx = 0; tx < L.w; tx++) {
     const i = ty * L.w + tx;
@@ -72,7 +85,7 @@ export function generateTown(spec = {}) {
     L.ground[i] = seam ? GROUND.grate : GROUND.deck;
   }
   // guide lines along the concourse, and hazard paint in front of the lift
-  for (let tx = 20; tx < 23 * MACRO; tx++) {
+  for (let tx = 20; tx < (EAST + 3) * MACRO - 4; tx++) {
     if (tx % 8 < 5) { L.ground[(ROW_N * MACRO + 2) * L.w + tx] = GROUND.glow; L.ground[((ROW_S + 1) * MACRO - 3) * L.w + tx] = GROUND.glow; }
   }
   paint(L, 8, ROW_N * MACRO + 4, 19, (ROW_S + 1) * MACRO - 5, GROUND.field);
@@ -132,6 +145,19 @@ export function generateTown(spec = {}) {
     const [lx, lz] = T(W / 2, D / 2);
     glow(lx, 3.9, lz, 0.9, 0.06, 0.3, '#fff0d8');
     light(lx, 3.7, lz, '#ffe2c0', 11, 'lantern');
+    // a lit strip on the floor across the mouth, a screen high on the back wall, cables from the header
+    glow(mid, 0.015, zm - out * 0.05, W - 1.0, 0.02, 0.07, b.col);
+    const [sx, sz] = T(W - 1.3, D - 0.25);
+    lit(['cyber/tv-1', 'cyber/tv-2'][b.x0 % 2], sx, sz, { y: 2.5, r: north ? 0 : Math.PI, s: 0.75 });
+    light(sx, 2.6, sz + out * 0.8, b.col, 6);
+    prop('cyber/cable-small', ...T(W * 0.3, 0.6), { y: WALL_H - 0.2, solid: false });
+    // stock lamps hung low over the counter area, in the stall's colour
+    for (const u of [W * 0.3, W * 0.7]) {
+      const [hx, hz] = T(u, 3.4);
+      box(L, hx, 3.0, hz, 0.03, 1.4, 0.03, '#2a2c3a');
+      cyl(L, hx, 2.8, hz, 0.22, 0.22, DARK2, { seg: 10 });
+      const bulb = cyl(L, hx, 2.74, hz, 0.16, 0.06, '#ffe6c8', { seg: 10 }); bulb.glow = true;
+    }
   }
   const stand = (id, u, v, len, look, extra) => {
     const F = frames[id];
@@ -248,9 +274,23 @@ export function generateTown(spec = {}) {
     prop('cyber/antenna-2', F.x1 - 1.4, F.zm - F.out * 0.3, { y: WALL_H + 0.7, solid: false });
   }
 
+  // ---- customers: people standing at the bar, browsing, waiting -------------------------------
+  const looksFor = ['townsman', 'townswoman', 'towns2', 'towns3', 'towns5', 'towns6', 'towns7'];
+  const patrons = [
+    ['saloon', F0 => F0.W / 2 - 0.9, 3.85, 0], ['saloon', F0 => F0.W / 2 + 4.9, 3.85, 0], ['saloon', () => 2.4, 3.5, 0],
+    ['store', F0 => F0.W / 2 + 1.0, F0 => F0.D - 1.25, Math.PI], ['gunsmith', () => 4.9, F0 => F0.D - 1.3, Math.PI],
+    ['clinic', () => 2.5, F0 => F0.D - 3.7, Math.PI], ['outfitter', F0 => F0.W - 1.6, 4.3, Math.PI],
+  ];
+  const fx = (v, F0) => (typeof v === 'function' ? v(F0) : v);
+  patrons.slice(0, 4 + Math.min(3, prosperity)).forEach(([id, u, v, turn], k) => {
+    const F0 = frames[id];
+    const [px, pz] = F0.T(fx(u, F0), fx(v, F0));
+    L.npcs.push({ role: 'townsfolk', name: 'Someone on the deck', x: P(px), y: P(pz), a: F0.face + turn, look: looksFor[(k * 3) % looksFor.length], fixed: true, patron: true });
+  });
+
   // ---- Meridian's liaison office: a shut door and a clean sign ---------------------------
   {
-    const x = 18.5 * M + 2, z = (ROW_S + 1) * M;
+    const x = (EAST - 2) * M, z = (ROW_S + 1) * M;
     box(L, x, 0, z - 0.06, 1.5, 2.5, 0.12, '#c8cede', { c2: '#8a90a8' });
     glow(x, 2.56, z - 0.14, 1.7, 0.06, 0.05, NEON.white);
     sign('MERIDIAN', x, 3.3, z - 0.3, 3.6, 0.7, 0, -1, NEON.white);
@@ -260,7 +300,7 @@ export function generateTown(spec = {}) {
 
   // ---- the freight lift ------------------------------------------------------------------
   {
-    const lx = 6, lz = 30;
+    const lx = 6, lz = (ROW_N + ROW_S + 1) * M / 2;
     place(L, 'scifi/platform-round1', lx, lz, { s: 0.9, t: 'deckprop', solid: false });
     const ring = cyl(L, lx, 0.1, lz, 2.5, 0.04, NEON.gold, { seg: 20 }); ring.glow = true;
     cyl(L, lx, 0.12, lz, 2.3, 0.04, '#20222e', { seg: 20 });
@@ -272,9 +312,9 @@ export function generateTown(spec = {}) {
     sign('FREIGHT LIFT', 9.47, 3.85, lz, 6.4, 0.86, 1, 0, NEON.gold);
     light(8, 3, lz, NEON.gold, 11);
     L.items.push({ kind: 'ride', x: P(lx), y: P(lz), r: 120 });
-    prop('station/container-wide', 5.0, 25.2, { s: 0.8 });
-    prop('station/container', 6.8, 25.0, { s: 0.8, r: 0.3 });
-    prop('station/container-flat', 5.4, 34.8, { s: 0.8, r: Math.PI / 2 });
+    prop('station/container-wide', 5.0, lz - 6.8, { s: 0.8 });
+    prop('station/container', 7.0, lz - 7.0, { s: 0.8, r: 0.3 });
+    prop('station/container-flat', 5.4, lz + 6.8, { s: 0.8, r: Math.PI / 2 });
     if (invest.includes('watchtower')) {
       for (const dz of [-4.2, 4.2]) {
         box(L, 10.6, 0, lz + dz, 0.5, 2.2, 0.5, STEEL, { c2: STEEL2, solid: true });
@@ -286,10 +326,10 @@ export function generateTown(spec = {}) {
   }
 
   // ---- the concourse ---------------------------------------------------------------------------
-  const zN = ROW_N * M, zS = (ROW_S + 1) * M;
-  // street lights on the wall stubs between stalls
-  for (const [mx, north] of [[7, true], [11, true], [16, true], [20, true], [6, false], [10, false], [14, false], [17, false], [20, false]]) {
-    const x = (mx + 0.5) * M, z = north ? zN + 0.5 : zS - 0.5;
+  const zN = ROW_N * M, zS = (ROW_S + 1) * M, zc = (zN + zS) / 2, xE = (EAST + 3) * M;
+  // street lights on the partitions between stalls
+  for (const [xm, north] of [[7, true], [10, true], [14, true], [6, false], [9, false], [12, false]]) {
+    const x = xm * M, z = north ? zN + 0.4 : zS - 0.4;
     prop('cyber/light-street-1', x, z, { r: north ? 0 : Math.PI, s: 0.82 });
     glow(x, 4.3, z + (north ? 0.8 : -0.8), 0.3, 0.06, 0.5, '#e8f4ff');
     light(x, 4.2, z + (north ? 0.9 : -0.9), '#cfe6ff', 12, 'lantern');
@@ -297,50 +337,39 @@ export function generateTown(spec = {}) {
   // beams overhead, with whatever people have hung from them
   const hung = ['cyber/sign-1', 'cyber/sign-2', 'cyber/sign-3', 'cyber/sign-small-1', 'cyber/sign-small-2', 'cyber/sign-small-3'];
   const tubes = [NEON.pink, NEON.cyan, NEON.violet, NEON.amber];
-  for (let k = 0; k < 10; k++) {
-    const x = 14 + k * 8;
-    box(L, x, WALL_H + 0.1, 30, 0.3, 0.3, 12.4, DARK2);
-    glow(x, WALL_H + 0.04, 30, 0.06, 0.06, 11.6, tubes[k % tubes.length]);
+  for (let k = 0; 14 + k * 7 < xE - 4; k++) {
+    const x = 14 + k * 7;
+    box(L, x, WALL_H + 0.1, zc, 0.3, 0.3, zS - zN + 0.4, DARK2);
+    glow(x, WALL_H + 0.04, zc, 0.06, 0.06, zS - zN - 0.4, tubes[k % tubes.length]);
     if (k % 2 === 0 || prosperity >= 2) {
-      const z = 27 + ((k * 5) % 7), m = hung[(k * 3 + 1) % hung.length];
+      const z = zc - 2 + ((k * 5) % 5), m = hung[(k * 3 + 1) % hung.length];
       box(L, x, 3.95, z, 0.04, 0.6, 0.04, '#3a3d50');
       lit(m, x + 0.1, z, { y: 3.5, r: Math.PI / 2 });
       lit(m, x - 0.1, z, { y: 3.5, r: -Math.PI / 2 });
     }
-    if (k % 3 === 1) prop('cyber/cable-small', x, 26.5 + (k % 4), { y: WALL_H + 0.1, solid: false });
+    if (k % 3 === 1) prop('cyber/cable-small', x, zc - 1.5 + (k % 4), { y: WALL_H + 0.1, solid: false });
   }
-  // things bolted to the walls between stalls
-  const stub = (mx, north, k) => {
-    const x = (mx + 0.5) * M, z = north ? zN + 0.08 : zS - 0.08, r = north ? 0 : Math.PI;
-    const kind = k % 4;
-    if (kind === 0) lit('cyber/sign-4', x - 0.9, z, { y: 2.3, r, s: 0.9 });
-    else if (kind === 1) { lit('cyber/sign-small-1', x - 0.8, z, { y: 2.7, r }); lit('cyber/sign-small-3', x - 0.8, z, { y: 1.75, r }); }
-    else if (kind === 2) lit('cyber/sign-small-2', x - 0.9, z, { y: 2.5, r, s: 1.4 });
-    else lit('cyber/sign-2', x, z, { y: 2.9, r, s: 0.8 });
-  };
-  [[7, true], [11, true], [16, true], [20, true], [2, true], [6, false], [10, false], [14, false], [2, false]].forEach(([mx, n], k) => stub(mx, n, k + 1));
-  // freight and clutter along the edges
-  const edge = [
-    ['scifi/prop-crate4', 29.2, 25.0, 0.6, 0.2], ['scifi/prop-crate3', 30.4, 24.9, 0.5, 0.5], ['scifi/prop-barrel-large', 45.0, 24.8, 0, 0],
-    ['scifi/prop-barrel-large', 45.8, 25.1, 0, 0], ['scifi/prop-crate4', 65.4, 25.0, 0.6, 1.2], ['scifi/prop-crate3', 81.0, 24.9, 0.5, 0.1],
-    ['scifi/prop-crate4', 25.6, 35.0, 0.6, 0.7], ['scifi/prop-barrel-large', 41.2, 35.2, 0, 0], ['scifi/prop-crate3', 57.4, 35.1, 0.5, 0.3],
-    ['scifi/prop-crate4', 58.6, 35.0, 0.6, 0.9], ['scifi/prop-barrel-large', 69.0, 35.2, 0, 0],
-  ];
-  for (const [m, x, z, y, r] of edge) prop(m, x, z, { y, r });
-  for (const [x, z] of [[27.0, 24.35], [43.0, 24.35], [63.0, 35.65], [39.0, 35.65]]) prop('scifi/prop-vent-big', x, z, { solid: false, y: 0.02 });
-  // a public screen where the concourse is widest
-  prop('cyber/tv-3', 50.0, 30.0, { r: Math.PI / 2, s: 0.8 });
-  light(50.6, 3, 30, NEON.cyan, 9);
-  if (prosperity >= 3) { prop('cyber/tv-3', 74.0, 30.0, { r: -Math.PI / 2, s: 0.8 }); light(73.4, 3, 30, NEON.pink, 9); }
-  // benches
-  for (const [x, z] of [[34, 30], [62, 30], [86, 30]]) {
-    box(L, x, 0, z, 2.2, 0.42, 0.6, STEEL, { c2: STEEL2, solid: true });
-    glow(x, 0.05, z, 2.3, 0.04, 0.7, NEON.violet);
-  }
+  // signs on the stretch of bare wall between the feed terminal and the Wall
+  lit('cyber/sign-4', 13.8 * M, zS - 0.08, { y: 2.3, r: Math.PI, s: 0.9 });
+  lit('cyber/sign-small-1', 16.2 * M, zS - 0.08, { y: 2.7, r: Math.PI }); lit('cyber/sign-small-3', 16.2 * M, zS - 0.08, { y: 1.75, r: Math.PI });
+  lit('cyber/sign-small-2', 1.6 * M, (ROW_N - 1) * M + 0.08, { y: 2.5, s: 1.4 });
+  // freight and clutter where it is out of the way: against partitions and the bare wall
+  for (const [m, x, z, y, r] of [
+    ['scifi/prop-barrel-large', 6 * M + 0.1, zS - 0.6, 0, 0], ['scifi/prop-crate3', 12 * M - 0.1, zS - 0.6, 0.5, 0.3],
+    ['scifi/prop-crate4', 15.0 * M, zS - 0.7, 0.6, 0.2], ['scifi/prop-crate3', 15.0 * M + 1.2, zS - 0.6, 0.5, 0.6],
+    ['scifi/prop-barrel-large', 13.2 * M, zS - 0.6, 0, 0],
+  ]) prop(m, x, z, { y, r });
+  for (const [x, z] of [[30, zN + 0.4], [46, zS - 0.4]]) prop('scifi/prop-vent-big', x, z, { solid: false, y: 0.02 });
+  // a public screen on the end wall, looking down the concourse
+  prop('cyber/tv-3', xE - 0.6, zc, { r: -Math.PI / 2, s: 0.8 });
+  light(xE - 1.4, 3, zc, NEON.cyan, 10);
+  // a bench against the bare wall
+  box(L, 15.8 * M, 0, zS - 0.5, 2.2, 0.42, 0.6, STEEL, { c2: STEEL2, solid: true });
+  glow(15.8 * M, 0.05, zS - 0.5, 2.3, 0.04, 0.7, NEON.violet);
 
   // ---- the range, beside the gun counter ----------------------------------------------------------
   {
-    const x0 = 21 * M, x1 = 24 * M;
+    const x0 = EAST * M, x1 = (EAST + 3) * M;
     for (let k = 0; k < 2; k++) {
       const x = x0 + 2.5 + k * 5;
       box(L, x, 0, 19.5, 3.2, 0.95, 0.3, STEEL, { c2: STEEL2, solid: true });
@@ -362,7 +391,7 @@ export function generateTown(spec = {}) {
 
   // ---- the Wall: names of the flatlined ---------------------------------------------------------------
   {
-    const x0 = 21 * M, x1 = 24 * M, zb = 12 * M;
+    const x0 = EAST * M, x1 = (EAST + 3) * M, zb = (ROW_S + 4) * M;
     box(L, (x0 + x1) / 2, 0, zb - 0.3, 11.2, 3.6, 0.4, '#101119', { solid: 'wall' });
     sign('THE WALL', (x0 + x1) / 2, 3.1, zb - 0.52, 4.0, 0.6, 0, -1, NEON.white);
     const fallen = spec.fallen || [];
@@ -383,18 +412,18 @@ export function generateTown(spec = {}) {
 
   // ---- people who walk the deck -----------------------------------------------------------------------
   const walkers = [
-    { look: 'townsman', route: [[24, 28], [52, 27.5], [86, 28.5], [60, 32]] },
-    { look: 'townswoman', route: [[70, 32.5], [40, 33], [20, 31.5], [48, 27]] },
-    { look: 'towns2', route: [[88, 20], [88, 30], [66, 33], [40, 27.5]] },
-    { look: 'towns3', route: [[90, 40], [78, 32.5], [34, 28], [70, 28]] },
+    { look: 'townsman', route: [[14, 26], [40, 25.5], [66, 26.5], [50, 30]] },
+    { look: 'townswoman', route: [[62, 30.5], [36, 30], [16, 29], [44, 26]] },
+    { look: 'towns2', route: [[74, 18], [74, 28], [54, 30.5], [30, 25.5]] },
+    { look: 'towns3', route: [[74, 38], [70, 30], [26, 26], [58, 26]] },
   ];
   walkers.slice(0, 2 + Math.min(2, Math.floor(prosperity / 2))).forEach((wk, k) => {
     L.npcs.push({ role: 'townsfolk', name: 'Someone on the deck', x: P(wk.route[0][0]), y: P(wk.route[0][1]), a: 0, look: wk.look, route: wk.route.map(([x, y]) => [P(x), P(y)]), idx: k });
   });
 
-  L.zones.push({ name: 'The concourse', x0: P(10), y0: P(zN), x1: P(96), y1: P(zS) });
-  L.zones.push({ name: 'The freight lift', x0: P(4), y0: P(zN), x1: P(9), y1: P(zS), exit: true });
+  L.zones.push({ name: 'The concourse', x0: P(10), y0: P(zN), x1: P(EAST * M), y1: P(zS) });
+  L.zones.push({ name: 'The freight lift', x0: P(4), y0: P(zN - M), x1: P(9), y1: P(zS + M), exit: true });
   const home = frames.saloon.T(frames.saloon.W / 2, -3);
-  L.start = spec.arrive === 'saloon' ? { x: P(home[0]), y: P(home[1]), a: 0 } : { x: P(12.5), y: P(30), a: 0 };
+  L.start = spec.arrive === 'saloon' ? { x: P(home[0]), y: P(home[1]), a: 0 } : { x: P(12.5), y: P(zc), a: 0 };
   return L;
 }

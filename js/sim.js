@@ -138,7 +138,7 @@ export function createSim(config, level) {
   for (const n of level.npcs) {
     state.npcs.push({
       id: state.nextId++, role: n.role, name: n.name, shop: n.shop || null, look: n.look, x: n.x, y: n.y, vx: 0, vy: 0, r: 11,
-      facing: n.a || 0, baseFacing: n.a || 0, fixed: Boolean(n.fixed), route: n.route || null, routeI: 0, waitT: 1 + (n.idx || 0) * 1.7,
+      facing: n.a || 0, baseFacing: n.a || 0, fixed: Boolean(n.fixed), patron: Boolean(n.patron), route: n.route || null, routeI: 0, waitT: 1 + (n.idx || 0) * 1.7,
       path: null, pathI: 0, pathGoal: -1, pathAge: 0, moving: false,
     });
   }
@@ -1581,6 +1581,7 @@ function updateEnemy(sim, e, dt) {
     if (e.atk.phase === 'windup') { e.atk.phase = 'cooldown'; e.atk.t = 0.5; emit(sim, 'staggered', { id: e.id, x: e.x, y: e.y }); }
     return;
   }
+  if (e.shieldMax) rechargeShield(sim, e, dt);
   e.stateT += dt;
   e.pathAge += dt;
   e.perceiveT -= dt;
@@ -1947,6 +1948,22 @@ function fireFlare(sim, e) {
   }
 }
 
+/**
+ * A shielded elite's shield comes back once it is out of the fight: nobody seen and nothing hitting it for
+ * SHIELD_REST seconds. It then refills over SHIELD_REFILL seconds. Fighting it, or being seen by it, stops the refill.
+ */
+const SHIELD_REST = 4, SHIELD_REFILL = 2.5;
+function rechargeShield(sim, e, dt) {
+  const s = sim.state;
+  if (e.shield >= e.shieldMax) return;
+  const busy = e.state === 'engage' || e.state === 'flare' || e.state === 'dash' || e.state === 'retreat';
+  const quiet = s.t - Math.max(e.lastSeenT ?? -99, e.shieldHurtT ?? -99);
+  if (busy || quiet < SHIELD_REST) return;
+  const was = e.shield;
+  e.shield = Math.min(e.shieldMax, e.shield + (e.shieldMax / SHIELD_REFILL) * dt);
+  if (was <= 0) emit(sim, 'shield_up', { x: e.x, y: e.y, id: e.id });
+}
+
 function damageEnemy(sim, e, dmg, ang, stagger = false) {
   const s = sim.state, p = s.player;
   const def = ENEMIES[e.kind];
@@ -1957,6 +1974,7 @@ function damageEnemy(sim, e, dmg, ang, stagger = false) {
     emit(sim, 'target_hit', { x: e.x, y: e.y, angle: ang });
     return;
   }
+  if (e.shieldMax) e.shieldHurtT = s.t;
   if (e.shield > 0) {
     const soak = Math.min(e.shield, dmg);
     e.shield -= soak; dmg -= soak;
@@ -1967,7 +1985,7 @@ function damageEnemy(sim, e, dmg, ang, stagger = false) {
   emit(sim, 'enemy_hit', { x: e.x, y: e.y, angle: ang, kind: e.kind, amount: Math.round(dmg), id: e.id });
   if (e.hp <= 0) { killEnemy(sim, e, ang); return; }
   if (e.state === 'dormant') wake(sim, e);
-  if (!def.boss && def.ai !== 'charger' && !def.rooted) { e.vx += Math.cos(ang) * 70; e.vy += Math.sin(ang) * 70; }
+  if (!def.boss && def.ai !== 'charger' && !def.rooted) { const kb = 80 + Math.min(70, dmg * 1.4); e.vx += Math.cos(ang) * kb; e.vy += Math.sin(ang) * kb; }   // knocked back, harder for bigger hits
   if (stagger && !def.boss && e.kind !== 'bounty' && def.ai !== 'charger' && e.atk.phase === 'windup') {
     e.atk.phase = 'cooldown';
     e.atk.t = 0.45;

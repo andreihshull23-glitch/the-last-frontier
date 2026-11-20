@@ -84,6 +84,9 @@ export const LOOKS = {
   townswoman: { fam: 'woman', model: 'Adventurer', tint: 'cloth_teal' },
   towns2: { fam: 'man', model: 'Spacesuit', tint: 'cloth_green' },
   towns3: { fam: 'woman', model: 'SciFi', tint: 'cloth_pink' },
+  towns5: { fam: 'woman', model: 'Soldier', tint: 'cloth_teal' },
+  towns6: { fam: 'man', model: 'Adventurer', tint: 'cloth_blue' },
+  towns7: { fam: 'woman', model: 'Adventurer', tint: 'cloth_rust' },
 };
 // One runner. The index is kept for old saves; everybody is Rook now.
 const DRIFTER_BODIES = [['man', 'Swat', null, null]];
@@ -596,8 +599,10 @@ export function createActors(assets) {
       }
     }
     if (a.flash > 0) {
-      a.flash = Math.max(0, a.flash - dt * 7);
-      a.material.emissive.setRGB(0.55 * a.flash, 0.16 * a.flash, 0.1 * a.flash);
+      a.flash = Math.max(0, a.flash - dt * 8);
+      // a white-hot flash that cools through orange
+      const f = a.flash, f2 = f * f;
+      a.material.emissive.setRGB(1.1 * f, 0.55 * f + 0.45 * f2, 0.25 * f + 0.6 * f2);
     }
   }
 

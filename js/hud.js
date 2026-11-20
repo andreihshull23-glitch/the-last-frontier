@@ -709,7 +709,7 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     ctx.fillRect(0, 0, w, h);
     if (s.phase === 'ended') {
       ctx.globalAlpha = clamp(r.deathFade * 1.5, 0, 1);
-      const text = out === 'extracted' ? 'RIDING FOR MERCY' : out === 'fled' ? 'TURNED BACK' : 'DEAD IN THE RED COUNTRY';
+      const text = out === 'extracted' ? 'EXTRACTED // LIFT TO MERCY DECK' : out === 'fled' ? 'PULLED OUT' : 'FLATLINED';
       label(ctx, text, w / 2, h / 2, good ? SAGE : BLOOD, `900 ${Math.round(clamp(w * 0.085, 30, 84))}px ${FONT_DISPLAY}`);
       ctx.globalAlpha = 1;
     }

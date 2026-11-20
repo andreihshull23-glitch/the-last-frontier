@@ -15,6 +15,13 @@ import { createSaveManager } from './save.js';
 import { createUI } from './ui.js';
 
 const STEP = 1 / 60;
+/** Freeze the sim for `t` seconds (a kill always does; rapid hits only every so often, so an SMG does not stutter). */
+function hitstop(t, force = false) {
+  if (app.settings.shake === false) return;   // the same switch as screen shake
+  if (!force && app.freezeCool > 0) return;
+  app.freeze = Math.max(app.freeze || 0, t);
+  app.freezeCool = 0.14;
+}
 const RUN_SAVE_EVERY = 4;
 const TURN_SPEED = 2.4;
 const PITCH_SPEED = 1.1;
@@ -402,12 +409,13 @@ function dispatch(events) {
       case 'enemy_shot': audio.play(e.weapon, vol); break;
       case 'echo_shot': audio.play('echoShot'); break;
       case 'buddy_shot': audio.play('e_pistol', 0.5); break;
-      case 'enemy_hit': audio.play('hit', 0.8); break;
+      case 'enemy_hit': audio.play('hit', 0.6); audio.play(e.amount >= 50 ? 'impactBig' : 'impact', vol); hitstop(e.amount >= 50 ? 0.05 : 0.028); break;
       case 'shield_hit': audio.play(e.broke ? 'zap' : 'graze', 0.6); break;
+      case 'shield_up': audio.play('zap', 0.35); break;
       case 'synergy': audio.play('chapter'); break;
       case 'wave': audio.play('alarm', 0.8); break;
       case 'target_hit': audio.play('target'); break;
-      case 'enemy_killed': audio.play('kill'); if (e.boss) audio.play('extracted'); break;
+      case 'enemy_killed': audio.play('kill'); audio.play('impactBig'); hitstop(e.boss ? 0.16 : 0.07, true); if (e.boss) audio.play('extracted'); break;
       case 'player_hit': audio.play('hurt'); vibrate(30); break;
       case 'dodge': audio.play('dodge'); break;
       case 'dodged': audio.play('graze'); break;
@@ -463,6 +471,9 @@ function advance(sim, dt) {
     const move = renderer.moveToWorld(inp.fwd, inp.right);
     const base = { mx: move.mx, my: move.my, ax: aim.x, ay: aim.y, interactHeld: inp.interactHeld, fireHeld: inp.fireHeld, sprint: inp.sprint };
     app.acc += dt;
+    // hit-stop: the world holds still for a few frames when a shot lands, so hits feel heavy
+    if (app.freeze > 0) { app.freeze -= dt; app.acc = Math.min(app.acc, STEP * 0.99); }
+    app.freezeCool = Math.max(0, (app.freezeCool || 0) - dt);
     let steps = 0;
     while (app.acc >= STEP && steps < 5 && !ui.panel) {
       app.prev = { x: sim.state.player.x, y: sim.state.player.y };

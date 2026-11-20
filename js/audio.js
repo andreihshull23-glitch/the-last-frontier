@@ -174,6 +174,12 @@ export function createAudio() {
     },
     echoShot: (v) => burst({ freq: 2400, q: 3, dur: 0.22, gain: 0.3 * v, echo: 1.2 }),
     hit: (v) => burst({ freq: 380, q: 1.5, dur: 0.07, gain: 0.5 * v }),
+    // the meat of a landed shot: a low thump under a short bright crack; heavier for big hits
+    impact: (v, big) => {
+      tone({ type: 'sine', freq: big ? 150 : 190, to: 45, dur: big ? 0.14 : 0.09, gain: (big ? 0.5 : 0.34) * v });
+      burst({ freq: big ? 2200 : 3200, q: 1.2, dur: 0.035, gain: (big ? 0.42 : 0.3) * v });
+    },
+    impactBig: (v) => SOUNDS.impact(v, true),
     kill: (v) => {
       burst({ freq: 260, q: 1, dur: 0.16, gain: 0.5 * v });
       tone({ type: 'triangle', freq: 220, to: 110, dur: 0.18, gain: 0.12 * v });

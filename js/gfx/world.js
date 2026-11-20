@@ -349,5 +349,34 @@ export function buildWorld(assets, L, opts = {}) {
     }
   }
 
+  // ---- light shafts: a faint cone of lit haze under each overhead lamp ---------------------------
+  // One merged, additive, unlit mesh. Colour fades from the lamp to nothing at the floor, so the haze
+  // reads as light in the air rather than a solid shape.
+  {
+    const shafts = L.lights.filter((l) => (l.kind === 'lantern' || l.kind === 'neon') && l.y >= 2.4).slice(0, 80);
+    if (shafts.length && opts.shafts !== false) {
+      const SEG = 14, pos = [], colr = [], idx = [];
+      for (const l of shafts) {
+        const top = l.y - 0.1, rTop = 0.12, rBot = Math.min(1.8, 0.4 + l.y * 0.3);
+        const k = l.kind === 'lantern' ? 0.045 : 0.03;
+        const base = pos.length / 3;
+        for (let i = 0; i <= SEG; i++) {
+          const a = (i / SEG) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a);
+          pos.push(l.x + ca * rTop, top, l.z + sa * rTop, l.x + ca * rBot, 0.02, l.z + sa * rBot);
+          colr.push(l.c[0] * k, l.c[1] * k, l.c[2] * k, 0, 0, 0);
+        }
+        for (let i = 0; i < SEG; i++) { const v = base + i * 2; idx.push(v, v + 1, v + 2, v + 1, v + 3, v + 2); }
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(colr, 3));
+      g.setIndex(idx);
+      const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: true }));
+      mesh.renderOrder = 2;
+      mesh.userData.shafts = true;
+      group.add(mesh);
+    }
+  }
+
   return { group, roofs, doors, signs, water, sectorMeshes, update, dispose, theme };
 }

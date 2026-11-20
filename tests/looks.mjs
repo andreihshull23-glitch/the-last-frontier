@@ -37,9 +37,9 @@ async function run(id, chapter) {
 
 if (want.has('deck')) {
   await begin();
-  await D(() => { const p = window.LF_DEBUG.state().player; p.x = 14 * 32; p.y = 30 * 32; window.LF_DEBUG.face(0, 0.12); });
+  await D(() => { const p = window.LF_DEBUG.state().player; p.x = 14 * 32; p.y = 28 * 32; window.LF_DEBUG.face(0, 0.12); });
   await wait(0.6); await shot('look-deck-1');
-  await D(() => { const p = window.LF_DEBUG.state().player; p.x = 52 * 32; p.y = 31 * 32; window.LF_DEBUG.face(-2.4, 0.08); });
+  await D(() => { const p = window.LF_DEBUG.state().player; p.x = 44 * 32; p.y = 30 * 32; window.LF_DEBUG.face(-2.4, 0.08); });
   await wait(0.6); await shot('look-deck-2');
 }
 for (const [scene, id, chapter] of [['district', 'story:shipment', 0], ['hollow', 'story:hollow', 5], ['descent', 'descent:descent', 2]]) {

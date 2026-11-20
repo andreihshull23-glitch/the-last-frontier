@@ -23,7 +23,7 @@ void main() {
 }`;
 
 const FINAL = `uniform sampler2D tScene; uniform sampler2D tB0; uniform sampler2D tB1; uniform sampler2D tB2;
-uniform float bloom; uniform float exposure; uniform float vignette; uniform vec3 lift; uniform float sat;
+uniform float bloom; uniform float exposure; uniform float vignette; uniform vec3 lift; uniform float sat; uniform float time; uniform float fringe;
 varying vec2 vUv;
 vec3 lfRrtOdt(vec3 v) { vec3 a = v * (v + 0.0245786) - 0.000090537; vec3 b = v * (0.983729 * v + 0.4329510) + 0.238081; return a / b; }
 vec3 lfAces(vec3 color) {
@@ -35,7 +35,10 @@ vec3 lfAces(vec3 color) {
 }
 vec3 lfToSRGB(vec3 c) { return mix(pow(c, vec3(0.41666)) * 1.055 - vec3(0.055), c * 12.92, vec3(lessThanEqual(c, vec3(0.0031308)))); }
 void main() {
-  vec3 c = texture2D(tScene, vUv).rgb;
+  // a lens fringe that grows toward the corners: red and blue pulled apart a little
+  vec2 dc = vUv - 0.5;
+  vec2 off = dc * dot(dc, dc) * fringe;
+  vec3 c = vec3(texture2D(tScene, vUv + off).r, texture2D(tScene, vUv).g, texture2D(tScene, vUv - off).b);
   vec3 b = texture2D(tB0, vUv).rgb * 0.5 + texture2D(tB1, vUv).rgb * 0.8 + texture2D(tB2, vUv).rgb * 1.1;
   c += b * bloom;
   c = lfAces(c);
@@ -45,6 +48,9 @@ void main() {
   c += lift * (1.0 - smoothstep(0.0, 0.35, l));
   vec2 d = vUv - 0.5;
   c *= 1.0 - vignette * smoothstep(0.35, 0.85, length(d * vec2(1.25, 1.0)));
+  // fine film grain, strongest in the mid-tones
+  float n = fract(sin(dot(vUv * 1000.0 + fract(time * 7.13) * 91.7, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+  c += n * 0.035 * (1.0 - abs(l * 2.0 - 1.0));
   gl_FragColor = vec4(lfToSRGB(clamp(c, 0.0, 1.0)), 1.0);
 }`;
 
@@ -66,7 +72,7 @@ export function createPost(gl) {
   const blur = mat(BLUR, { tSrc: { value: null }, dir: { value: new THREE.Vector2() } });
   const final = mat(FINAL, {
     tScene: { value: null }, tB0: { value: null }, tB1: { value: null }, tB2: { value: null },
-    bloom: { value: 0.9 }, exposure: { value: 0.98 }, vignette: { value: 0.28 }, lift: { value: new THREE.Vector3(0.012, 0.01, 0.03) }, sat: { value: 1.08 },
+    bloom: { value: 0.9 }, exposure: { value: 0.98 }, vignette: { value: 0.28 }, lift: { value: new THREE.Vector3(0.012, 0.01, 0.03) }, sat: { value: 1.08 }, time: { value: 0 }, fringe: { value: 0.008 },
   });
 
   function setSize(width, height, wantMsaa) {
@@ -101,6 +107,7 @@ export function createPost(gl) {
       final.uniforms.tScene.value = scene.texture;
       final.uniforms.tB0.value = levels[0].a.texture; final.uniforms.tB1.value = levels[1].a.texture; final.uniforms.tB2.value = levels[2].a.texture;
       final.uniforms.bloom.value = bloom;
+      final.uniforms.time.value = performance.now() / 1000;
       final.uniforms.exposure.value = gl.toneMappingExposure;
       pass(final, null);
       gl.toneMapping = tm;
