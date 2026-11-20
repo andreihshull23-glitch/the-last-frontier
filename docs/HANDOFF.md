@@ -35,6 +35,14 @@ because both are paid services with their own accounts and credits.
 - Panoramic skies rendered in Blender (`assets/sky/city.jpg`, `assets/sky/hollow.jpg`).
 - Walk, attack and death animations for the Hollow's creatures (`tools/creature-clips.mjs`).
 
+## Added since (2026-11-20, later)
+
+- Compact Mercy Deck with customers and gesturing keepers; shield recharge; punchy hits (flash, sound,
+  sparks, knockback, shake, hit-stop); gun kick, muzzle flash, spread bloom; blood, oil and ichor (`gore.js`).
+- Five run systems from the owner's design brief: WARDEN adaptation, cargo capacity and chutes, tower
+  systems with consequences, Override (T) and Overclock (Z). See the conventions in `CLAUDE.md`.
+- A real freight-lift ride between levels, and a scrolling story backdrop on the title screen.
+
 ## Next steps, in order
 
 1. **Done (Version 17):** the art pass is published, with scanned Poly Haven surface detail

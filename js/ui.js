@@ -2,6 +2,7 @@
 // at shop counters and people in Mercy, briefings, results, pause and settings.
 // Full screens render into #ui; panels render into #panel above the town.
 
+import { createTitleScroll } from './titlescroll.js';
 import * as R from './rules.js';
 import { PAD_ACTIONS } from './gamepad.js';
 import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CRAWL, LOGS, CHAPTERS, AMMO, PROLOGUE, HERO } from './content.js';
@@ -19,9 +20,11 @@ export function createUI(root, panelEl, api) {
   let confirmNew = false;
 
   const c = () => api.campaign();
+  const titleScroll = createTitleScroll();
 
   // ---------------------------------------------------------------- full screens
   function show(name, d = {}) {
+    if (name === 'title') titleScroll.start(root); else titleScroll.stop();
     screen = name;
     data = d;
     notice = '';
@@ -33,7 +36,7 @@ export function createUI(root, panelEl, api) {
     // a controller presses whatever has focus: on the crawl that is Skip
     if (name === 'crawl') root.querySelector('.crawl-skip')?.focus({ preventScroll: true });
   }
-  function hide() { screen = null; root.hidden = true; root.innerHTML = ''; }
+  function hide() { titleScroll.stop(); screen = null; root.hidden = true; root.innerHTML = ''; }
   function flash(msg) { notice = msg; if (panel) renderPanel(); else render(); }
 
   function render() {
@@ -50,6 +53,18 @@ export function createUI(root, panelEl, api) {
   };
 
   const SCREENS = {
+    // in the freight lift between levels: the shaft going by, a floor counter, the job's name
+    lift() {
+      return `<section class="lift-shaft" aria-label="Freight lift, going down">
+        <div class="shaft"><div class="shaft-walls"></div><div class="car"><div class="car-gate"></div><div class="car-lamp"></div></div></div>
+        <div class="lift-copy">
+          <p class="eyebrow">Freight lift · going down</p>
+          <p class="lift-level"><span class="lift-count"></span></p>
+          <h2 class="lift-job">${esc(data.label || '')}</h2>
+          <p class="muted">Keys and pad are locked while the car moves.</p>
+        </div>
+      </section>`;
+    },
     loading() {
       const pct = Math.round((data.progress ?? 0) * 100);
       return `<section class="title-copy">

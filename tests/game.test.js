@@ -538,3 +538,14 @@ test('Overclock: only when charged, then a boost, then a crash that blocks Overr
   run(sim, 0.5, { mx: 1 });
   assert.ok(p.x - x1 < fast, 'slower in the crash than overclocked');
 });
+
+test('a run saved before the new systems still resumes', () => {
+  const c = campaign();
+  const { sim } = ride(c, R.availableMissions(c)[0].id);
+  const old = JSON.parse(snapshot(sim));
+  for (const k of ['warden', 'sys', 'secured', 'hazards', 'jammed', 'jamT']) delete old[k];
+  for (const k of ['hack', 'heat', 'oc', 'crash']) delete old.player[k];
+  const back = restoreSim(old, sim.level);
+  run(back, 2, { mx: 1, fireHeld: true, fire: true, hack: true, overclock: true });
+  assert.equal(back.state.phase !== undefined, true);
+});

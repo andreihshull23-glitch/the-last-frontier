@@ -48,6 +48,7 @@
     -webkit-touch-callout: none;
   }
   #stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  .title-scroll { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #hud { pointer-events: none; }
   #ui {
     position: fixed;
@@ -265,6 +266,27 @@
   .result { display: grid; gap: 18px; max-width: 780px; }
   .result-head { font-size: clamp(52px, 10.5vw, 116px); font-weight: 900; line-height: .86; }
   .result.extracted .result-head { color: var(--sage); }
+  #ui:has(.lift-screen) { background: #05050c; display: grid; place-items: center; }
+  .lift-screen { width: 100%; }
+  .lift-shaft { display: grid; grid-template-columns: minmax(180px, 280px) 1fr; gap: 36px; align-items: center; max-width: 860px; margin: 0 auto; min-height: 70vh; }
+  .shaft { position: relative; height: 70vh; overflow: hidden; border-left: 3px solid #1d1f30; border-right: 3px solid #1d1f30; background: linear-gradient(90deg, #0b0b16, #14152a 50%, #0b0b16); }
+  .shaft-walls { position: absolute; inset: -200px 0 0 0; background:
+      repeating-linear-gradient(180deg, transparent 0 118px, rgba(255,180,63,.55) 118px 121px, transparent 121px 200px),
+      repeating-linear-gradient(180deg, transparent 0 36px, rgba(63,224,255,.12) 36px 38px),
+      linear-gradient(90deg, rgba(0,0,0,.6), transparent 20%, transparent 80%, rgba(0,0,0,.6));
+    animation: shaft-by .55s linear infinite; }
+  @keyframes shaft-by { from { transform: translateY(0); } to { transform: translateY(-200px); } }
+  .car { position: absolute; left: 14%; right: 14%; top: 34%; height: 30%; border: 3px solid #ffd23f; border-top-width: 10px; background: linear-gradient(180deg, rgba(255,226,192,.18), rgba(20,20,36,.9)); box-shadow: 0 0 40px rgba(255,210,63,.25); animation: car-shake .18s steps(2) infinite; }
+  .car::before, .car::after { content: ''; position: absolute; top: -70vh; width: 3px; height: 70vh; background: #2a2c40; }
+  .car::before { left: 30%; } .car::after { right: 30%; }
+  .car-gate { position: absolute; inset: 8px; background: repeating-linear-gradient(90deg, rgba(255,180,63,.7) 0 2px, transparent 2px 12px); }
+  .car-lamp { position: absolute; left: 35%; right: 35%; top: 4px; height: 4px; background: #fff0d8; box-shadow: 0 0 18px #ffe2c0; }
+  @keyframes car-shake { 0% { transform: translateX(0); } 50% { transform: translateX(1px); } }
+  .lift-level { font-family: var(--font-display, inherit); font-size: clamp(40px, 7vw, 72px); color: #ffd23f; margin: 6px 0; }
+  .lift-count::after { content: 'LEVEL 12'; animation: lift-count 1.9s steps(1) forwards; }
+  @keyframes lift-count { 0% { content: 'LEVEL 12'; } 20% { content: 'LEVEL 11'; } 40% { content: 'LEVEL 10'; } 60% { content: 'LEVEL 9'; } 80% { content: 'LEVEL 8'; } 100% { content: 'SUBLEVEL'; } }
+  .lift-job { font-size: clamp(20px, 3vw, 30px); color: var(--ink, #e8ecff); }
+  @media (max-width: 640px) { .lift-shaft { grid-template-columns: 1fr; } .shaft { height: 40vh; } }
   .result.cargo .result-head { color: var(--amber, #ffb43f); font-size: clamp(40px, 8vw, 84px); }
   .cargo-total { font-weight: 700; margin: 10px 0; } .cargo-total.bad { color: #ff5a4a; } .cargo-total.good { color: #5dff9a; }
   .cargo-list { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 18px; max-width: 560px; }
@@ -390,7 +412,7 @@
   .asks .btn.asked { opacity: .6; }
   .answer { border-left: 3px solid var(--lamp); padding-left: 14px; display: grid; gap: 6px; }
   /* the title: everything centred, the menu a single column of equal buttons */
-  #ui.over-town:has(.title-screen) { background: radial-gradient(ellipse at center, rgba(8, 7, 20, .9) 0%, rgba(8, 7, 20, .78) 45%, rgba(8, 7, 20, .35) 100%); justify-items: center; }
+  #ui.over-town:has(.title-screen) { background: radial-gradient(ellipse 46% 60% at center, rgba(8, 7, 20, .82) 0%, rgba(8, 7, 20, .55) 60%, rgba(8, 7, 20, 0) 100%); justify-items: center; }
   #ui.over-town .screen.title-screen { margin: 0 auto; max-width: 640px; width: 100%; }
   .title-screen .title-copy { justify-items: center; text-align: center; }
   .title-screen .lede { margin-inline: auto; }

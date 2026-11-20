@@ -606,6 +606,66 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
   };
 
   /** Title screen: a slow drift down Main Street instead of the shoulder camera. */
+  // ---- the freight lift: a car that carries Rook down out of one level and into the next ----------
+  // `r.lift` is set by main: { phase: 'depart' | 'arrive', t, dur, x, z } (metres). Presentation only.
+  let liftCar = null;
+  function buildLiftCar() {
+    const g = new THREE.Group();
+    const steel = new THREE.MeshLambertMaterial({ color: col('#2a2d40') }), dark = new THREE.MeshLambertMaterial({ color: col('#14151f') });
+    const gold = basic('#ffd23f', { opacity: 1 }), cyan = basic('#3fe0ff', { opacity: 1 });
+    const floor = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.75, 0.22, 24), steel); floor.position.y = -0.11; g.add(floor);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(1.68, 0.04, 6, 32), gold); rim.rotation.x = Math.PI / 2; rim.position.y = 0.02; g.add(rim);
+    const roof = new THREE.Mesh(new THREE.CylinderGeometry(1.75, 1.75, 0.18, 24, 1, true), dark); roof.position.y = 3.2; g.add(roof);
+    const roofRim = new THREE.Mesh(new THREE.TorusGeometry(1.7, 0.035, 6, 32), cyan); roofRim.rotation.x = Math.PI / 2; roofRim.position.y = 3.12; g.add(roofRim);
+    const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.05, 16), basic('#fff0d8', { opacity: 1 })); lamp.position.y = 3.1; g.add(lamp);
+    for (let k = 0; k < 4; k++) {
+      const a = (k / 4) * TAU + Math.PI / 4;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, 3.2, 0.14), steel); post.position.set(Math.cos(a) * 1.62, 1.6, Math.sin(a) * 1.62); g.add(post);
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.04, 2.9, 0.04), gold); strip.position.set(Math.cos(a) * 1.7, 1.6, Math.sin(a) * 1.7); g.add(strip);
+    }
+    // the gate: bars of light around the car, which rise before it moves and drop when it lands
+    const gate = new THREE.Group();
+    for (let k = 0; k < 18; k++) {
+      const a = (k / 18) * TAU;
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.025, 2.4, 0.025), basic('#ffb43f', { opacity: 0.6, blending: THREE.AdditiveBlending }));
+      bar.position.set(Math.cos(a) * 1.64, 1.2, Math.sin(a) * 1.64); gate.add(bar);
+    }
+    g.add(gate); g.userData.gate = gate;
+    // the cables it hangs from, up into the dark
+    for (const dx of [-0.5, 0.5]) { const c = new THREE.Mesh(new THREE.BoxGeometry(0.05, 60, 0.05), dark); c.position.set(dx, 33, 0); g.add(c); }
+    const light = new THREE.PointLight(col('#ffe2c0'), 3.2, 10, 2); light.position.y = 2.6; g.add(light);
+    return g;
+  }
+  const easeIn = (k) => k * k * k, easeOut = (k) => 1 - (1 - k) ** 3;
+  /** Advance the lift and point the camera at it. Call instead of updateCamera while a lift is moving. */
+  r.liftCam = (sim, dt) => {
+    const L = r.lift;
+    if (!L) return;
+    L.t += dt;
+    const k = Math.min(1, L.t / L.dur);
+    // depart: the gate rises (first 30%), then the car sinks; arrive: the car comes down, then the gate drops
+    let y, gateUp;
+    if (L.phase === 'depart') { const m = Math.max(0, (k - 0.3) / 0.7); y = -7.5 * easeIn(m); gateUp = Math.min(1, k / 0.3); }
+    else if (L.phase === 'up') { const m = Math.max(0, (k - 0.3) / 0.7); y = 9 * easeIn(m); gateUp = Math.min(1, k / 0.3); }
+    else { const m = Math.min(1, k / 0.78); y = 7.5 * (1 - easeOut(m)); gateUp = 1 - Math.max(0, (k - 0.82) / 0.18); }
+    L.y = y;
+    if (!liftCar) liftCar = buildLiftCar();
+    if (liftCar.parent !== scene) scene.add(liftCar);
+    liftCar.position.set(L.x, y, L.z);
+    liftCar.userData.gate.scale.y = Math.max(0.01, gateUp);
+    liftCar.userData.gate.position.y = -1.2 * (1 - gateUp);
+    // a fixed camera to one side: on departure it stays on the deck and watches the car go down
+    const side = L.phase === 'depart' ? { dx: 5.2, dy: 3.4, dz: 4.2 } : { dx: 4.6, dy: 2.1, dz: 4.8 };
+    camera.position.set(L.x + side.dx, side.dy, L.z + side.dz);
+    camera.lookAt(L.x, L.phase === 'depart' ? Math.max(-1.5, y + 1.0) : L.phase === 'up' ? Math.min(5, y + 1.3) : y + 1.3, L.z);
+    camera.updateMatrixWorld();
+    r.camReady = false;
+    if (L.phase === 'depart' && k > 0.3 && Math.random() < 0.5) emit(sparks, { x: L.x + (Math.random() - 0.5) * 3.4, y: 0.05, z: L.z + (Math.random() - 0.5) * 3.4, vy: 1.5, life: 0.4, size: 0.07, color: '#ffd23f' });
+    if (L.phase === 'arrive' && k > 0.74 && k < 0.8) { r.shake = Math.max(r.shake, 4); for (let i = 0; i < 6; i++) emit(dust, { x: L.x + (Math.random() - 0.5) * 4, y: 0.1, z: L.z + (Math.random() - 0.5) * 4, vx: (Math.random() - 0.5) * 2, vy: 0.4, vz: (Math.random() - 0.5) * 2, life: 1, size: 0.5, grow: 2, a: 0.4, color: '#5a5868', drag: 2 }); }
+    return k >= 1;
+  };
+  r.endLift = () => { r.lift = null; if (liftCar?.parent) liftCar.parent.remove(liftCar); };
+
   r.cinematic = (sim, t) => {
     const x = 20 + (Math.sin(t * 0.05 - 1.2) * 0.5 + 0.5) * 44, z = 40 + Math.sin(t * 0.08) * 2;
     camera.position.set(x, 4.6 + Math.sin(t * 0.06) * 0.7, z + 1.2);
@@ -1107,7 +1167,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     a.face = a.face === undefined ? want : turn(a.face, want, dt * 24);
     const pp = r.playerPos || p;
     actors.place(a, pp.x * U, pp.y * U, a.face);
-    a.root.position.y = p.jumpT > 0 ? Math.sin(Math.PI * (1 - p.jumpT / JUMP.time)) * 1.05 : 0;
+    a.root.position.y = (p.jumpT > 0 ? Math.sin(Math.PI * (1 - p.jumpT / JUMP.time)) * 1.05 : 0) + (r.lift ? r.lift.y : 0);
     actors.update(a, dt, { speed, armed, facing: a.face, moveAngle: speed > 0.5 ? Math.atan2(p.vy, p.vx) : undefined });
     if (a.gun) a.gun.visible = !town || armed;
     a.root.visible = true;
@@ -1602,7 +1662,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     r.shake = Math.max(0, r.shake - dt * 30);
     if (!ui.cameraUpdated) r.updateCamera(sim, dt);
     syncPlayer(sim, dt);
-    if (ui.noHud && W.player) W.player.root.visible = false;
+    if (ui.noHud && !ui.showPlayer && W.player) W.player.root.visible = false;
     syncEnemies(sim, dt);
     syncNpcs(sim, dt);
     updateTelegraphs(sim);

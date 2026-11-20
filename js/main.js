@@ -3,7 +3,7 @@
 // Mercy and the rides are the same sim and the same third-person renderer.
 
 import * as R from './rules.js';
-import { CHAPTERS } from './content.js';
+import { CHAPTERS, PX } from './content.js';
 import { generateLevel } from './gen/index.js';
 import { createSim, update, snapshot, restoreSim, nightFactor, haunted, focusPrompt, objectiveList, abandon } from './sim.js';
 import { createAssets } from './gfx/assets.js';
@@ -208,24 +208,62 @@ function enterTown(arrive = 'trail', keep = null) {
   if (keep) { renderer.yaw = keep.yaw; renderer.pitch = keep.pitch; }
 }
 
+/**
+ * The freight lift as a ride: the car's gate rises and it sinks out of the level (`fromSim`), the shaft goes
+ * by while the next level is built (`make`), then the car comes down into it and lands. In ?debug the lift is
+ * instant unless `app.cutscenes` is on, so the tests do not wait for it.
+ */
+function rideLift(fromSim, label, make, fail) {
+  const instant = debug && !app.cutscenes;
+  const build = () => { let sim = null; try { sim = make(); } catch (err) { console.error(err); } return sim; };
+  if (instant || !fromSim) { const sim = build(); if (sim) enterRide(sim); else fail(); return; }
+  const p = fromSim.state.player;
+  const pad = fromSim.state.interactables.filter((i) => i.kind === 'ride' || i.kind === 'exit').sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+  if (pad && Math.hypot(pad.x - p.x, pad.y - p.y) < 200) { p.x = pad.x; p.y = pad.y; }
+  if (ui.panel) ui.closePanel();
+  controls.setEnabled(false);
+  controls.releaseLock();
+  audio.play('door');
+  renderer.lift = { phase: 'depart', t: 0, dur: 2.8, x: p.x / PX, z: p.y / PX, y: 0 };
+  app.lift = {
+    sim: fromSim,
+    done() {
+      renderer.endLift();
+      ui.show('lift', { label });
+      const t0 = performance.now();
+      // let the shaft screen paint before the level is built (which holds the page for a moment)
+      requestAnimationFrame(() => setTimeout(() => {
+        const sim = build();
+        const wait = Math.max(700, 2300 - (performance.now() - t0));
+        setTimeout(() => {
+          if (!sim) { fail(); return; }
+          renderer.dispose();
+          enterRide(sim);
+          controls.setEnabled(false);
+          renderer.lift = { phase: 'arrive', t: 0, dur: 3.2, x: sim.level.start.x / PX, z: sim.level.start.y / PX, y: 7 };
+          audio.play('clang');
+          app.lift = { sim, done() { renderer.endLift(); app.lift = null; controls.setEnabled(true); audio.play('door'); } };
+        }, wait);
+      }, 30));
+      app.lift = null;
+    },
+  };
+}
+
 function startRide(missionId) {
   const c = app.campaign;
   const seed = (Math.random() * 4294967296) >>> 0;
   const begun = R.beginExpedition(c, missionId, seed);
   if (!begun.ok) { ui.flash(begun.reason); return false; }
-  let sim;
-  try {
-    sim = createSim(begun.config, generateLevel(begun.config.level));
-  } catch (err) {
-    console.error(err);
-    R.abortExpedition(c, begun.config.expeditionId);
-    ui.flash('The lift jammed before you left. Try that job again.');
-    return false;
-  }
   persist();
   audio.unlock();
   audio.play('chapter');
-  enterRide(sim);
+  rideLift(app.mode === 'town' ? app.sim : null, begun.config.title, () => createSim(begun.config, generateLevel(begun.config.level)), () => {
+    R.abortExpedition(c, begun.config.expeditionId);
+    persist();
+    enterTown('trail');
+    ui.flash('The lift jammed before you left. Try that job again.');
+  });
   return true;
 }
 
@@ -237,7 +275,7 @@ function enterRide(sim) {
 function beginStage(sim, mode) {
   app.sim = sim;
   app.mode = mode;
-  app.acc = 0; app.last = 0; app.endT = 0; app.resolved = false; app.cargoChosen = false; app.runSaveT = 0; app.pending = {};
+  app.acc = 0; app.last = 0; app.endT = 0; app.resolved = false; app.cargoChosen = false; app.liftedOut = false; app.runSaveT = 0; app.pending = {};
   ui.hide();
   if (ui.panel) ui.closePanel();
   panelEl.hidden = true;
@@ -259,16 +297,24 @@ function finishRide() {
   // The Descent: the lift goes down to the next floor, carrying what the drifter holds.
   const down = R.nextFloor(app.campaign, app.sim.state.config, app.sim.state.report);
   if (down) {
-    try {
-      const sim = createSim(down, generateLevel(down.level));
-      renderer.dispose();
-      audio.play('chapter');
-      enterRide(sim);
-      return;
-    } catch (err) { console.error(err); /* fall through and settle what was earned */ }
+    audio.play('chapter');
+    rideLift(app.sim, down.title, () => createSim(down, generateLevel(down.level)), () => settleRide());
+    return;
+  }
+  // extracted by lift: the car comes for Rook and carries them up out of the level first
+  const rep = app.sim.state.report;
+  const st = app.sim.state, exitIt = st.interactables.find((i) => i.id === st.extract?.id) || st.interactables.filter((i) => i.kind === 'exit').sort((a, b) => Math.hypot(a.x - st.player.x, a.y - st.player.y) - Math.hypot(b.x - st.player.x, b.y - st.player.y))[0];
+  if (rep?.outcome === 'extracted' && !app.liftedOut && !(debug && !app.cutscenes) && exitIt && (exitIt.variant === 'horse' || exitIt.variant === 'lift')) {
+    app.liftedOut = true;
+    const p = st.player;
+    controls.setEnabled(false);
+    controls.releaseLock();
+    audio.play('door');
+    renderer.lift = { phase: 'up', t: 0, dur: 2.8, x: p.x / PX, z: p.y / PX, y: 0 };
+    app.lift = { sim: app.sim, done() { renderer.endLift(); app.lift = null; finishRide(); } };
+    return;
   }
   // more than the lift will take: choose what goes up before the run is settled
-  const rep = app.sim.state.report;
   if (rep?.outcome === 'extracted' && rep.cargo?.offer?.some((o) => !o.take) && !app.cargoChosen) {
     app.cargoChosen = true;
     controls.setEnabled(false);
@@ -315,14 +361,8 @@ function quitToTitle() {
 }
 
 function showTitle() {
-  // the title sits over a slow flight down Main Street
-  let sim = null;
-  try {
-    const c = app.campaign && !R.needsSuccessor(app.campaign) ? app.campaign : null;
-    const config = c ? R.townConfig(c) : { mode: 'town', seed: R.TOWN_SEED, level: { gen: 'town', seed: R.TOWN_SEED, prosperity: 2 }, objective: null,
-      character: { name: 'Nobody', trait: 'steady', look: 0, hp: 100, maxHp: 100, gear: [], cartridges: 0, shells: 0, bandages: 0, dynamite: 0 }, armory: { guns: [], upgrades: [] }, intel: {} };
-    sim = createSim(config, generateLevel(config.level));
-  } catch (err) { console.warn('No town for the title screen', err); }
+  // the title sits over a painted pan along the story (js/titlescroll.js), not the 3D deck
+  const sim = null;
   controls.setEnabled(false);
   controls.releaseLock();
   app.sim = sim;
@@ -643,6 +683,13 @@ function frameBody(ts) {
   controls.padFrame(dt);
   padMenus(dt);
   const sim = app.sim;
+  if (app.lift) {
+    const L = app.lift;
+    renderer.playerPos = null;      // no interpolation while the lift moves: draw Rook where the sim says
+    if (renderer.liftCam(L.sim, dt)) L.done();
+    else renderer.draw(L.sim, dt, { cameraUpdated: true, noHud: true, showPlayer: true });
+    return;
+  }
   if (playing()) {
     const halted = Boolean(ui.panel) || renderer.mapOpen;
     const inp = advance(sim, dt);
@@ -787,6 +834,7 @@ if (debug) {
     chapter: (n) => { app.campaign.chapter = n; persist(); },
     town: () => enterTown('trail'),
     ride: (id) => startRide(id),
+    cutscenes: (on = true) => { app.cutscenes = on; },
     open: (name, data) => openPanel(name, data),
   };
 }

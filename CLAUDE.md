@@ -9,6 +9,8 @@ The loop: walk Mercy Deck (stalls, job board, customs hall), take the freight li
 - Unit tests: `npm test` (`tests/game.test.js`: generators, rules, sim determinism, the companion).
 - Browser smoke test: `node tests/smoke.mjs <outDir> <path/to/three.min.js> [sections]`. Sections: `town`, `death`, `levels`, `phone`, `pad` (a simulated controller and `play.html`). It uses Playwright and writes screenshots. WebGL runs on SwiftShader, which is slow, so the test waits on sim time, never wall time.
 - Viewers for art work: `tests/actorview.mjs` (character line-ups; `set=guns`, `set=plugins`, `set=hollow`), `tests/levelview.mjs`, `tests/viewer.mjs`.
+- Screenshot scripts (`node tests/<name>.mjs <three.min.js> <outDir>`): `looks` (every place at high quality), `gore` (hits, kills, Rook hurt), `systems` (meters, Override, Overclock, the cargo screen), `lift` (the title's story pan and a full lift ride).
+- In `?debug` the freight lift is instant so tests do not wait for it; `LF_DEBUG.cutscenes(true)` turns the ride back on.
 - Collision audit: `node tests/collision-audit.mjs [--list]` compares drawn objects with blocking tiles on every level. Keep walk-through near or under 10%.
 - Local play: serve the folder over HTTP and open `/?debug` (`window.LF_DEBUG`). ES modules do not load from `file://`.
 - `index.html` has no `<html>`, `<head>` or `<body>` because the Artifact host wraps it.
@@ -34,6 +36,9 @@ All art is baked to vertex colours, with no textures, into quantised JSON packs 
 - Look: `js/gfx/post.js` does bloom, tone mapping and grading on the two better quality tiers; `world.js` bakes light from every level light into nearby surfaces when a level is built; characters get a rim light (`assets.setRim`); the sky is a Blender panorama in districts, on the deck and in the Hollow.
 - `js/gfx/*` draws: `assets.js` (packs, tints, merging), `world.js` (static level; pieces with `glow: true` go to an unlit mesh, which is how neon is drawn), `actors.js` (characters, skeletons, clips, guns in hands), `renderer.js` (camera, effects, per-frame sync).
 - `js/hud.js`, `js/ui.js`, `js/controls.js`, `js/audio.js`, `js/save.js` read the sim and never write it.
+- `js/gfx/gore.js`: blood, oil (machines) and ichor (the Hollow): splats on floors and walls where enemies die, marks stuck to body bones where they were hit (on Rook until a dressing), the screen-edge blood. Presentation only.
+- `js/titlescroll.js`: the title screen's backdrop, a painted parallax pan along the story (2D canvas, no 3D).
+- The freight lift ride (`rideLift` in `main.js`, `r.lift`/`liftCam` in `renderer.js`): the car sinks out of one level, the shaft screen shows while the next is built, the car lands. The sim does not step while it moves.
 - `js/gamepad.js` reads a controller once per frame (`controls.padFrame`). Bindings are data in the `pad` setting. `main.js` drives menus from it (`padMenus`).
 - `play.html` wraps `index.html` in a full page for ordinary browser tabs and GitHub Pages.
 - `js/main.js` wires everything and runs the fixed 60 Hz step.
@@ -63,4 +68,8 @@ All art is baked to vertex colours, with no textures, into quantised JSON packs 
 - Music is synthesized in `js/music.js` (pieces: deck, run, hollow, boss); `main.js` picks the piece and intensity (`musicFor`). `node tests/music.mjs <three.min.js>` renders each offline.
 - The opening crawl is `CRAWL` in `content.js`; it plays on first launch and at the start of every campaign.
 - Neon: set `glow` on a piece, add an `L.lights` entry of kind `neon` for its halo, and give `L.signs` entries `glow: true`.
+- WARDEN adapts (`WARDEN` in `content.js`): `noteHit` and the dodge/pulse code feed `s.warden.stats`; `wardenAdapt` runs before a wave or a sealed room and leans `pickElite` toward a countermeasure. Elites marked `learned` only appear as a countermeasure.
+- Cargo (`CARGO`): finds carry `bulk`; `cargoManifest` makes the default choice at the lift; `main.js` shows the cargo screen when something is left, then settles. Chutes move finds to `s.secured`, which `rules.js` pays whatever the outcome.
+- Tower systems (`SYSTEMS`) are `infra` interactables placed by every generator. `useSystem` and `useOverride` change `s.sys`; those with `persist` carry to the next Descent floor (`carry.consequences`) and, through `c.aftermath`, to the next runs (`config.consequences`).
+- Override (`OVERRIDE`, key T) and Overclock (`OVERCLOCK`, key Z) are player meters (`p.hack`, `p.heat`, `p.oc`, `p.crash`). Add new override targets in `overrideTarget` and `useOverride`.
 - After changing gameplay, rerun both test suites and look at the smoke screenshots.

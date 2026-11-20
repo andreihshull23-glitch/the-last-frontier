@@ -191,6 +191,11 @@ function wrap(state, level) {
   const sim = { state, level, events: [], rng: makeRng(0), cache: buildCache(level) };
   sim.rng.state = state.rngState;
   state.player.relics ||= [];
+  // runs saved before WARDEN, cargo, the tower systems, Override and Overclock existed
+  state.warden ||= { level: 0, focus: null, stats: { close: 0, mid: 0, long: 0, companion: 0, dodges: 0, pulses: 0, fightT: 0 } };
+  state.sys ||= {}; state.secured ||= []; state.hazards ||= []; state.jammed ||= []; state.jamT ||= 0;
+  const P = state.player;
+  P.hack ??= OVERRIDE.start; P.heat ??= 0; P.oc ??= 0; P.crash ??= 0;
   rebuildGuns(sim);
   if (state.rooms) for (const st of state.rooms) if (st.state === 'active') seal(sim, level.rooms[st.id], true);
   return sim;

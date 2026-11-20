@@ -21,10 +21,11 @@ Then open `http://localhost:8000/play.html`. The only dependency is three.js r12
 - 1 to 7 or the mouse wheel to change guns, G for dynamite, Q for a bandage.
 - J for the journal: the story so far and what to do next.
 - E to use or talk, M for the map, Esc for the menu.
+- T to override what is in your sights (machines, shields, terminals, plant), Z to overclock, B for a pulse, C to jump.
 
 ### Controller
 
-Any standard controller works: left stick moves, right stick looks, RT fires, LT alternate fire, A dodges, X reloads, Y uses, B bandages, RB dynamite, LB next gun, L3 sprint. In menus the D-pad moves, A presses and B goes back. Every button can be changed in Settings.
+Any standard controller works: left stick moves, right stick looks, RT fires, LT alternate fire, A dodges, X reloads, Y uses, B bandages, RB dynamite, LB next gun, L3 sprint, D-pad left override, D-pad right overclock, D-pad down pulse. In menus the D-pad moves, A presses and B goes back. Every button can be changed in Settings.
 
 ## Layout
 

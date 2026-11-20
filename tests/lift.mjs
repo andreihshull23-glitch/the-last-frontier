@@ -1,0 +1,34 @@
+// Screenshots of the title's story pan and a full freight-lift ride (out of the deck, the shaft, into a district):
+//   node tests/lift.mjs <three.min.js> <outDir>
+import path from 'node:path';
+import { serve, launch } from './harness.mjs';
+const [,, three, out] = process.argv;
+const { server, base } = await serve();
+const { browser, newPage, problems } = await launch(three);
+const { page } = await newPage({ viewport: { width: 1280, height: 720 } });
+const shot = (n) => page.screenshot({ path: path.join(out, n + '.png') });
+await page.goto(`${base}/?debug`);
+await page.waitForFunction(() => window.LF_DEBUG && window.LF_DEBUG.app.mode === 'title', null, { timeout: 120000 });
+await page.waitForTimeout(1500); await shot('title-1');
+await page.waitForTimeout(9000); await shot('title-2');
+await page.waitForTimeout(9000); await shot('title-3');
+await page.click('[data-act="new"]');
+await page.waitForSelector('.crawl-text');
+await page.keyboard.press('Space');
+await page.waitForSelector('[data-act="hire"]');
+await page.click('[data-act="hire"][data-i="0"]');
+await page.waitForFunction(() => window.LF_DEBUG.app.mode === 'town');
+await page.evaluate(() => { const L = window.LF_DEBUG, s = L.state(); const lift = s.interactables.find((i) => i.kind === 'ride'); s.player.x = lift.x; s.player.y = lift.y; L.quality(1); L.cutscenes(true); });
+await page.waitForTimeout(500);
+await page.evaluate(() => window.LF_DEBUG.ride('story:shipment'));
+const liftT = () => page.evaluate(() => window.LF_DEBUG.renderer().lift?.t ?? -1);
+await page.waitForFunction(() => (window.LF_DEBUG.renderer().lift?.t ?? 0) > 0.6, null, { timeout: 60000 }); await shot('lift-1-gate');
+await page.waitForFunction(() => (window.LF_DEBUG.renderer().lift?.t ?? 0) > 2.0, null, { timeout: 60000 }); await shot('lift-2-sinking');
+await page.waitForSelector('.lift-shaft', { timeout: 60000 }); await page.waitForTimeout(600); await shot('lift-3-shaft');
+await page.waitForFunction(() => window.LF_DEBUG.renderer().lift?.phase === 'arrive' && window.LF_DEBUG.renderer().lift.t > 0.9, null, { timeout: 120000 }); await shot('lift-4-coming-down');
+await page.waitForFunction(() => window.LF_DEBUG.renderer().lift?.phase === 'arrive' && window.LF_DEBUG.renderer().lift.t > 2.75, null, { timeout: 120000 }); await shot('lift-5-landed');
+await page.waitForFunction(() => !window.LF_DEBUG.app.lift && window.LF_DEBUG.app.mode === 'ride', null, { timeout: 60000 });
+await page.waitForTimeout(800); await shot('lift-6-play');
+void liftT;
+console.log(problems.length ? problems.slice(0, 5).join('\n') : 'ok');
+await browser.close(); server.close();
