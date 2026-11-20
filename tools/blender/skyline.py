@@ -27,7 +27,7 @@ def tower_mat(name, base, window, density, seed):
     out = nt.nodes.new('ShaderNodeOutputMaterial')
     # windows are laid out in world metres, so every block gets the same size of window whatever its scale
     tc = nt.nodes.new('ShaderNodeNewGeometry')
-    mp = nt.nodes.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (1.1, 1.1, 1.1)
+    mp = nt.nodes.new('ShaderNodeMapping'); mp.inputs['Scale'].default_value = (1.6, 1.6, 1.6)
     nt.links.new(tc.outputs['Position'], mp.inputs['Vector'])
     br = nt.nodes.new('ShaderNodeTexBrick')
     br.inputs['Scale'].default_value = 1.0
@@ -63,7 +63,7 @@ def tower_mat(name, base, window, density, seed):
     nt.links.new(n2.outputs['Value'], ramp.inputs['Fac'])
     em = nt.nodes.new('ShaderNodeEmission')
     nt.links.new(ramp.outputs['Color'], em.inputs['Color'])
-    st = nt.nodes.new('ShaderNodeMath'); st.operation = 'MULTIPLY'; st.inputs[1].default_value = 5.0
+    st = nt.nodes.new('ShaderNodeMath'); st.operation = 'MULTIPLY'; st.inputs[1].default_value = 3.2
     nt.links.new(lit2.outputs[0], st.inputs[0]); nt.links.new(st.outputs[0], em.inputs['Strength'])
     dif = nt.nodes.new('ShaderNodeEmission'); dif.inputs[0].default_value = (*base, 1); dif.inputs[1].default_value = 1.0
     add = nt.nodes.new('ShaderNodeAddShader')
@@ -107,7 +107,8 @@ if kind == 'city':
     dark = emit_mat('dark', (0.004, 0.004, 0.008), 1.0)
     ceiling_lamp = emit_mat('lamp', (0.85, 0.9, 1.0), 9)
     # rings of tower blocks round the camera: near ones low and dark, far ones tall and full of windows
-    for ring, (r0, r1, hmin, hmax, n) in enumerate([(70, 130, 30, 90, 46), (140, 260, 60, 200, 64), (280, 520, 120, 420, 80)]):
+    # rings of blocks well away from the street, so from the ground they sit on the horizon instead of overhead
+    for ring, (r0, r1, hmin, hmax, n) in enumerate([(220, 320, 25, 70, 60), (330, 460, 50, 130, 80), (470, 640, 90, 230, 96)]):
         for k in range(n):
             a = (k + rng.random() * 0.6) / n * math.tau
             r = rng.uniform(r0, r1)
@@ -122,7 +123,7 @@ if kind == 'city':
                 box(x - math.cos(a) * (sx / 2 + 1), y - math.sin(a) * (sy / 2 + 1), rng.uniform(15, h * 0.8), 10, 1, 4, rng.choice(neon), rz=a + math.pi / 2)
     # walkways and cables strung between blocks, high up
     for k in range(70):
-        a = rng.random() * math.tau; r = rng.uniform(90, 300); z = rng.uniform(40, 220)
+        a = rng.random() * math.tau; r = rng.uniform(240, 420); z = rng.uniform(30, 140)
         box(math.cos(a) * r, math.sin(a) * r, z, rng.uniform(40, 120), 1.6, 1.2, dark, rz=rng.random() * math.pi)
         if rng.random() < 0.4: box(math.cos(a) * r, math.sin(a) * r, z - 0.9, rng.uniform(30, 90), 0.4, 0.15, rng.choice(neon), rz=rng.random() * math.pi)
     # the tower's ceiling, far above: a grid of service lights in a dark slab

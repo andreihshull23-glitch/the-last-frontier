@@ -62,7 +62,7 @@ export function createPost(gl) {
   const qScene = new THREE.Scene(); qScene.add(quad);
   const qCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   const mat = (frag, uniforms) => new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: frag, uniforms, depthTest: false, depthWrite: false });
-  const bright = mat(BRIGHT, { tSrc: { value: null }, threshold: { value: 0.85 } });
+  const bright = mat(BRIGHT, { tSrc: { value: null }, threshold: { value: 1.05 } });
   const blur = mat(BLUR, { tSrc: { value: null }, dir: { value: new THREE.Vector2() } });
   const final = mat(FINAL, {
     tScene: { value: null }, tB0: { value: null }, tB1: { value: null }, tB2: { value: null },

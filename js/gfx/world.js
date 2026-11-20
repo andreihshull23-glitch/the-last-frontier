@@ -56,7 +56,7 @@ const hexRgb = (h) => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16),
 
 // Baked light: every lamp, sign and window in the level tints the surfaces around it, once, when the
 // level is built. Colour spills onto floors and walls without paying for real lights every frame.
-const SPILL = { neon: 1.0, lantern: 0.75, window: 0.45, glow: 0.85, fire: 0.9, shaft: 1.1 };
+const SPILL = { neon: 1.0, lantern: 0.5, window: 0.4, glow: 0.7, fire: 0.8, shaft: 1.0 };
 function bakeLight(m, lights) {
   if (!lights.length || m.empty) return;
   const CELL = 8, grid = new Map();
@@ -88,9 +88,10 @@ function bakeLight(m, lights) {
     }
     if (r + g + b < 0.003) continue;
     const o = i * 4;
-    C[o] = Math.min(255, C[o] * (1 + 1.3 * r) + 255 * 0.09 * r);
-    C[o + 1] = Math.min(255, C[o + 1] * (1 + 1.3 * g) + 255 * 0.09 * g);
-    C[o + 2] = Math.min(255, C[o + 2] * (1 + 1.3 * b) + 255 * 0.09 * b);
+    const k = Math.min(1, 0.9 / Math.max(0.9, r, g, b));   // never more than about doubling a surface
+    C[o] = Math.min(255, C[o] * (1 + 0.9 * r * k) + 255 * 0.06 * r * k);
+    C[o + 1] = Math.min(255, C[o + 1] * (1 + 0.9 * g * k) + 255 * 0.06 * g * k);
+    C[o + 2] = Math.min(255, C[o + 2] * (1 + 0.9 * b * k) + 255 * 0.06 * b * k);
   }
 }
 

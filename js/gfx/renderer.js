@@ -1443,7 +1443,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     const fx = QUALITY[r.quality].fx;
     if (post && fx >= 0.7 && r.post !== false) {
       gl.getDrawingBufferSize(bufSize);
-      try { post.render(scene, camera, bufSize.x, bufSize.y, { msaa: r.quality === 0, bloom: sim.level.neon || sim.level.city || sim.level.ambient ? 1.0 : 0.6 }); }
+      try { post.render(scene, camera, bufSize.x, bufSize.y, { msaa: r.quality === 0, bloom: sim.level.neon || sim.level.city ? 0.9 : sim.level.ambient ? 0.7 : 0.55 }); }
       catch (err) { console.warn('Post-processing failed; drawing directly', err); post = null; gl.setRenderTarget(null); gl.render(scene, camera); }
     } else gl.render(scene, camera);
     hud.setTransform(r.view.dpr, 0, 0, r.view.dpr, 0, 0);
