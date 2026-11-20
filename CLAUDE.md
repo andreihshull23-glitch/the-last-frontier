@@ -22,7 +22,7 @@ All art is baked to vertex colours, with no textures, into quantised JSON packs 
 - `tools/bake-guns.mjs <objDir>`: guns become `assets/qg.json`.
 - Blender runs here as a Python module (`pip install bpy` into a Python 3.11 venv). After any fresh bake, run `tools/blender/bake-ao.py assets/<pack>.json [strength] [samples]` on each world pack (0.8) and each `people-*` pack (0.6): it bakes ambient occlusion into the vertex colours and marks the pack so it is not done twice. Glowing cyber models (signs, screens, pickups) are skipped.
 - `tools/creature-clips.mjs` writes Walk, Attack and Death clips into `assets/people-alien.json`; run it after rebaking the characters.
-- `tools/blender/skyline.py <city|hollow> <out.jpg> [width] [samples]` renders the panoramas in `assets/sky/`. `tools/detail-texture.py` makes `assets/tex/detail.png`, the tileable detail the world shader projects onto every surface.
+- `tools/blender/skyline.py <city|hollow> <out.jpg> [width] [samples]` renders the panoramas in `assets/sky/`. `tools/detail-from-photos.py <folder>` makes `assets/tex/detail.png` from two Poly Haven scans (red: plated metal for walls, green: worn concrete for floors; blue: the procedural one from `tools/detail-texture.py`). The world shader projects it onto every surface.
 
 ## Who owns what
 

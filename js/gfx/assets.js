@@ -197,7 +197,8 @@ export function createAssets() {
   // sRGB vertex colours -> linear, in the shader.
   // a rim of light round characters, so they read against dark streets; one colour for the whole scene
   const rim = { color: { value: null }, power: { value: 2.6 } };
-  // a tileable detail texture (assets/tex/detail.png) projected in world space onto walls and floors
+  // a tileable detail texture (assets/tex/detail.png) projected in world space: its red channel (plated metal)
+  // on walls, its green (worn concrete) on floors; made from Poly Haven scans by tools/detail-from-photos.py
   const detail = { map: { value: null }, scale: { value: 0.25 }, amount: { value: 0.32 } };
   function detailTexture() {
     if (detail.map.value) return;
@@ -221,7 +222,7 @@ export function createAssets() {
           '#include <color_fragment>',
           '  vec3 dW = pow( abs( normalize( vDetailN ) ), vec3( 4.0 ) ); dW /= ( dW.x + dW.y + dW.z );',
           '  vec3 dP = vDetailPos * detailScale;',
-          '  float dTex = texture2D( detailMap, dP.zy ).r * dW.x + texture2D( detailMap, dP.xz ).r * dW.y + texture2D( detailMap, dP.xy ).r * dW.z;',
+          '  float dTex = texture2D( detailMap, dP.zy ).r * dW.x + texture2D( detailMap, dP.xz ).g * dW.y + texture2D( detailMap, dP.xy ).r * dW.z;',
           '  diffuseColor.rgb *= mix( 1.0, dTex * 1.6, detailAmount );',
         ].join('\n'));
       }

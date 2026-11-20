@@ -37,4 +37,4 @@ Any standard controller works: left stick moves, right stick looks, RT fires, LT
 
 ## Credits
 
-World models by Kenney and characters and guns by Quaternius, both released under CC0.
+World models by Kenney and characters and guns by Quaternius, both released under CC0. Surface detail from Poly Haven's scanned textures (metal_plate_02, concrete_floor_worn_001), also CC0.
