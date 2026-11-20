@@ -4,7 +4,7 @@
 import { TILE, PX, MACRO, SOLID, ROCK, GROUND, ENEMIES, LOOT_NAMES, DEALS } from '../content.js';
 import { makeRng } from '../rng.js';
 import { createLevel, building, skinRock, skinBlocks, place, box, cyl, paint, reserve, metres, centreM, tileCentre, addFlags, setTile, validateLevel, inb, WALL, buildNav, floodFrom, nearestNav } from '../level.js';
-import { scatter, trail, clearAround, DESERT_ROCKS, PEBBLES, HOLLOW_FLORA, STREET_CLUTTER, STREET_BULK, STREET_LITTER, TM } from './common.js';
+import { scatter, trail, clearAround, DESERT_ROCKS, PEBBLES, HOLLOW_FLORA, STREET_CLUTTER, STREET_BULK, STREET_LITTER, TM, pickSystems } from './common.js';
 import { horse, wagon, coach, barrel, crate, hitchRail, lampPost, trough, well, waterTower, campfire, railTrack, counter, shelfWall, table, flag } from './props.js';
 
 const P = (m) => m * PX;
@@ -364,6 +364,12 @@ export function build(spec, seed) {
     if (up) { L.items.push({ kind: 'uplink', deal: ids[rng.int(0, ids.length - 1)], x: up[0], y: up[1] }); addFlags(L, Math.floor(up[0] / TILE), Math.floor(up[1] / TILE) - 1, SOLID, 14); }
     const lg = freeSpot(18, 18, L.w - 19, L.h - 19, P(30), 2);
     if (lg) L.items.push({ kind: 'log', x: lg[0], y: lg[1] });
+    // the tower's own systems: a cargo chute, and a few things that change the floor if you touch them
+    const kinds = pickSystems(rng, hollow ? ['generator', 'hatch'] : ['relay', 'generator', 'fabricator', 'hatch', ...(L.waves?.length ? ['terminal'] : [])], hollow ? 1 : 3);
+    for (const sys of ['chute', ...kinds]) {
+      const at = freeSpot(18, 18, L.w - 19, L.h - 19, P(sys === 'chute' ? 26 : 30), 2);
+      if (at) { L.items.push({ kind: 'infra', sys, x: at[0], y: at[1] }); addFlags(L, Math.floor(at[0] / TILE), Math.floor(at[1] / TILE) - 1, SOLID, 14); }
+    }
   }
 
   // ---- dressing -----------------------------------------------------------------------

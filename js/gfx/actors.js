@@ -442,6 +442,11 @@ export function createActors(assets) {
     partOn(a, boneName, new THREE.BoxGeometry(size[0], size[1], size[2]), mat, R.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(...off)));
   }
   const PLUGIN_PARTS = {
+    backdoor(a) { // a data spine down the back of the neck, lit cyan
+      boxAt(a, 'Neck', 'Neck', [0, 0.04, -0.075], [0.07, 0.1, 0.035], plateMat);
+      boxAt(a, 'Neck', 'Neck', [0, 0.04, -0.095], [0.03, 0.08, 0.01], glowOf(0x3fe0ff));
+      boxAt(a, 'Chest', 'Chest', [0, 0.12, -0.13], [0.05, 0.16, 0.03], glowOf(0x3fe0ff));
+    },
     nighteyes(a) { // a visor across the eyes
       // over the helmet's own visor: a lit slit, and a lens unit at each temple
       boxAt(a, 'Head', 'Head', [0, 0.115, 0.17], [0.2, 0.022, 0.012], glowOf(0x3fe0ff));

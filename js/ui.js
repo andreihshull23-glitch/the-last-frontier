@@ -142,6 +142,22 @@ export function createUI(root, panelEl, api) {
         ${first ? `<div class="prologue"><p class="eyebrow">The story so far</p>${PROLOGUE.map((p) => `<p><strong>${esc(p.title)}.</strong> ${esc(p.text)}</p>`).join('')}</div>` : ''}
       </section>`;
     },
+    // more found than the lift will carry: pick what goes up (the best value for the space is pre-ticked)
+    cargo() {
+      const C = data.cargo, room = C.capacity - C.reserved;
+      data.take = data.take || C.offer.map((o) => Boolean(o.take));
+      const used = C.offer.reduce((a, o, i) => a + (data.take[i] ? o.bulk : 0), 0);
+      const value = C.offer.reduce((a, o, i) => a + (data.take[i] ? o.value : 0), 0);
+      return `<section class="result cargo">
+        <p class="eyebrow">At the lift</p>
+        <h1 class="result-head">Too much to carry</h1>
+        <p class="lede">The lift takes ${room} of cargo${C.reserved ? ` (the job's own load already takes ${C.reserved})` : ''}. Pick what goes up; the rest stays here.</p>
+        <p class="cargo-total ${used > room ? 'bad' : 'good'}">${used}/${room} cargo · ¢${value}</p>
+        <div class="cargo-list">${C.offer.map((o, i) => `<button class="cargo-item ${data.take[i] ? 'on' : ''}" data-act="cargo-toggle" data-i="${i}">
+          <span class="tick">${data.take[i] ? '■' : '□'}</span><span class="name">${esc(o.name)}</span><span class="bulk">${'▮'.repeat(o.bulk)}</span><span class="val">¢${o.value}</span></button>`).join('')}</div>
+        <button class="btn" data-act="cargo-done">Send it up</button>
+      </section>`;
+    },
     results() {
       const s = data.summary;
       const camp = c();
@@ -189,6 +205,8 @@ export function createUI(root, panelEl, api) {
     else if (act === 'settings') openPanel('settings', { fromTitle: true });
     else if (act === 'back') show(data.back || 'title', data.backData || {});
     else if (act === 'hire') { const r = R.hireDrifter(c(), Number(btn.dataset.i)); if (r.ok) { api.persist(); api.enterTown('saloon'); } else flash(r.reason); }
+    else if (act === 'cargo-toggle') { const i = Number(btn.dataset.i); data.take[i] = !data.take[i]; render(); }
+    else if (act === 'cargo-done') { const r = api.cargoDone(data.take); if (!r.ok) flash(r.reason); }
     else if (act === 'results-done') { if (R.needsSuccessor(c())) show('hire'); else api.enterTown('trail'); }
   });
 

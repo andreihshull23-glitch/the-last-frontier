@@ -159,3 +159,10 @@ export function trail(L, rng, ax, ay, bx, by, width = 3, ground = GROUND.trail) 
 
 export const px = (m) => m * PX;
 export { TM, TAU, tileCentre, MACRO };
+
+/** `n` different tower systems for a level, from the kinds that suit it. */
+export function pickSystems(rng, kinds, n) {
+  const pool = [...kinds], out = [];
+  while (out.length < n && pool.length) out.push(pool.splice(rng.int(0, pool.length - 1), 1)[0]);
+  return out;
+}

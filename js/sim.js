@@ -5,7 +5,7 @@
 
 import {
   TILE as TS, PX, MACRO, ENEMIES, WEAPONS, GUNS, GUN_ORDER, gunStats, AMMO, CARRY, DYNAMITE, ITEMS, SOLID, OPAQUE, BLOCKS_SHOT, ROCK,
-  RELICS, PULSE, JUMP, START_GUN, SYNERGIES, ELITES, DEALS,
+  RELICS, PULSE, JUMP, START_GUN, SYNERGIES, ELITES, DEALS, WARDEN, CARGO, SYSTEMS, OVERRIDE, OVERCLOCK,
 } from './content.js';
 import { makeRng } from './rng.js';
 import { buildNav, nearestNav } from './level.js';
@@ -105,12 +105,22 @@ export function createSim(config, level) {
       dynamite: carry ? carry.dynamite : ch.dynamite ?? 0, bandages: carry ? carry.bandages : ch.bandages ?? 0,
       fireCd: 0, fireBuffer: 0, fanQueue: 0, fanT: 0, reloading: false, reloadT: 0, swapT: 0, throwCd: 0,
       healT: 0, hurtT: 0, lastHitBy: null, charmUsed: false, shotT: -9,
+      // Override and Overclock meters; `oc` counts down while overclocked, `crash` while paying for it
+      hack: carry ? carry.hack ?? OVERRIDE.start : ch.trait === 'backdoor' ? OVERRIDE.max : OVERRIDE.start,
+      heat: carry ? carry.heat ?? 0 : 0, oc: 0, crash: 0,
     },
     enemies: [], npcs: [], bullets: [], bombs: [], pickups: [], interactables: [], lights: [], corpses: [], respawns: [],
     focusId: 0,
     interact: { id: 0, t: 0 },
     extract: { active: false, t: 0, id: 0 },
-    carried: { loot: [], items: [], effects: null },
+    carried: { loot: carry?.loot ? carry.loot.map((l) => ({ ...l })) : [], items: [], effects: null },
+    secured: carry?.secured ? carry.secured.map((l) => ({ ...l })) : [],     // sent home by chute: safe whatever happens
+    // WARDEN's read on how Rook fights, kept across Descent floors
+    warden: carry?.warden ? JSON.parse(JSON.stringify(carry.warden)) : { level: config.wardenStart || 0, focus: null, stats: { close: 0, mid: 0, long: 0, companion: 0, dodges: 0, pulses: 0, fightT: 0 } },
+    // what has been done to this floor's systems: true if done here, 'carried' if it carried over from before
+    sys: Object.fromEntries(Object.keys({ ...(config.consequences || {}), ...(carry?.consequences || {}) }).map((k) => [k, 'carried'])),
+    hazards: [],
+    jamT: 0, jammed: [],
     burned: 0,
     targetKilled: false,
     bountyKilled: false,
@@ -135,6 +145,7 @@ export function createSim(config, level) {
     const e = addEnemy(sim, sp.kind, sp.x, sp.y, sp);
     if (sp.respawn) e.respawn = sp.respawn;
   }
+  if (state.sys.relay) for (const e of state.enemies) if (ENEMIES[e.kind].rooted && ENEMIES[e.kind].robot) { e.stunT = 1e6; e.offline = true; }
   for (const n of level.npcs) {
     state.npcs.push({
       id: state.nextId++, role: n.role, name: n.name, shop: n.shop || null, look: n.look, x: n.x, y: n.y, vx: 0, vy: 0, r: 11,
@@ -148,6 +159,7 @@ export function createSim(config, level) {
     else if (it.kind === 'objective') Object.assign(base, { item: it.item, role: it.role, zone: it.zone || '', duration: ITEMS[it.item].duration, known: true });
     else if (it.kind === 'exit') Object.assign(base, { variant: it.variant, duration: 0, seen: true, known: true, needsClear: Boolean(it.needsClear) });
     else if (it.kind === 'uplink') Object.assign(base, { deal: it.deal, duration: 1.2, r: 64 });
+    else if (it.kind === 'infra') Object.assign(base, { sys: it.sys, duration: SYSTEMS[it.sys]?.duration || 0.6, r: 64 });
     else if (it.kind === 'log') Object.assign(base, { duration: 1.0, r: 56 });
     else if (it.kind === 'ware' || it.kind === 'gun' || it.kind === 'relic') Object.assign(base, { gun: it.gun || null, relic: it.relic || null, heal: it.heal || 0, price: it.price || 0, duration: 0, r: 54, seen: true, known: true });
     else Object.assign(base, { shop: it.shop || null, r: it.r || 60, text: it.text || '', duration: 0, seen: true, known: true });
@@ -204,8 +216,8 @@ export function restoreSim(data, level) {
 
 // ------------------------------------------------------------------ the run: relics, guns, drops
 
-const BASE_MODS = { damage: 1, rate: 1, mag: 1, reload: 1, speed: 1, dodge: 1, armour: 1, coin: 1, luck: 1, robot: 1, berserk: 1, magnet: 0, lifesteal: 0, pierce: 0, bounce: 0, static: 0, pulses: 0, extra: 0, revive: 0 };
-const MULTIPLY = new Set(['damage', 'rate', 'mag', 'reload', 'speed', 'dodge', 'armour', 'coin', 'luck', 'robot', 'berserk']);
+const BASE_MODS = { damage: 1, rate: 1, mag: 1, reload: 1, speed: 1, dodge: 1, armour: 1, coin: 1, luck: 1, robot: 1, berserk: 1, magnet: 0, lifesteal: 0, pierce: 0, bounce: 0, static: 0, pulses: 0, extra: 0, revive: 0, hack: 1, heat: 0, hackTime: 1 };
+const MULTIPLY = new Set(['damage', 'rate', 'mag', 'reload', 'speed', 'dodge', 'armour', 'coin', 'luck', 'robot', 'berserk', 'hack', 'hackTime']);
 /** Synergies the relics carried complete. */
 export const synergiesOf = (relics) => Object.keys(SYNERGIES).filter((id) => SYNERGIES[id].needs.every((r) => (relics || []).includes(r)));
 /** What the relics carried add up to, synergies included. */
@@ -325,7 +337,7 @@ function seal(sim, room, on) {
 function spawnWave(sim, room, st) {
   const s = sim.state, p = s.player;
   for (const sp of room.waves[st.wave]) {
-    const e = addEnemy(sim, sp.kind, sp.x, sp.y, { target: Boolean(sp.target), facing: Math.atan2(p.y - sp.y, p.x - sp.x) });
+    const e = addEnemy(sim, sp.kind, sp.x, sp.y, { target: Boolean(sp.target), facing: Math.atan2(p.y - sp.y, p.x - sp.x), warden: true });
     e.room = room.id;
     e.spawnT = 0.7 + sim.rng.next() * 0.25;
     if (sp.target) e.known = true;
@@ -345,8 +357,11 @@ function updateWaves(sim) {
     const go = w.on === 'enter' ? Math.hypot(p.x - w.x, p.y - w.y) < w.r : s.carried.items.includes(w.item);
     if (!go) return;
     s.waves[i] = true;
-    for (const u of w.units) {
-      const e = addEnemy(sim, u.kind, u.x, u.y, { facing: Math.atan2(p.y - u.y, p.x - u.x) });
+    // a jammed reinforcement terminal holds the wave back; it comes later, thinner
+    if (s.jamT > 0) { s.jammed.push(i); emit(sim, 'toast', { text: 'Reinforcements jammed. They will be late.', tone: 'good' }); return; }
+    wardenAdapt(sim);
+    for (const u of thinWave(sim, w.units)) {
+      const e = addEnemy(sim, u.kind, u.x, u.y, { facing: Math.atan2(p.y - u.y, p.x - u.x), warden: true });
       e.spawnT = 0.6 + sim.rng.next() * 0.5;
       alertEnemy(sim, e, p.x, p.y, false);
       emit(sim, 'beam_in', { x: e.x, y: e.y, id: e.id });
@@ -367,6 +382,7 @@ function updateRooms(sim) {
       if (p.x > r.x0 + m && p.x < r.x1 - m && p.y > r.y0 + m && p.y < r.y1 - m) {
         st.state = 'active';
         st.wave = 0;
+        wardenAdapt(sim);
         seal(sim, r, true);
         spawnWave(sim, r, st);
         emit(sim, 'room_sealed', { id: r.id, boss: r.role === 'boss' });
@@ -375,6 +391,7 @@ function updateRooms(sim) {
       }
     } else if (st.state === 'active') {
       if (s.enemies.some((e) => !e.dead && e.room === r.id)) continue;
+      if (s.jamT > 0 && st.wave + 1 < r.waves.length) continue;   // a jammed terminal holds the next wave back
       st.wave += 1;
       if (st.wave < r.waves.length) { spawnWave(sim, r, st); emit(sim, 'toast', { text: 'More of them.', tone: 'bad' }); continue; }
       st.state = 'cleared';
@@ -402,6 +419,16 @@ function emit(sim, type, data = {}) {
   sim.events.push({ type, ...data });
 }
 
+/**
+ * Which elite modifier a new elite gets. Ordinary ones weigh 1 each; once WARDEN has a read on Rook, its
+ * countermeasure weighs more with every level it has learned, and the learned-only kinds appear only then.
+ */
+function pickElite(sim) {
+  const W = sim.state.warden, counter = W.focus ? WARDEN.patterns[W.focus]?.counter : null;
+  const kinds = Object.keys(ELITES).filter((k) => !ELITES[k].learned || k === counter);
+  return weighted(sim, kinds, (k) => (k === counter ? 1 + W.level * WARDEN.weight : 1));
+}
+
 function addEnemy(sim, kind, x, y, extra = {}) {
   const s = sim.state;
   const def = ENEMIES[kind];
@@ -426,9 +453,9 @@ function addEnemy(sim, kind, x, y, extra = {}) {
   if (def.boss) s.boss = e.id;
   // some ordinary enemies come out elite: a modifier, more health, better pickings
   const eliteOK = !def.boss && !e.target && def.ai !== 'none' && !def.rooted && kind !== 'bounty' && !extra.noElite;
-  if (eliteOK && (extra.forceElite || sim.rng.chance((s.config.eliteChance ?? 0) + (s.eliteBonus || 0)))) {
-    const kinds = Object.keys(ELITES);
-    e.elite = kinds[sim.rng.int(0, kinds.length - 1)];
+  const learned = extra.warden ? s.warden.level * WARDEN.eliteBonus : 0;
+  if (eliteOK && (extra.forceElite || sim.rng.chance((s.config.eliteChance ?? 0) + (s.eliteBonus || 0) + learned))) {
+    e.elite = pickElite(sim);
     e.hp = e.maxHp = Math.round(e.maxHp * 1.5);
     if (e.elite === 'shielded') e.shield = e.shieldMax = Math.round(e.maxHp * 0.6);
   }
@@ -462,7 +489,7 @@ export function visionRadius(sim) {
   const n = darkness(sim);
   const ch = s.config.character;
   const extra = (ch.gear.includes('lantern') ? VISION.lantern : 0) + (ch.trait === 'nighteyes' ? VISION.nighteyes : 0);
-  return VISION.day + (VISION.night - VISION.day) * n + extra * n;
+  return (VISION.day + (VISION.night - VISION.day) * n + extra * n) * (s.blackout ? 0.62 : 1);
 }
 
 export function haunted(sim) {
@@ -795,6 +822,7 @@ export function update(sim, dt, input = {}) {
     return;
   }
   if (s.t > 3) comms(sim, 'start');
+  updateSystems(sim, dt);
   updateRooms(sim);
   updateWaves(sim);
   updateEcho(sim);
@@ -820,6 +848,8 @@ function updatePlayer(sim, dt, input) {
   const s = sim.state, p = s.player, trait = s.config.character.trait;
   p.fireCd = Math.max(0, p.fireCd - dt);
   p.bloom = Math.max(0, (p.bloom || 0) - dt * 3);
+  updateOverclock(sim, dt, input);
+  if (input.hack && s.mode !== 'town') useOverride(sim);
   p.iframes = Math.max(0, p.iframes - dt);
   p.hurtT = Math.max(0, p.hurtT - dt);
   p.recoverT = Math.max(0, p.recoverT - dt);
@@ -871,6 +901,7 @@ function updatePlayer(sim, dt, input) {
       p.jumpT = 0;
       p.stamina -= cost;
       p.staminaDelay = PLAYER.staminaDelay;
+      s.warden.stats.dodges += 1;
       emit(sim, 'dodge', { x: p.x, y: p.y, angle: Math.atan2(p.dodgeY, p.dodgeX) });
     } else emit(sim, 'tired');
   }
@@ -879,11 +910,14 @@ function updatePlayer(sim, dt, input) {
     p.dodgeT -= dt;
     p.vx = p.dodgeX * PLAYER.dodgeSpeed;
     p.vy = p.dodgeY * PLAYER.dodgeSpeed;
-    if (p.dodgeT <= 0) { p.recoverT = PLAYER.dodgeRecover; p.vx *= 0.35; p.vy *= 0.35; }
+    if (p.dodgeT <= 0) { p.recoverT = PLAYER.dodgeRecover / (p.oc > 0 ? OVERCLOCK.boost.dodge : 1); p.vx *= 0.35; p.vy *= 0.35; }
   } else {
     let speed = PLAYER.speed * (hasGear(s, 'boots') ? 1.06 : 1) * sim.cache.mods.speed;
     if (p.sprinting) speed *= PLAYER.sprintMul;
     if (isHeavy(s)) speed *= PLAYER.heavySlow;
+    if (cargoLoad(s) > cargoCap(s)) speed *= CARGO.heavySlow;
+    if (p.oc > 0) speed *= OVERCLOCK.boost.speed;
+    if (p.crash > 0) speed *= OVERCLOCK.crashMod.speed;
     if (p.healT > 0) speed *= 0.5;
     if (p.recoverT > 0) speed *= 0.6;
     const k = Math.min(1, PLAYER.accel * dt);
@@ -915,7 +949,8 @@ function updatePlayer(sim, dt, input) {
     if (p.pulses <= 0) emit(sim, 'toast', { text: 'No pulse charges.', tone: 'bad' });
     else {
       p.pulses -= 1;
-      const R = PULSE.radius;
+      s.warden.stats.pulses += 1;
+      const R = PULSE.radius * (p.oc > 0 ? OVERCLOCK.boost.pulse : 1);
       s.bullets = s.bullets.filter((b) => b.owner === 'player' || Math.hypot(b.x - p.x, b.y - p.y) > R);
       s.bombs = s.bombs.filter((b) => b.owner === 'player' || Math.hypot(b.x - p.x, b.y - p.y) > R);
       for (const e of s.enemies) {
@@ -925,6 +960,7 @@ function updatePlayer(sim, dt, input) {
         const def = ENEMIES[e.kind];
         if (e.atk.phase === 'windup' && !def.boss) { e.atk.phase = 'cooldown'; e.atk.t = 0.8; }
         if (def.robot && !def.boss) e.stunT = Math.max(e.stunT || 0, PULSE.stun);
+        if (e.elite === 'hardened') continue;
         if (!def.boss && !def.rooted) { e.vx += ((e.x - p.x) / (d || 1)) * PULSE.knock; e.vy += ((e.y - p.y) / (d || 1)) * PULSE.knock; }
       }
       p.iframes = Math.max(p.iframes, 0.4);
@@ -956,7 +992,7 @@ export function currentGun(sim) {
 function reloadTime(sim) {
   const s = sim.state;
   const g = currentGun(sim);
-  return Math.max(0.08, g.reloadRound || 0.3) * (s.config.character.trait === 'loader' ? 0.65 : 1) * (hasGear(s, 'bandolier') ? 0.8 : 1);
+  return Math.max(0.08, g.reloadRound || 0.3) * (s.config.character.trait === 'loader' ? 0.65 : 1) * (hasGear(s, 'bandolier') ? 0.8 : 1) / (s.player.oc > 0 ? OVERCLOCK.boost.reload : 1);
 }
 
 function reserveOf(sim) {
@@ -978,7 +1014,7 @@ function swapTo(sim, id) {
   const p = sim.state.player;
   if (!id || id === p.gun || p.mags[id] === undefined) return;
   p.gun = id;
-  p.swapT = PLAYER.swapTime;
+  p.swapT = PLAYER.swapTime * (p.oc > 0 ? OVERCLOCK.boost.swap : 1);
   p.reloading = false;
   p.fanQueue = 0;
   p.fireBuffer = 0;
@@ -1046,7 +1082,7 @@ function updateWeapon(sim, dt, input) {
     } else {
       p.reloading = false;
       shoot(sim, g, 1);
-      p.fireCd = g.cooldown;
+      p.fireCd = g.cooldown / (p.oc > 0 ? OVERCLOCK.boost.rate : 1);
       if (p.mags[p.gun] === 0) startReload(sim);
     }
   }
@@ -1125,7 +1161,7 @@ function firePlayerShot(sim, g, angle, damage, sound, heavy = false) {
   const ox = blocked ? p.x : mx, oy = blocked ? p.y : my;
   const speed = g.speed * (g.pellets ? 0.88 + sim.rng.next() * 0.24 : 0.94 + sim.rng.next() * 0.12);
   spawnBullet(sim, { x: ox, y: oy, angle, speed, damage, owner: 'player', life: g.range / speed, kind: p.gun, stagger: sound !== 'fan' && !g.pellets,
-    pierce: g.pierce || 0, robotMul: g.robotMul || 1, chain: g.chain || 0, chainRange: g.chainRange || 0, stun: g.stun || 0, heavy,
+    pierce: g.pierce || 0, robotMul: g.robotMul || 1, chain: g.chain || 0, chainRange: g.chainRange || 0, stun: g.stun || 0, heavy, pellet: Boolean(g.pellets),
     bounce: g.bounce || 0, explode: g.explode || null });
   if (sound) {
     emit(sim, 'shot', { x: mx, y: my, angle, kind: sound === 'fan' ? 'fan' : p.gun, heavy });
@@ -1142,7 +1178,7 @@ function spawnBullet(sim, b) {
     vx: Math.cos(b.angle) * b.speed, vy: Math.sin(b.angle) * b.speed,
     damage: b.damage, owner: b.owner, life: b.life, kind: b.kind, stagger: Boolean(b.stagger), src: b.src ?? null, grazed: false,
     pierce: b.pierce || 0, robotMul: b.robotMul || 1, chain: b.chain || 0, chainRange: b.chainRange || 0, stun: b.stun || 0, heavy: Boolean(b.heavy), hit: [],
-    bounce: b.bounce || 0, explode: b.explode || null, big: Boolean(b.big), ground: Boolean(b.ground), hollow: Boolean(b.hollow),
+    bounce: b.bounce || 0, explode: b.explode || null, big: Boolean(b.big), ground: Boolean(b.ground), hollow: Boolean(b.hollow), pellet: Boolean(b.pellet),
   });
 }
 
@@ -1155,7 +1191,8 @@ function damagePlayer(sim, dmg, src, fromAngle = null) {
     return;
   }
   const md = sim.cache.mods;
-  const amount = Math.max(1, Math.round(dmg * (hasGear(s, 'duster') ? 0.8 : 1) * md.armour * (s.dealHurt || 1)));
+  const amount = Math.max(1, Math.round(dmg * (hasGear(s, 'duster') ? 0.8 : 1) * md.armour * (s.dealHurt || 1) * (p.crash > 0 ? OVERCLOCK.crashMod.hurt : 1)));
+  if (p.oc <= 0) p.heat = Math.min(OVERCLOCK.max, p.heat + amount * OVERCLOCK.perHurt);
   p.hp = Math.max(0, p.hp - amount);
   p.hurtT = 0.3;
   p.lastHitBy = src ? { kind: src.kind, name: src.name ?? null } : null;
@@ -1270,6 +1307,7 @@ function completeInteract(sim, it) {
   it.done = true;
   const toast = (text, tone = 'good', long = false) => emit(sim, 'toast', { text, tone, long });
   if (it.kind === 'uplink') { takeDeal(sim, it); return; }
+  if (it.kind === 'infra') { useSystem(sim, it); return; }
   if (it.kind === 'log') {
     s.logFound = true;
     toast('An intake record. Get it home and it goes in your journal.', 'story', true);
@@ -1278,7 +1316,7 @@ function completeInteract(sim, it) {
   }
   if (it.kind === 'cache') {
     const mult = (s.config.character.trait === 'scavenger' ? 1.3 : 1) * (s.lootMul || 1);
-    const found = it.loot.map((l) => ({ name: l.name, value: Math.round(l.value * mult) }));
+    const found = it.loot.map((l) => { const value = Math.round(l.value * mult); return { name: l.name, value, bulk: CARGO.bulkOf(value) }; });
     s.carried.loot.push(...found);
     const bits = found.map((l) => `${l.name} (¢${l.value})`);
     if (it.cartridges) { const n = addAmmo(sim, 'cartridges', it.cartridges); if (n) bits.push(`${n} cartridges`); }
@@ -1297,6 +1335,7 @@ function completeInteract(sim, it) {
       if (n > 0) { p.dynamite += n; bits.push(n > 1 ? `${n} sticks of dynamite` : 'a stick of dynamite'); }
     }
     emit(sim, 'loot', { x: it.x, y: it.y, value: found.reduce((a, l) => a + l.value, 0), text: bits.join(', '), id: it.id });
+    if (cargoLoad(s) > cargoCap(s)) emit(sim, 'toast', { text: `Over capacity (${cargoLoad(s)}/${cargoCap(s)}). You are slower, and the lift will not take it all.`, tone: 'warn' });
   } else if (it.kind === 'objective') {
     const obj = s.config.objective || {};
     if (it.role === 'primary') comms(sim, 'objective');
@@ -1578,6 +1617,8 @@ function updateEnemy(sim, e, dt) {
   e.hitT = Math.max(0, e.hitT - dt);
   if (def.ai === 'none') return;
   if (e.spawnT > 0) { e.spawnT -= dt; return; } // still arriving
+  if (e.elite === 'hardened' && e.stunT > 0.4) e.stunT = 0.4;
+  if (e.hackT > 0) { updateHacked(sim, e, def, dt); return; }
   if (e.stunT > 0) { // a machine locked up by lightning or a dead relay
     e.stunT -= dt;
     e.vx *= 0.8; e.vy *= 0.8;
@@ -1924,6 +1965,8 @@ function releaseAttack(sim, e, def, w) {
 }
 
 function fireEnemyBullet(sim, e, w, angle) {
+  const B = sim.state.buddy;
+  if (e.elite === 'hunter' && B && !(B.downT > 0) && Math.hypot(B.x - e.x, B.y - e.y) < (w.range || 400)) angle = Math.atan2(B.y - e.y, B.x - e.x) + (angle - Math.atan2(sim.state.player.y - e.y, sim.state.player.x - e.x));
   spawnBullet(sim, {
     x: e.x + Math.cos(angle) * (e.r + 3), y: e.y + Math.sin(angle) * (e.r + 3), angle,
     speed: w.speed, damage: w.damage, owner: 'enemy', life: w.life ?? w.range / w.speed, kind: w.kind, big: w.big, ground: w.kind === 'ring' && !w.hollow, hollow: Boolean(w.hollow),
@@ -1958,6 +2001,7 @@ function fireFlare(sim, e) {
 const SHIELD_REST = 4, SHIELD_REFILL = 2.5;
 function rechargeShield(sim, e, dt) {
   const s = sim.state;
+  if (e.shieldLockT > 0) { e.shieldLockT -= dt; return; }   // an override stripped it: no refill for a while
   if (e.shield >= e.shieldMax) return;
   const busy = e.state === 'engage' || e.state === 'flare' || e.state === 'dash' || e.state === 'retreat';
   const quiet = s.t - Math.max(e.lastSeenT ?? -99, e.shieldHurtT ?? -99);
@@ -2011,6 +2055,7 @@ function killEnemy(sim, e, ang) {
   e.dead = true;
   e.hp = 0;
   s.kills += 1;
+  gainHack(sim, e.elite ? OVERRIDE.gain.elite : OVERRIDE.gain.kill);
   s.corpses.push({ x: e.x, y: e.y, kind: e.kind, a: ang, t: s.t, facing: e.facing });
   if (s.corpses.length > 40) s.corpses.shift();
   emit(sim, 'enemy_killed', { x: e.x, y: e.y, kind: e.kind, angle: ang, name: e.name, id: e.id, boss: Boolean(def.boss) });
@@ -2144,13 +2189,15 @@ function bulletHits(sim, b, x0, y0, x1, y1) {
   const boost = md.damage * (s.dealDamage || 1) * (s.player.hp < s.player.maxHp / 2 ? md.berserk : 1);
   if (b.owner === 'player' || b.owner === 'echo') {
     for (const e of s.enemies) {
-      if (e.dead || b.hit.includes(e.id)) continue;
+      if (e.dead || b.hit.includes(e.id) || e.hackT > 0) continue;
       if (segCircle(x0, y0, x1, y1, e.x, e.y, e.r + 3)) {
         const robot = ENEMIES[e.kind].robot;
         const ang = Math.atan2(b.vy, b.vx);
         if (e.spawnT > 0) continue;
         if (b.explode) { burst(sim, b); return true; }
-        damageEnemy(sim, e, b.owner === 'echo' ? ECHO.toEnemy : b.damage * boost * (robot ? b.robotMul * md.robot : 1), ang, b.stagger);
+        const dealt = b.owner === 'echo' ? ECHO.toEnemy : b.damage * boost * (robot ? b.robotMul * md.robot : 1) * (b.pellet && s.player.oc > 0 ? OVERCLOCK.boost.pellet : 1);
+        if (b.owner === 'player') noteHit(sim, b, e, dealt);
+        damageEnemy(sim, e, dealt, ang, b.stagger);
         if (b.stun && robot && !e.dead && !ENEMIES[e.kind].boss) e.stunT = Math.max(e.stunT || 0, b.stun);
         if (b.chain) { // lightning jumps to the nearest enemies in reach, at 60% strength
           let from = e;
@@ -2471,15 +2518,25 @@ function endExpedition(sim, outcome) {
   s.phase = 'ended';
   s.extract.active = false;
   const inMags = (ammo) => GUN_ORDER.reduce((a, g) => a + (p.mags[g] !== undefined && GUNS[g].ammo === ammo ? p.mags[g] : 0), 0);
+  const cargo = cargoManifest(sim);
+  // extracted: only what fits goes up the lift (the default choice; the cargo screen can change it)
+  const goes = outcome === 'extracted' ? cargo.offer.filter((o) => o.take) : s.carried.loot.map((l) => ({ ...l }));
+  const coin = s.coin > 1 ? [{ name: 'Loose coin, at the fence rate', value: Math.floor(s.coin / 2), bulk: 0 }] : [];
   s.report = {
     expeditionId: s.config.expeditionId,
     missionId: s.config.missionId,
     outcome,
     done: objectiveDone(s),
-    carried: { loot: [...s.carried.loot.map((l) => ({ ...l })), ...(s.coin > 1 ? [{ name: 'Loose coin, at the fence rate', value: Math.floor(s.coin / 2) }] : [])], items: [...s.carried.items], effects: s.carried.effects },
+    carried: { loot: [...goes.map((l) => ({ name: l.name, value: l.value, bulk: l.bulk })), ...coin], items: [...s.carried.items], effects: s.carried.effects },
+    cargo: { ...cargo, coin },
+    secured: s.secured.map((l) => ({ ...l })),
+    aftermath: Object.keys(s.sys).filter((k) => s.sys[k] === true && SYSTEMS[k]?.persist),
+    warden: { level: s.warden.level, focus: s.warden.focus },
     floor: s.floor,
     logFound: Boolean(s.logFound), deals: s.deals || 0,
-    carry: { hp: p.hp, mags: { ...p.mags }, gun: p.gun, relics: [...p.relics], pulses: p.pulses, ammo: { ...p.ammo }, bandages: p.bandages, dynamite: p.dynamite, coin: s.coin, kills: s.kills },
+    carry: { hp: p.hp, mags: { ...p.mags }, gun: p.gun, relics: [...p.relics], pulses: p.pulses, ammo: { ...p.ammo }, bandages: p.bandages, dynamite: p.dynamite, coin: s.coin, kills: s.kills,
+      hack: p.hack, heat: p.heat, loot: s.carried.loot.map((l) => ({ ...l })), secured: s.secured.map((l) => ({ ...l })), warden: s.warden,
+      consequences: Object.fromEntries(Object.keys(s.sys).filter((k) => s.sys[k] === true && SYSTEMS[k]?.persist).map((k) => [k, true])) },
     relics: [...p.relics], guns: Object.keys(p.mags),
     burned: s.burned,
     targetKilled: s.targetKilled,
@@ -2499,6 +2556,358 @@ export function abandon(sim) {
   const s = sim.state;
   s.carried = { loot: [], items: [], effects: null };
   endExpedition(sim, 'fled');
+}
+
+
+// ------------------------------------------------------------------ WARDEN, cargo, the tower's systems, Override, Overclock
+
+const itemBulk = (k) => ITEMS[k]?.bulk ?? (ITEMS[k]?.heavy ? 4 : 1);
+/** How much Rook can take home. */
+export const cargoCap = (s) => CARGO.capacity + (s.config.character.gear.includes('bandolier') ? CARGO.rig : 0);
+/** What Rook is carrying: finds plus job items. Guns and relics in use weigh nothing until salvaged at the lift. */
+export const cargoLoad = (s) => s.carried.loot.reduce((a, l) => a + (l.bulk ?? 1), 0) + s.carried.items.reduce((a, k) => a + itemBulk(k), 0);
+
+/**
+ * At the lift: everything that could go home (finds, and found guns and relics sold for salvage), with the
+ * default choice already made: job items first, then the best value for the space, until the cargo is full.
+ * The player can change the choice on the cargo screen before the run is settled.
+ */
+function cargoManifest(sim) {
+  const s = sim.state, p = s.player, cap = cargoCap(s);
+  const reserved = s.carried.items.reduce((a, k) => a + itemBulk(k), 0);
+  const offer = s.carried.loot.map((l) => ({ name: l.name, value: l.value, bulk: l.bulk ?? 1 }));
+  for (const g of Object.keys(p.mags)) {
+    if (g === START_GUN) continue;
+    offer.push({ name: `Salvage: ${GUNS[g].name}`, value: CARGO.salvage.gun[GUNS[g].tier || 1], bulk: CARGO.salvage.gunBulk, salvage: true });
+  }
+  for (const r of p.relics) offer.push({ name: `Salvage: ${RELICS[r].name}`, value: CARGO.salvage.relic[RELICS[r].tier || 1], bulk: CARGO.salvage.relicBulk, salvage: true });
+  let room = Math.max(0, cap - reserved);
+  const order = offer.map((o, i) => i).sort((a, b) => offer[b].value / offer[b].bulk - offer[a].value / offer[a].bulk || a - b);
+  for (const i of order) if (offer[i].bulk <= room) { offer[i].take = true; room -= offer[i].bulk; }
+  return { capacity: cap, reserved, offer };
+}
+
+function gainHack(sim, n) {
+  const p = sim.state.player;
+  if (p.crash > 0) return;     // the implants are rebooting
+  p.hack = Math.min(OVERRIDE.max, p.hack + n * (sim.state.config.character.trait === 'backdoor' ? 1.5 : 1));
+}
+
+/** A player shot landed: WARDEN takes notes (range band, or the companion's share), the meters fill. */
+function noteHit(sim, b, e, dmg) {
+  const s = sim.state, p = s.player, st = s.warden.stats;
+  if (b.kind === 'buddy') st.companion += dmg;
+  else {
+    const d = Math.hypot(e.x - p.x, e.y - p.y);
+    st[d < 170 ? 'close' : d < 400 ? 'mid' : 'long'] += dmg;
+    gainHack(sim, OVERRIDE.gain.hit);
+    if (p.oc <= 0) p.heat = Math.min(OVERCLOCK.max, p.heat + dmg * OVERCLOCK.perDamage);
+  }
+}
+
+/** Which of WARDEN's patterns best describes how Rook has been fighting, or null with too little to go on. */
+export function wardenRead(s) {
+  const st = s.warden.stats, total = st.close + st.mid + st.long + st.companion;
+  const minutes = Math.max(1, s.t / 60);
+  const scores = {
+    close: total >= 150 ? st.close / total - 0.45 : -1,
+    long: total >= 150 ? st.long / total - 0.4 : -1,
+    companion: total >= 150 ? st.companion / total - 0.3 : -1,
+    evasive: st.dodges >= 6 ? st.dodges / minutes / 10 - 0.4 : -1,
+    pulse: st.pulses >= 2 ? 0.15 + st.pulses * 0.05 : -1,
+  };
+  let best = null, top = 0;
+  for (const [k, v] of Object.entries(scores)) if (v > top) { top = v; best = k; }
+  return best;
+}
+
+/** WARDEN updates its read before it sends anything: a wave, a sealed room. */
+function wardenAdapt(sim) {
+  const s = sim.state, W = s.warden;
+  const read = wardenRead(s);
+  if (!read) return;
+  const changed = read !== W.focus, up = W.level < WARDEN.max;
+  W.focus = read;
+  if (up) W.level += 1;
+  if (changed || up) {
+    const P = WARDEN.patterns[read];
+    emit(sim, 'toast', { text: `WARDEN // PATTERN LOGGED: ${P.line}. DEPLOYING ${P.reply.toUpperCase()}.`, tone: 'warden', long: changed });
+    emit(sim, 'warden', { level: W.level, focus: read });
+  }
+}
+
+/** A wrecked fabricator means fewer machines in what comes next: every other machine is not sent. */
+function thinWave(sim, units) {
+  if (!sim.state.sys.fabricator) return units;
+  let k = 0;
+  return units.filter((u) => !ENEMIES[u.kind]?.robot || (k++ % 2 === 1));
+}
+
+/** Timers for the systems: jammed reinforcements arriving late, burning wreckage, a generator's alarm. */
+function updateSystems(sim, dt) {
+  const s = sim.state, p = s.player, L = sim.level;
+  if (s.jamT > 0) {
+    s.jamT -= dt;
+    if (s.jamT <= 0 && s.jammed.length) {
+      // the held waves arrive together, at half strength
+      for (const i of s.jammed) {
+        const w = L.waves[i];
+        thinWave(sim, w.units).filter((u, k) => k % 2 === 0).forEach((u) => {
+          const e = addEnemy(sim, u.kind, u.x, u.y, { facing: Math.atan2(p.y - u.y, p.x - u.x), warden: true });
+          e.spawnT = 0.6 + sim.rng.next() * 0.5;
+          alertEnemy(sim, e, p.x, p.y, false);
+          emit(sim, 'beam_in', { x: e.x, y: e.y, id: e.id });
+        });
+      }
+      s.jammed = [];
+      emit(sim, 'toast', { text: 'The jam is cleared. The late reinforcements are here.', tone: 'bad' });
+      emit(sim, 'wave', { x: p.x, y: p.y, count: 0 });
+    }
+  }
+  if (s.genT > 0) {
+    s.genT -= dt;
+    if (s.genT <= 0) {
+      // the generator's alarm brings a response team to it
+      const kinds = [...new Set(s.enemies.filter((e) => !ENEMIES[e.kind].boss && !ENEMIES[e.kind].rooted && ENEMIES[e.kind].ai !== 'none').map((e) => e.kind))];
+      for (let k = 0; k < 4 && kinds.length; k++) {
+        const kind = kinds[sim.rng.int(0, kinds.length - 1)];
+        const a = sim.rng.range(0, TAU), x = s.genX + Math.cos(a) * 90, y = s.genY + Math.sin(a) * 90;
+        if (navIdx(sim, x, y) < 0) continue;
+        const e = addEnemy(sim, kind, x, y, { warden: true });
+        e.spawnT = 0.8; alertEnemy(sim, e, p.x, p.y, false);
+        emit(sim, 'beam_in', { x: e.x, y: e.y, id: e.id });
+      }
+      emit(sim, 'toast', { text: 'A response team, sent to the generator.', tone: 'bad' });
+    }
+  }
+  // burning wreckage hurts whoever stands in it
+  s.hazards = s.hazards.filter((h) => (h.t -= dt) > 0);
+  for (const h of s.hazards) {
+    h.tick = (h.tick ?? 0) - dt;
+    if (h.tick > 0) continue;
+    h.tick = 0.5;
+    if (Math.hypot(p.x - h.x, p.y - h.y) < h.r && !p.air) damagePlayer(sim, h.dps * 0.5, { kind: 'fire', name: 'the fire' });
+    for (const e of s.enemies) if (!e.dead && !e.hackT && Math.hypot(e.x - h.x, e.y - h.y) < h.r) damageEnemy(sim, e, h.dps * 0.5 * 1.6, Math.atan2(e.y - h.y, e.x - h.x));
+  }
+}
+
+/** Using one of the tower's systems by hand (hold the use key). */
+function useSystem(sim, it) {
+  const s = sim.state, p = s.player;
+  const toast = (text, tone = 'warn', long = true) => emit(sim, 'toast', { text, tone, long });
+  switch (it.sys) {
+    case 'relay': {
+      s.sys.relay = true; s.blackout = true;
+      for (const e of s.enemies) {
+        if (e.dead || !ENEMIES[e.kind].robot || ENEMIES[e.kind].boss) continue;
+        if (ENEMIES[e.kind].rooted) { e.stunT = 1e6; e.offline = true; } else e.stunT = Math.max(e.stunT || 0, 6);
+      }
+      // the emergency protocol: two elite units, sent straight at whoever did it
+      for (let k = 0; k < 2; k++) {
+        const spot = findSpawn(sim, 260, 480);
+        if (!spot) continue;
+        const kinds = ['enforcer', 'guard'].filter((x) => ENEMIES[x]);
+        const e = addEnemy(sim, kinds[k % kinds.length], spot.x, spot.y, { forceElite: true, warden: true });
+        e.spawnT = 0.8; alertEnemy(sim, e, p.x, p.y, false);
+        emit(sim, 'beam_in', { x: e.x, y: e.y, id: e.id });
+      }
+      s.lights.push({ x: it.x, y: it.y, kind: 'fire', r: 110, t: 8 });
+      toast('Relay down. Turrets dead, the lights with them. EMERGENCY PROTOCOL: two units inbound.');
+      emit(sim, 'system', { sys: 'relay', x: it.x, y: it.y });
+      break;
+    }
+    case 'generator': {
+      s.sys.generator = true;
+      s.explored.fill(1);
+      for (const x of s.interactables) if (x.kind === 'cache' || x.kind === 'infra' || x.kind === 'log') x.known = true;
+      for (const e of s.enemies) if (!e.dead) e.known = true;
+      s.genT = 9; s.genX = it.x; s.genY = it.y;
+      noise(sim, it.x, it.y, 600, 'player');
+      toast('Generator running. The floor plan is yours: every cache, every unit. The alarm is theirs: a team is coming to it.');
+      emit(sim, 'system', { sys: 'generator', x: it.x, y: it.y });
+      break;
+    }
+    case 'fabricator': {
+      s.sys.fabricator = true;
+      s.hazards.push({ x: it.x, y: it.y, r: 140, t: 25, dps: 16 });
+      s.lights.push({ x: it.x, y: it.y, kind: 'fire', r: 170, t: 25 });
+      for (const e of s.enemies) if (!e.dead && ENEMIES[e.kind].robot && Math.hypot(e.x - it.x, e.y - it.y) < 220) damageEnemy(sim, e, 60, Math.atan2(e.y - it.y, e.x - it.x), true);
+      noise(sim, it.x, it.y, 700, 'player');
+      toast('Fabricator wrecked. No more machines from this one; half the machines in every wave to come stay home. It will burn for a while: keep clear.');
+      emit(sim, 'system', { sys: 'fabricator', x: it.x, y: it.y });
+      break;
+    }
+    case 'hatch': openHatch(sim, it); break;
+    case 'chute': {
+      const order = s.carried.loot.map((l, i) => i).sort((a, b) => s.carried.loot[b].value / (s.carried.loot[b].bulk ?? 1) - s.carried.loot[a].value / (s.carried.loot[a].bulk ?? 1) || a - b);
+      let room = CARGO.chute;
+      const send = new Set();
+      for (const i of order) { const b = s.carried.loot[i].bulk ?? 1; if (b <= room) { send.add(i); room -= b; } }
+      if (!send.size) { it.done = false; toast('Nothing to send. The chute takes finds from caches.', 'muted', false); return; }
+      const sent = s.carried.loot.filter((l, i) => send.has(i));
+      s.carried.loot = s.carried.loot.filter((l, i) => !send.has(i));
+      s.secured.push(...sent);
+      toast(`Sent home by chute: ${sent.map((l) => l.name).join(', ')} (¢${sent.reduce((a, l) => a + l.value, 0)}). Safe, whatever happens now.`, 'good');
+      emit(sim, 'system', { sys: 'chute', x: it.x, y: it.y });
+      break;
+    }
+    case 'terminal':
+      it.done = false;
+      toast('A reinforcement terminal. Override it (T) to jam what WARDEN sends.', 'muted', false);
+      break;
+    default: break;
+  }
+}
+function openHatch(sim, it) {
+  const s = sim.state;
+  it.done = true;
+  s.sys.hatch = true;
+  s.interactables.push({ id: s.nextId++, kind: 'exit', variant: 'ladder', x: it.x, y: it.y, r: 70, done: false, seen: true, known: true, duration: 0 });
+  noise(sim, it.x, it.y, 620, 'player');
+  emit(sim, 'toast', { text: 'Hatch open: a maintenance shaft, a second way out. Everyone heard it.', tone: 'warn', long: true });
+  emit(sim, 'system', { sys: 'hatch', x: it.x, y: it.y });
+}
+
+/** The compatible thing nearest the crosshair, within reach and in sight. */
+function overrideTarget(sim) {
+  const s = sim.state, p = s.player;
+  let best = null, score = Infinity;
+  const consider = (x, y, what) => {
+    const d = Math.hypot(x - p.x, y - p.y);
+    if (d > OVERRIDE.range) return;
+    const off = Math.abs(angleDiff(p.aim, Math.atan2(y - p.y, x - p.x)));
+    if (off > OVERRIDE.cone + 30 / Math.max(30, d)) return;
+    if (!hasLOS(sim, p.x, p.y, x, y, BLOCKS_SHOT)) return;
+    const sc = off * 300 + d * 0.3;
+    if (sc < score) { score = sc; best = what; }
+  };
+  for (const e of s.enemies) {
+    if (e.dead || e.spawnT > 0 || e.hackT > 0) continue;
+    const def = ENEMIES[e.kind];
+    if (def.boss || def.ai === 'none') continue;
+    if (def.robot && e.elite !== 'hardened' && !e.offline) consider(e.x, e.y, { type: def.rooted ? 'turret' : 'robot', e });
+    else if (e.shield > 0) consider(e.x, e.y, { type: 'shield', e });
+  }
+  for (const it of s.interactables) {
+    if (it.kind !== 'infra' || it.surged) continue;
+    if (it.sys === 'terminal' && !it.done) consider(it.x, it.y, { type: 'terminal', it });
+    else if ((it.sys === 'generator' || it.sys === 'fabricator') && !it.done) consider(it.x, it.y, { type: 'machine', it });
+    else if (it.sys === 'hatch' && !it.done) consider(it.x, it.y, { type: 'hatch', it });
+  }
+  return best;
+}
+
+/** For the HUD: what Override would hit now, what it costs, and whether Rook can afford it. */
+export function overridePreview(sim) {
+  const s = sim.state;
+  if (s.mode === 'town' || s.phase !== 'playing') return null;
+  const t = overrideTarget(sim);
+  if (!t) return null;
+  const cost = Math.round(OVERRIDE.cost[t.type] * sim.cache.mods.hack);
+  const at = t.e || t.it;
+  return { type: t.type, x: at.x, y: at.y, cost, ok: s.player.hack >= cost && !(s.player.crash > 0) };
+}
+
+/** Override (T): turn what is under the crosshair against WARDEN, if there is charge enough. */
+function useOverride(sim) {
+  const s = sim.state, p = s.player, md = sim.cache.mods;
+  const toast = (text, tone) => emit(sim, 'toast', { text, tone });
+  if (p.crash > 0) { toast('Implants rebooting. No override until the crash clears.', 'bad'); return; }
+  const t = overrideTarget(sim);
+  if (!t) { toast('Nothing to override in your sights. Machines, shields, terminals and plant.', 'muted'); emit(sim, 'hack_fail', {}); return; }
+  const cost = Math.round(OVERRIDE.cost[t.type] * md.hack);
+  if (p.hack < cost) { toast(`Override needs ${cost} charge. You have ${Math.floor(p.hack)}.`, 'bad'); emit(sim, 'hack_fail', {}); return; }
+  p.hack -= cost;
+  const at = t.e || t.it;
+  switch (t.type) {
+    case 'turret': case 'robot': {
+      const e = t.e;
+      e.hackT = OVERRIDE.ally[t.type] * md.hackTime; e.stunT = 0; e.atk.phase = 'ready'; e.allyCd = 0.4;
+      toast(`${ENEMIES[e.kind].name} overridden. It works for you for ${Math.round(e.hackT)} seconds.`, 'good');
+      break;
+    }
+    case 'shield':
+      t.e.shield = 0; t.e.shieldLockT = 8;
+      emit(sim, 'shield_hit', { x: t.e.x, y: t.e.y, id: t.e.id, broke: true });
+      toast('Shield stripped. It stays down for a while.', 'good');
+      break;
+    case 'machine': {
+      t.it.surged = true;
+      const S = OVERRIDE.surge;
+      for (const e of s.enemies) {
+        if (e.dead || e.hackT > 0) continue;
+        const d = Math.hypot(e.x - t.it.x, e.y - t.it.y);
+        if (d > S.r) continue;
+        damageEnemy(sim, e, S.damage, Math.atan2(e.y - t.it.y, e.x - t.it.x), true);
+        if (!ENEMIES[e.kind].boss && e.elite !== 'hardened') e.stunT = Math.max(e.stunT || 0, S.stun);
+      }
+      emit(sim, 'surge', { x: t.it.x, y: t.it.y, r: S.r });
+      toast('Power surge through the plant. Anything close got the voltage.', 'good');
+      break;
+    }
+    case 'terminal':
+      t.it.done = true;
+      s.jamT = OVERRIDE.jam;
+      toast(`Reinforcements jammed for ${OVERRIDE.jam} seconds. Whatever WARDEN sends in that time comes late, and thinner.`, 'good');
+      break;
+    case 'hatch': openHatch(sim, t.it); break;
+    default: break;
+  }
+  emit(sim, 'hacked', { type: t.type, id: t.e?.id ?? null, x: at.x, y: at.y });
+}
+
+/** A hacked machine fights for Rook until the override wears off, then turns back, dazed. */
+function updateHacked(sim, e, def, dt) {
+  const s = sim.state;
+  e.hackT -= dt;
+  e.vx *= 0.8; e.vy *= 0.8;
+  if (e.hackT <= 0) {
+    e.hackT = 0; e.stunT = 1.2;
+    emit(sim, 'hack_end', { id: e.id, x: e.x, y: e.y });
+    return;
+  }
+  let target = null, best = def.sight || 420;
+  for (const o of s.enemies) {
+    if (o === e || o.dead || o.hackT > 0 || o.spawnT > 0 || ENEMIES[o.kind].ai === 'none') continue;
+    const d = Math.hypot(o.x - e.x, o.y - e.y);
+    if (d < best && hasLOS(sim, e.x, e.y, o.x, o.y, BLOCKS_SHOT)) { best = d; target = o; }
+  }
+  e.allyCd = (e.allyCd ?? 0) - dt;
+  if (!target) return;
+  const a = Math.atan2(target.y - e.y, target.x - e.x);
+  e.facing = turnToward(e.facing, a, dt * 8);
+  if (e.allyCd <= 0 && Math.abs(angleDiff(e.facing, a)) < 0.25) {
+    e.allyCd = def.rooted ? 0.4 : 0.6;
+    const w = WEAPONS[def.weapon] || {};
+    const ang = a + (sim.rng.next() - 0.5) * 0.06;
+    spawnBullet(sim, { x: e.x + Math.cos(ang) * 16, y: e.y + Math.sin(ang) * 16, angle: ang, speed: 1000, damage: Math.max(12, (w.damage || 8) * 1.8), owner: 'player', life: best / 1000 + 0.1, kind: 'buddy' });
+    emit(sim, 'buddy_shot', { x: e.x, y: e.y, angle: ang, ally: e.id });
+  }
+}
+
+/** Overclock (Z): a few seconds past the limits, then the crash. */
+function updateOverclock(sim, dt, input) {
+  const s = sim.state, p = s.player, md = sim.cache.mods;
+  if (p.oc > 0) {
+    p.oc -= dt;
+    if (p.oc <= 0) {
+      p.oc = 0;
+      p.crash = OVERCLOCK.crash * (md.heat ? 0.5 : 1);
+      emit(sim, 'overclock_end', { x: p.x, y: p.y });
+      emit(sim, 'toast', { text: 'SYSTEM CRASH. Implants rebooting: slow, soft, and no override.', tone: 'bad' });
+    }
+  } else if (p.crash > 0) {
+    p.crash -= dt;
+    if (p.crash <= 0) { p.crash = 0; emit(sim, 'toast', { text: 'Systems back.', tone: 'good' }); }
+  }
+  if (!input.overclock || s.mode === 'town') return;
+  if (p.oc > 0 || p.crash > 0) return;
+  if (p.heat < OVERCLOCK.max) { emit(sim, 'toast', { text: `Overclock is not charged (${Math.floor(p.heat)}%). Deal damage, take damage.`, tone: 'muted' }); return; }
+  p.heat = 0;
+  p.oc = OVERCLOCK.time + (md.heat ? 2 : 0);
+  p.stamina = PLAYER.stamina;
+  emit(sim, 'overclock', { x: p.x, y: p.y });
+  emit(sim, 'toast', { text: 'OVERCLOCK. Faster hands, faster feet, harder hits. It will cost you.', tone: 'story' });
 }
 
 // ------------------------------------------------------------------ HUD helpers
@@ -2526,6 +2935,7 @@ export function focusPrompt(sim) {
   else if (it.kind === 'grave') label = 'Read the name';
   else if (it.kind === 'uplink') label = `Black-market uplink. Hold to take ${DEALS[it.deal]?.offer}; it costs ${DEALS[it.deal]?.cost}`;
   else if (it.kind === 'log') label = 'Download the intake record';
+  else if (it.kind === 'infra') label = `${SYSTEMS[it.sys]?.verb ?? 'Use'}: ${SYSTEMS[it.sys]?.desc ?? ''}`;
   else label = 'Use';
   return {
     kind: it.kind, label, hold: it.duration > 0,

@@ -106,6 +106,8 @@ export const RELICS = {
   core_shard: { name: 'Core shard', desc: '+60% damage to machines.', mod: { robot: 1.6 }, tier: 2 },
   berserk: { name: 'Red mist', desc: 'Below half health you deal 50% more damage.', mod: { berserk: 1.5 }, tier: 3 },
   twin_link: { name: 'Twin link', desc: 'Every gun fires one extra projectile.', mod: { extra: 1 }, tier: 3 },
+  skeleton_key: { name: 'Skeleton key', desc: 'Overrides cost 30% less charge.', mod: { hack: 0.7 }, tier: 2 },
+  heat_sink: { name: 'Heat sink', desc: 'Overclock lasts 2 seconds longer and the crash is half as long.', mod: { heat: 1 }, tier: 2 },
   second_wind: { name: 'Second wind', desc: 'Once per floor, a killing blow leaves you at 30 health instead.', mod: { revive: 1 }, tier: 3 },
 };
 
@@ -119,6 +121,7 @@ export const SYNERGIES = {
   fortune: { name: 'Fortune', needs: ['lucky_coin', 'magnet_coil'], desc: 'Coins worth 50% more, drops more likely still.', mod: { coin: 1.5, luck: 1.3 } },
   overdrive: { name: 'Overdrive', needs: ['overclock', 'twin_link'], desc: 'Reload and recharge 30% faster again.', mod: { reload: 1.3 } },
   last_stand: { name: 'Last stand', needs: ['second_wind', 'scrap_plating'], desc: 'Take a further 15% less damage.', mod: { armour: 0.85 } },
+  ghost_in_the_wire: { name: 'Ghost in the wire', needs: ['skeleton_key', 'static_field'], desc: 'Hacked machines fight for twice as long.', mod: { hackTime: 2 } },
   glass_cannon: { name: 'Glass cannon', needs: ['hollow_point', 'berserk'], desc: '+20% damage.', mod: { damage: 1.2 } },
 };
 
@@ -127,6 +130,77 @@ export const ELITES = {
   shielded: { name: 'Shielded', colour: '#3fe0ff', desc: 'A shield soaks damage until it breaks, and recharges if you let it out of the fight.' },
   swift: { name: 'Swift', colour: '#ffd23f', desc: 'Moves and fires faster.' },
   volatile: { name: 'Volatile', colour: '#ff5a3a', desc: 'Explodes when it dies. Step away.' },
+  // WARDEN's countermeasures: only sent once it has learned how you fight (see WARDEN below)
+  hardened: { name: 'Hardened', colour: '#c0c8d8', desc: 'Shielded against disruption: pulses, lightning and overrides barely touch it.', learned: true },
+  hunter: { name: 'Hunter', colour: '#ff8a3a', desc: 'Programmed to take your companion apart first.', learned: true },
+};
+
+/**
+ * WARDEN watches how you fight and adjusts what it sends. Each pattern it can notice, the countermeasure,
+ * and what tips it off. `level` rises each time it adapts (a wave, a sealed room, a new floor), up to `max`;
+ * each level adds to the countermeasure's share of elites without ever making it the only kind.
+ */
+export const WARDEN = {
+  max: 4,
+  eliteBonus: 0.035,     // extra elite chance per level, on the units it sends after adapting
+  weight: 1.1,           // extra weight on the countermeasure, per level (other kinds weigh 1)
+  patterns: {
+    close: { counter: 'shielded', line: 'CLOSE-RANGE ENGAGEMENT', reply: 'shielded units' },
+    long: { counter: 'swift', line: 'LONG-RANGE ENGAGEMENT', reply: 'fast flankers' },
+    evasive: { counter: 'volatile', line: 'EVASIVE MOVEMENT', reply: 'area-denial units' },
+    pulse: { counter: 'hardened', line: 'DISRUPTION DEVICE USE', reply: 'hardened units' },
+    companion: { counter: 'hunter', line: 'SECONDARY COMBATANT', reply: 'companion hunters' },
+  },
+};
+
+/**
+ * Cargo: what Rook can carry home. Every find has a bulk; past `capacity` the extra is left at the lift.
+ * A cargo chute on a level sends up to `chute` bulk home at once, safe even if Rook goes down after.
+ */
+export const CARGO = {
+  capacity: 10, rig: 4,              // the load-bearing rig adds `rig`
+  chute: 6,
+  heavySlow: 0.82,                   // movement when over capacity
+  bulkOf: (value) => (value >= 40 ? 3 : value >= 18 ? 2 : 1),
+  salvage: { gun: [0, 20, 34, 52], relic: [0, 10, 18, 30], gunBulk: 3, relicBulk: 1 },
+};
+
+/**
+ * The tower's own systems, found on most levels. Using one changes the floor, not always for the better.
+ * `persist`: carried to the next Descent floor, or to the next `runs` outings in the campaign.
+ */
+export const SYSTEMS = {
+  relay: { label: 'Power relay', verb: 'Overload the power relay', duration: 1.8, desc: 'Turrets and security go dark. The emergency protocol does not.', persist: { runs: 2, note: 'Security on the lower floors is still running on emergency power.' } },
+  generator: { label: 'Emergency generator', verb: 'Start the emergency generator', duration: 1.5, desc: 'Lights the whole floor plan up for you. Also for them.' },
+  fabricator: { label: 'Unit fabricator', verb: 'Wreck the fabricator', duration: 2.4, desc: 'No more machines from this one. It burns for a while.', persist: { runs: 2, note: 'The fabricator you wrecked has not been replaced. Fewer machines.' } },
+  hatch: { label: 'Maintenance hatch', verb: 'Force the maintenance hatch', duration: 2.0, desc: 'Another way out. Loud.' },
+  terminal: { label: 'Reinforcement terminal', verb: 'Override it to jam reinforcements', duration: 0, desc: 'Routes WARDEN\'s reinforcements. Override it to jam them.', overrideOnly: true },
+  chute: { label: 'Cargo chute', verb: 'Send cargo home by chute', duration: 1.4, desc: 'Sends your most valuable finds home. Once per floor.' },
+};
+
+/**
+ * Override: Rook is not on any list, so the tower's machines cannot tell Rook from staff. Charge builds in a
+ * fight and is spent on whatever compatible thing is under the crosshair (T, or the controller's D-pad left).
+ */
+export const OVERRIDE = {
+  max: 100, start: 25,
+  gain: { hit: 0.5, kill: 9, elite: 20 },
+  range: 360, cone: 0.32,           // sim units, radians either side of the aim
+  cost: { turret: 55, robot: 35, shield: 25, machine: 40, terminal: 45, hatch: 30 },
+  ally: { turret: 14, robot: 8 },    // seconds a hacked machine fights for you
+  jam: 30,                           // seconds a jammed terminal holds reinforcements back
+  surge: { r: 170, damage: 45, stun: 3 },
+};
+
+/**
+ * Overclock: run the implants past their limits for a few seconds, then pay for it (Z, or D-pad right).
+ * Charge comes from damage dealt and damage taken.
+ */
+export const OVERCLOCK = {
+  max: 100, perDamage: 0.11, perHurt: 0.6,
+  time: 6, crash: 4,
+  boost: { rate: 1.35, speed: 1.18, dodge: 1.6, pellet: 1.25, pulse: 1.5, swap: 0.25, reload: 1.4 },
+  crashMod: { speed: 0.75, hurt: 1.15 },
 };
 
 /** The pulse: a charge that wipes enemy fire off the screen. */
@@ -490,6 +564,7 @@ export const TRAITS = {
   nighteyes: { name: 'Low-light optics', cost: 120, desc: 'See farther in the dark.' },
   coolhead: { name: 'Recoil damper', cost: 150, desc: 'Fanned and scattered shots spread 35% less.' },
   powder: { name: 'Demolition suite', cost: 160, desc: 'Explosives hit 30% harder and you start each run with one charge.' },
+  backdoor: { name: 'Backdoor rig', cost: 170, desc: 'Override charge builds 50% faster and every run starts with a full meter.' },
 };
 
 export const FIRST_NAMES = ['Rook'];
@@ -710,7 +785,7 @@ export const DEALS = {
   debt: { offer: 'a relic and 40 coin', cost: 'lockdown comes 90 seconds sooner', give: { relicLuck: 1.5, coin: 40 }, take: { clock: 90 } },
   bait: { offer: 'full health and two pulse charges', cost: 'three elite hunters are sent after you, now', give: { heal: true, pulses: 2 }, take: { hunters: 3 } },
   marked: { offer: 'double value from every cache', cost: 'every enemy that turns up from now on is likelier to be elite', give: { lootMul: 2 }, take: { elite: 0.3 } },
-  overclock: { offer: '+25% damage for the rest of the run', cost: 'you take 25% more damage', give: { damage: 1.25 }, take: { hurt: 1.25 } },
+  hotwire: { offer: '+25% damage for the rest of the run', cost: 'you take 25% more damage', give: { damage: 1.25 }, take: { hurt: 1.25 } },
 };
 
 /** Intake records: one can be found on each run and read in the journal at home. They tell the story underneath the story. */

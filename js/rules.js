@@ -11,7 +11,7 @@
 
 import {
   CHAPTERS, JOBS, GEAR, SUPPLIES, INVESTMENTS, TRAITS, PERKS, CLINIC_PRICE, GUNS, UPGRADES, AMMO, CARRY, ITEMS, SHOPS, TELEGRAMS,
-  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER, HERO, LOGS, COMMS,
+  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER, HERO, LOGS, COMMS, SYSTEMS,
 } from './content.js';
 import { makeRng, mixSeed } from './rng.js';
 
@@ -477,6 +477,8 @@ export function beginExpedition(c, missionId, seed) {
     companion: c.investments.includes('deputy'),
     // elites grow more common as the story goes on
     eliteChance: Math.min(0.2, 0.05 + 0.018 * tierOf(c)),
+    // what earlier runs did to the tower's systems and has not worn off yet
+    consequences: Object.fromEntries((c.aftermath || []).map((a) => [a.id, true])),
   };
   if (kind === 'descent') return { ok: true, config: { ...floorConfig({ ...config, descent: true }, 1, seed, config.pool), intro: def.hint } };
   return { ok: true, config };
@@ -527,6 +529,27 @@ export function resolveExpedition(c, report) {
 
   const carried = report.carried ?? {};
   const loot = carried.loot ?? [];
+  // finds sent home by cargo chute are paid whatever became of the runner
+  const secured = report.secured ?? [];
+  if (secured.length) {
+    const v = secured.reduce((a, l) => a + (l.value | 0), 0);
+    c.cash += v;
+    summary.lines.push({ label: `Sent home by chute: ${secured.length} find${secured.length === 1 ? '' : 's'}`, value: `+¢${v}`, tone: 'good' });
+  }
+  // what this run did to the tower's systems lasts a few more runs; older effects wear off
+  if (report.outcome !== 'missing') {
+    c.aftermath = (c.aftermath || []).map((a) => ({ ...a, runs: a.runs - 1 })).filter((a) => a.runs > 0);
+    for (const id of report.aftermath || []) {
+      const P = SYSTEMS[id]?.persist;
+      if (!P) continue;
+      c.aftermath = [...c.aftermath.filter((a) => a.id !== id), { id, runs: P.runs }];
+      summary.lines.push({ label: SYSTEMS[id].label, value: P.note, tone: 'muted' });
+    }
+  }
+  if (report.cargo && report.outcome === 'extracted') {
+    const left = (report.cargo.offer || []).filter((o) => !o.take);
+    if (left.length) summary.lines.push({ label: `Left at the lift (no room)`, value: left.map((o) => o.name.replace('Salvage: ', '')).join(', '), tone: 'muted' });
+  }
   if (kind === 'descent') {
     // paid by the floor, whether or not the drifter made it back up
     const finished = report.outcome === 'extracted' && report.done;

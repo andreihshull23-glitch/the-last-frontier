@@ -14,6 +14,8 @@ export const PAD_ACTIONS = [
   ['throw', 'Dynamite'],
   ['pulse', 'Pulse (clears enemy fire)'],
   ['jump', 'Jump'],
+  ['hack', 'Override (hack what is in your sights)'],
+  ['overclock', 'Overclock'],
   ['camera', 'Switch camera'],
   ['next', 'Next gun'],
   ['prev', 'Previous gun'],
@@ -25,7 +27,7 @@ export const PAD_ACTIONS = [
 /** Default layout, as button indices of the standard mapping. */
 export const PAD_DEFAULTS = {
   fire: 7, alt: 6, dodge: 0, sprint: 10, reload: 2, interact: 3, heal: 1,
-  throw: 5, next: 4, prev: 14, map: 8, journal: 12, pause: 9, pulse: 13, jump: 11, camera: 15,
+  throw: 5, next: 4, prev: -1, map: 8, journal: 12, pause: 9, pulse: 13, jump: 11, camera: 16, hack: 14, overclock: 15,
 };
 
 const XBOX = ['A', 'B', 'X', 'Y', 'LB', 'RB', 'LT', 'RT', 'View', 'Menu', 'L3', 'R3', 'D-pad up', 'D-pad down', 'D-pad left', 'D-pad right', 'Home'];

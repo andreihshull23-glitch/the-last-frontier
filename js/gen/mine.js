@@ -4,7 +4,7 @@
 import { TILE, PX, MACRO, SOLID, ROCK, WATER, GROUND, LOOT_NAMES, ENEMIES, DEALS } from '../content.js';
 import { makeRng } from '../rng.js';
 import { createLevel, skinRock, place, box, cyl, paint, reserve, centreM, tileCentre, addFlags, setTile, validateLevel, inb, buildNav, floodFrom, WALL } from '../level.js';
-import { scatter, clearAround, PEBBLES, TM } from './common.js';
+import { scatter, clearAround, PEBBLES, TM, pickSystems } from './common.js';
 import { barrel, crate, campfire, railTrack } from './props.js';
 
 const P = (m) => m * PX;
@@ -302,6 +302,10 @@ function build(spec, seed) {
     if (up) L.items.push({ kind: 'uplink', deal: ids[rng.int(0, ids.length - 1)], x: up[0], y: up[1] });
     const lg = freeSpot(P(26), true);
     if (lg) L.items.push({ kind: 'log', x: lg[0], y: lg[1] });
+    for (const sys of ['chute', ...pickSystems(rng, ['relay', 'generator', 'fabricator', 'hatch', ...(L.waves?.length ? ['terminal'] : [])], 2)]) {
+      const at = freeSpot(P(24), null);
+      if (at) L.items.push({ kind: 'infra', sys, x: at[0], y: at[1] });
+    }
   }
 
   // ---- waves: taking what is in the vault wakes the level up; so does walking into a nest

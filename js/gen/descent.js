@@ -5,7 +5,7 @@
 import { TILE, PX, MACRO, SOLID, BLOCKS_SHOT, ROCK, GROUND, LOOT_NAMES, DESCENT, GUNS, RELICS, ENEMIES, DEALS } from '../content.js';
 import { makeRng } from '../rng.js';
 import { createLevel, skinRock, box, cyl, paint, reserve, addFlags, setTile, validateLevel, buildNav, floodFrom, tileCentre, place, WALL } from '../level.js';
-import { TM } from './common.js';
+import { TM, pickSystems } from './common.js';
 
 const P = (m) => m * PX;
 const TAU = Math.PI * 2;
@@ -329,6 +329,14 @@ function build(spec, seed) {
     const shop = rooms.find((q) => q.role === 'shop'), stash = rooms.find((q) => q.role === 'chest');
     if (shop) { const at = spot(shop, 2); if (at) L.items.push({ kind: 'uplink', deal: ids[rng.int(0, ids.length - 1)], x: at[0], y: at[1] }); }
     if (stash) { const at = spot(stash, 2); if (at) L.items.push({ kind: 'log', x: at[0], y: at[1] }); }
+    // a cargo chute in the fence's room, and the floor's own systems in two of the fighting rooms
+    if (shop) { const at = spot(shop, 2); if (at) L.items.push({ kind: 'infra', sys: 'chute', x: at[0], y: at[1] }); }
+    const fights = rooms.filter((q) => q.role === 'combat');
+    pickSystems(rng, ['relay', 'generator', 'fabricator', 'terminal'], 2).forEach((sys, k) => {
+      const room = fights[(k * 2 + rng.int(0, 1)) % Math.max(1, fights.length)];
+      const at = room && spot(room, 2);
+      if (at) L.items.push({ kind: 'infra', sys, x: at[0], y: at[1] });
+    });
   }
 
   L.name = F.name;

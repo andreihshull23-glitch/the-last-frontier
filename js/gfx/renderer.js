@@ -366,6 +366,20 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
         g.add(mesh);
         o.spin = mesh;
       }
+    } else if (it.kind === 'infra') {
+      // the tower's own systems, each from kit parts with a coloured lamp: amber plant, cyan terminal, green chute
+      const lampCol = it.sys === 'chute' ? '#5dff9a' : it.sys === 'terminal' ? '#3fe0ff' : it.sys === 'relay' ? '#6fd6ff' : '#ffb43f';
+      const add = (m, sc = 1, t = 'street') => { const x = assets.mesh(m, t); x.scale.multiplyScalar(sc); x.castShadow = true; g.add(x); return x; };
+      if (it.sys === 'relay') add('cyber/antenna-1', 1.2);
+      else if (it.sys === 'generator') add('cyber/tank', 0.9);
+      else if (it.sys === 'fabricator') add('station/container-tall', 0.8, 'deckprop');
+      else if (it.sys === 'hatch') { const h = procMesh((m) => { m.addBox(0, 0, 0, 1.3, 0.12, 1.3, 0.1, C('#3a3f4a'), C('#22262e')); m.addBox(0, 0.12, 0, 1.0, 0.04, 1.0, 0.2, C('#c9a23a'), C('#8a6e28')); }); g.add(h); }
+      else if (it.sys === 'terminal') add('cyber/computer-large', 0.7);
+      else if (it.sys === 'chute') add('station/container-flat-open', 0.75, 'deckprop');
+      const lamp = new THREE.Mesh(G.box, basic(lampCol, { opacity: 0.95 }));
+      lamp.scale.set(0.3, 0.08, 0.3); lamp.position.y = it.sys === 'hatch' ? 0.3 : it.sys === 'relay' ? 3.2 : 2.0; g.add(lamp);
+      const ring = new THREE.Mesh(G.ring, basic(lampCol, { opacity: 0.6, side: THREE.DoubleSide })); ring.scale.setScalar(1.0); ring.position.y = 0.05; g.add(ring);
+      o.lamp = lamp; o.ring = ring;
     } else if (it.kind === 'uplink') {
       // a street terminal with a pink screen: the black market
       const t = assets.mesh('cyber/computer', 'street'); t.castShadow = true; g.add(t);
@@ -857,6 +871,36 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; emit(sparks, { x: X + Math.cos(a) * 0.7, y: 0.2, z: Z + Math.sin(a) * 0.7, vx: 0, vy: 3.5, vz: 0, life: 0.5, size: 0.1, color: '#3fe0ff' }); }
           break;
         }
+        case 'hacked': {
+          for (let i = 0; i < 30; i++) { const an = (i / 30) * TAU; emit(sparks, { x: X + Math.cos(an) * 0.5, y: 0.3 + (i % 5) * 0.35, z: Z + Math.sin(an) * 0.5, vx: Math.cos(an) * 1.5, vy: 1.5, vz: Math.sin(an) * 1.5, life: 0.5, size: 0.09, color: '#3fe0ff' }); }
+          flashAt(X, 1.5, Z, 4, '#3fe0ff', 0.12);
+          break;
+        }
+        case 'hack_end': {
+          for (let i = 0; i < 12; i++) emit(sparks, { x: X, y: 1.2, z: Z, vx: (Math.random() - 0.5) * 3, vy: Math.random() * 3, vz: (Math.random() - 0.5) * 3, life: 0.4, size: 0.07, color: '#ff5a4a' });
+          break;
+        }
+        case 'surge': {
+          r.shake = Math.max(r.shake, 6);
+          flashAt(X, 2, Z, 9, '#9fdcff', 0.2);
+          for (let i = 0; i < 70; i++) { const an = Math.random() * TAU, sp = 3 + Math.random() * 9; emit(sparks, { x: X, y: 1 + Math.random(), z: Z, vx: Math.cos(an) * sp, vy: 1 + Math.random() * 4, vz: Math.sin(an) * sp, grav: 8, life: 0.5 + Math.random() * 0.3, size: 0.08, color: i % 3 ? '#9fdcff' : '#ffffff', drag: 1.2 }); }
+          break;
+        }
+        case 'overclock':
+          r.shake = Math.max(r.shake, 4);
+          flashAt(X, 1.2, Z, 6, '#ff3fa4', 0.25);
+          for (let i = 0; i < 40; i++) { const an = (i / 40) * TAU; emit(sparks, { x: X, y: 0.2, z: Z, vx: Math.cos(an) * 6, vy: 2, vz: Math.sin(an) * 6, life: 0.5, size: 0.12, color: '#ff3fa4' }); }
+          break;
+        case 'overclock_end':
+          for (let i = 0; i < 24; i++) emit(dust, { x: X, y: 1.4, z: Z, vx: (Math.random() - 0.5) * 2, vy: 1 + Math.random(), vz: (Math.random() - 0.5) * 2, life: 1.2, size: 0.3, grow: 2, a: 0.5, color: '#3a3a48', drag: 1 });
+          break;
+        case 'system': {
+          r.shake = Math.max(r.shake, e.sys === 'fabricator' ? 8 : 3);
+          const c = e.sys === 'chute' ? '#5dff9a' : e.sys === 'relay' ? '#9fdcff' : '#ffb43f';
+          flashAt(X, 2, Z, 7, c, 0.2);
+          for (let i = 0; i < 40; i++) { const an = Math.random() * TAU, sp = 2 + Math.random() * 6; emit(sparks, { x: X, y: 1 + Math.random() * 1.5, z: Z, vx: Math.cos(an) * sp, vy: 2 + Math.random() * 4, vz: Math.sin(an) * sp, grav: 9, life: 0.6, size: 0.09, color: c, drag: 1 }); }
+          break;
+        }
         case 'synergy': {
           for (let i = 0; i < 40; i++) { const a = (i / 40) * Math.PI * 2; emit(sparks, { x: X, y: 1.2, z: Z, vx: Math.cos(a) * 5, vy: 1 + Math.random() * 2, vz: Math.sin(a) * 5, life: 0.6, size: 0.14, color: i % 2 ? '#ff3fa4' : '#3fe0ff' }); }
           break;
@@ -1114,6 +1158,14 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
           a.root.add(a.bubble);
         }
       }
+      if (e.hackT > 0) {
+        if (!a.hackRing) { a.hackRing = new THREE.Mesh(G.ring, basic('#3fe0ff', { opacity: 0.9, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })); a.hackRing.scale.setScalar(e.r * U * 2.3); a.hackRing.position.y = 0.07; a.root.add(a.hackRing); }
+        a.hackRing.visible = true;
+        a.hackRing.rotation.z += dt * 3;
+        a.material.emissive.setRGB(0.05, 0.35 + Math.sin(r.time * 10) * 0.1, 0.45);
+        if (Math.random() < 0.3) emit(sparks, { x: e.x * U + (Math.random() - 0.5) * 0.5, y: 0.4 + Math.random() * 1.6, z: e.y * U + (Math.random() - 0.5) * 0.5, vy: 1.2, life: 0.35, size: 0.07, color: '#3fe0ff' });
+      } else if (a.hackRing?.visible) { a.hackRing.visible = false; a.material.emissive.setRGB(0, 0, 0); }
+      if (e.offline && !a.dark) { a.dark = true; a.material.color.setRGB(0.35, 0.35, 0.4); }
       if (a.eliteRing) {
         a.eliteRing.position.y = 0.05;
         a.eliteRing.material.opacity = 0.6 + Math.sin(r.time * 6 + e.id) * 0.25;
@@ -1539,6 +1591,13 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     r.pad = ui.pad || null;
     r.kick = Math.max(0, r.kick - dt * 9);
     r.blood = Math.max(0, (r.blood || 0) - dt * 0.45);
+    {
+      const P = sim.state.player;
+      if (P.oc > 0 && Math.random() < 0.7) emit(sparks, { x: P.x * U + (Math.random() - 0.5) * 0.4, y: 0.3 + Math.random() * 1.4, z: P.y * U + (Math.random() - 0.5) * 0.4, vy: 0.4, life: 0.35, size: 0.08, color: '#ff3fa4' });
+      if (P.crash > 0 && Math.random() < 0.25) emit(sparks, { x: P.x * U, y: 1.5, z: P.y * U, vx: (Math.random() - 0.5) * 2, vy: Math.random() * 2, vz: (Math.random() - 0.5) * 2, life: 0.2, size: 0.06, color: '#ff5a4a' });
+      // burning wreckage
+      for (const h of sim.state.hazards || []) if (Math.random() < 0.8) { const an = Math.random() * TAU, rr = Math.random() * h.r * U; emit(sparks, { x: h.x * U + Math.cos(an) * rr, y: 0.1, z: h.y * U + Math.sin(an) * rr, vx: (Math.random() - 0.5) * 0.5, vy: 1.5 + Math.random() * 2, vz: (Math.random() - 0.5) * 0.5, life: 0.6 + Math.random() * 0.4, size: 0.16, color: Math.random() < 0.5 ? '#ff8a3a' : '#ffd27a', drag: 0.6 }); }
+    }
     r.hitMarker = Math.max(0, r.hitMarker - dt);
     r.shake = Math.max(0, r.shake - dt * 30);
     if (!ui.cameraUpdated) r.updateCamera(sim, dt);

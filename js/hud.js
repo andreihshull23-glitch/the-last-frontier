@@ -1,8 +1,8 @@
 // Screen-space HUD drawn on a 2D canvas above the 3D view: objectives, map,
 // vitals, weapons, markers over things in the world, prompts and toasts.
-import { TILE as TS, PX, MACRO, ENEMIES, GUNS, GUN_ORDER, ITEMS, SOLID, ROCK, WATER, INDOOR, GROUND, RELICS, ELITES, SYNERGIES } from './content.js';
+import { TILE as TS, PX, MACRO, ENEMIES, GUNS, GUN_ORDER, ITEMS, SOLID, ROCK, WATER, INDOOR, GROUND, RELICS, ELITES, SYNERGIES, WARDEN, OVERRIDE, OVERCLOCK, SYSTEMS } from './content.js';
 import { edgeBlood } from './gfx/gore.js';
-import { PLAYER, CLOCK, clockTime, nightFactor, objectiveList, objectiveDone, unsecuredValue, focusPrompt, bossState, currentGun, angleDiff } from './sim.js';
+import { PLAYER, CLOCK, clockTime, nightFactor, objectiveList, objectiveDone, unsecuredValue, focusPrompt, bossState, currentGun, angleDiff, overridePreview, cargoCap, cargoLoad } from './sim.js';
 
 export const FONT_DISPLAY = '"Jersey 15", "Arial Narrow", "Helvetica Neue", sans-serif';
 export const FONT_MONO = '"IBM Plex Mono", ui-monospace, Menlo, monospace';
@@ -10,7 +10,7 @@ const U = 1 / PX;
 const TAU = Math.PI * 2;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const SHORT = { revolver: 'REV', rifle: 'RIF', shotgun: 'SHG', smg: 'SMG', longrifle: 'LNG', pulse: 'PLS', arc: 'ARC', scatter: 'SCT', bouncer: 'RIC', thumper: 'THM', rail: 'RAIL' };
-const TONE = { story: '#ff3fa4', good: '#5dff9a', bad: '#ff5a4a', warn: '#ffb43f', info: '#e8ecff' };
+const TONE = { story: '#ff3fa4', good: '#5dff9a', bad: '#ff5a4a', warn: '#ffb43f', info: '#e8ecff', warden: '#ff2e4a', muted: '#9a9fca' };
 const INK = '#e8ecff', DUST = '#9a9fca', LAMP = '#3fe0ff', BLOOD = '#ff5a4a', SAGE = '#5dff9a', HOLLOW = '#b9a8ff';
 
 export function toast(r, text, tone = 'story', long = false) {
@@ -126,6 +126,10 @@ function drawMapMarkers(ctx, sim, x, y, sc, big, ui) {
     } else if (it.kind === 'ride') {
       ctx.strokeStyle = SAGE; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.arc(mx, my, big ? 6 : 3.5, 0, TAU); ctx.stroke();
+    } else if (it.kind === 'infra' && (it.seen || big)) {
+      const c = it.sys === 'chute' ? '#5dff9a' : it.sys === 'terminal' ? '#3fe0ff' : '#ffb43f';
+      ctx.strokeStyle = c; ctx.lineWidth = 1.5; ctx.strokeRect(mx - 3, my - 3, 6, 6);
+      if (big) label(ctx, SYSTEMS[it.sys]?.label.toUpperCase() ?? '', mx, my - 9, c, `700 10px ${FONT_MONO}`);
     } else if (it.kind === 'talk' && ui?.town?.giver === it.role) {
       label(ctx, '!', mx, my + 4, LAMP, `900 ${big ? 18 : 13}px ${FONT_DISPLAY}`);
     }
@@ -526,6 +530,12 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
 
   // ---- top right: map and clock ----
   const mm = drawMinimap(r, ctx, sim, right, top, mapMaxW, mapMaxH, ui);
+  // the crash after an overclock: the implants are rebooting, and the map goes to static
+  if (!town && p.crash > 0) {
+    ctx.fillStyle = 'rgba(8,8,16,0.86)'; ctx.fillRect(right - mm.w, top, mm.w, mm.h);
+    for (let i = 0; i < 40; i++) { ctx.fillStyle = `rgba(${150 + Math.random() * 100},${120 + Math.random() * 80},255,${Math.random() * 0.35})`; ctx.fillRect(right - mm.w + Math.random() * mm.w, top + Math.random() * mm.h, 2 + Math.random() * 20, 1 + Math.random() * 2); }
+    label(ctx, 'REBOOTING', right - mm.w / 2, top + mm.h / 2 + 4, '#ff5a8a', `700 11px ${FONT_MONO}`);
+  }
   if (!town && !s.noClock) {
     if (narrow) drawClock(ctx, s, right, top + mm.h + 12, true, 'right');
     else drawClock(ctx, s, w / 2, top + 4, false, 'center');
@@ -633,6 +643,49 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     ctx.fillText(`${p.bandages} dressing${p.bandages === 1 ? '' : 's'}${r.keyHints && !r.touch ? ` [${r.pad ? r.pad.heal : 'Q'}]` : ''}`, vitalsX + 10 + barW, vitalsY + 44);
   }
 
+  // Override, Overclock and cargo: a panel beside the vitals; WARDEN's read under the clock
+  if (!town) {
+    const sx = vitalsX + barW + 30, sw = compact ? 118 : 160, sh = 62, sy = vitalsY + 58 - sh - (r.touch ? 0 : 4);
+    if (sx + sw < w - 200 || r.touch) {
+      panel(ctx, sx, sy, sw + 20, sh);
+      const meter = (row, name, key, f, col, note) => {
+        const yy = sy + 9 + row * 17;
+        ctx.font = `700 ${compact ? 9 : 10}px ${FONT_MONO}`; ctx.textAlign = 'left'; ctx.fillStyle = col;
+        ctx.fillText(`${name}${r.keyHints && !r.touch ? ` [${key}]` : ''}`, sx + 10, yy + 7);
+        ctx.textAlign = 'right'; ctx.fillStyle = INK; ctx.fillText(note, sx + 10 + sw, yy + 7);
+        ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(sx + 10, yy + 10, sw, 3);
+        ctx.fillStyle = col; ctx.fillRect(sx + 10, yy + 10, sw * clamp(f, 0, 1), 3);
+      };
+      const crashed = p.crash > 0, ocOn = p.oc > 0;
+      meter(0, 'OVERRIDE', r.pad ? r.pad.hack : 'T', (p.hack || 0) / OVERRIDE.max, crashed ? '#5a5f7a' : '#3fe0ff', crashed ? 'OFFLINE' : `${Math.floor(p.hack || 0)}`);
+      const ocCol = ocOn ? '#ff3fa4' : crashed ? '#ff5a4a' : (p.heat >= OVERCLOCK.max ? '#ff3fa4' : '#b06aff');
+      meter(1, 'OVERCLOCK', r.pad ? r.pad.overclock : 'Z', ocOn ? p.oc / OVERCLOCK.time : crashed ? p.crash / OVERCLOCK.crash : (p.heat || 0) / OVERCLOCK.max, ocCol,
+        ocOn ? `ACTIVE ${p.oc.toFixed(1)}` : crashed ? `CRASH ${p.crash.toFixed(1)}` : p.heat >= OVERCLOCK.max ? 'READY' : `${Math.floor(p.heat || 0)}%`);
+      const load = cargoLoad(s), cap = cargoCap(s);
+      meter(2, 'CARGO', '', load / cap, load > cap ? '#ff5a4a' : '#e8b84a', `${load}/${cap}${load > cap ? ' OVER' : ''}${s.secured?.length ? ` +${s.secured.length} sent` : ''}`);
+    }
+    const W = s.warden;
+    if (W && W.level > 0 && W.focus) {
+      const P = WARDEN.patterns[W.focus];
+      const txt = `WARDEN ${'▮'.repeat(W.level)}${'▯'.repeat(WARDEN.max - W.level)}  ${ELITES[P.counter]?.name.toUpperCase() ?? ''}`;
+      label(ctx, txt, w / 2, top + (s.noClock ? 10 : 46), TONE.warden, `700 11px ${FONT_MONO}`);
+    }
+    // the bracket on whatever Override would hit, with its cost
+    const ov = overridePreview(sim);
+    if (ov) {
+      const q = r.project(ov.x * U, 1.1, ov.y * U);
+      if (q.front) {
+        const k = 18, c = ov.ok ? '#3fe0ff' : 'rgba(150,160,190,0.7)';
+        ctx.strokeStyle = c; ctx.lineWidth = 2;
+        for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { ctx.beginPath(); ctx.moveTo(q.x + dx * k, q.y + dy * (k - 7)); ctx.lineTo(q.x + dx * k, q.y + dy * k); ctx.lineTo(q.x + dx * (k - 7), q.y + dy * k); ctx.stroke(); }
+        const what = { turret: 'TAKE TURRET', robot: 'TAKE CONTROL', shield: 'STRIP SHIELD', machine: 'SURGE', terminal: 'JAM REINFORCEMENTS', hatch: 'OPEN HATCH' }[ov.type];
+        label(ctx, `${what} ${ov.cost}`, q.x, q.y + k + 14, c, `700 10px ${FONT_MONO}`);
+      }
+    }
+    // overclock: a magenta edge while it runs
+    if (p.oc > 0) { ctx.strokeStyle = `rgba(255,63,164,${0.35 + Math.sin(r.time * 14) * 0.15})`; ctx.lineWidth = 6; ctx.strokeRect(3, 3, w - 6, h - 6); }
+  }
+
   // the run: pulse charges, coin, and the relics picked up so far
   if (!town) {
     const y0 = vitalsY - 24;
@@ -694,10 +747,10 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
     const hint = P
       ? (town
         ? `Left stick walk · Right stick look · ${P.sprint} sprint · ${P.use} talk and trade · ${P.journal} journal · ${P.map} map · ${P.menu} menu`
-        : `Left stick move · ${P.fire} fire · ${P.dodge} dodge · ${P.jump} jump · ${P.pulse} pulse · ${P.reload} reload · ${P.next} next gun · ${P.throw} charge · ${P.heal} dressing · ${P.use} use · ${P.camera} camera`)
+        : `Left stick move · ${P.fire} fire · ${P.dodge} dodge · ${P.jump} jump · ${P.pulse} pulse · ${P.hack} override · ${P.overclock} overclock · ${P.reload} reload · ${P.next} next gun · ${P.throw} charge · ${P.heal} dressing · ${P.use} use · ${P.camera} camera`)
       : town
       ? 'WASD walk · Mouse look · Shift sprint · E talk and trade · J journal · M map · Esc menu'
-      : 'WASD move · Space dodge · C jump · B pulse · Click fire · Right-click alt · 1-9 guns · R reload · G charge · Q dressing · E use · V camera';
+      : 'WASD move · Space dodge · C jump · B pulse · T override · Z overclock · Click fire · Right-click alt · 1-9 guns · R reload · G charge · Q dressing · E use · V camera';
     label(ctx, hint, w / 2, bottom - (town ? 6 : 4), INK, `500 11px ${FONT_MONO}`);
     ctx.globalAlpha = 1;
   }

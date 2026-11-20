@@ -387,3 +387,154 @@ test('every black-market deal pays out and charges its price', async () => {
     if (t.hurt) assert.ok(s.dealHurt > 1, id);
   }
 });
+
+// ---------------------------------------------------------------- WARDEN, cargo, systems, Override, Overclock
+
+test('WARDEN reads how Rook fights and leans its elites toward the counter, never only that', async () => {
+  const { WARDEN, ELITES } = await import('../js/content.js');
+  const { wardenRead } = await import('../js/sim.js');
+  const { sim, s } = armed([]);
+  assert.equal(wardenRead(s), null, 'no read without a fight');
+  Object.assign(s.warden.stats, { close: 900, mid: 100, long: 0 });
+  assert.equal(wardenRead(s), 'close');
+  // a wave makes it adapt; then elites lean shielded but other kinds still turn up
+  const L = sim.level, w = L.waves.findIndex((q) => q.on === 'enter');
+  s.player.x = L.waves[w].x; s.player.y = L.waves[w].y;
+  run(sim, 0.1, {});
+  assert.equal(s.warden.level, 1);
+  assert.equal(s.warden.focus, 'close');
+  // sample the weighting directly from the data: the counter weighs 1 + level * weight against 1 for each other ordinary kind
+  const ordinary = Object.keys(ELITES).filter((k) => !ELITES[k].learned);
+  const share = (1 + WARDEN.max * WARDEN.weight) / (1 + WARDEN.max * WARDEN.weight + ordinary.length - 1);
+  assert.ok(share < 0.75 && share > 0.5, `countermeasure share ${share.toFixed(2)} stays a lean, not a lock`);
+});
+
+test('cargo: finds have bulk, the lift takes what fits, the chute secures finds even if Rook goes down', async () => {
+  const { CARGO } = await import('../js/content.js');
+  const c = campaign();
+  const { sim } = ride(c, R.availableMissions(c)[0].id);
+  const s = sim.state, p = s.player;
+  p.hp = p.maxHp = 1e6;
+  for (let i = 0; i < 8; i++) s.carried.loot.push({ name: `Find ${i}`, value: 10 + i * 8, bulk: CARGO.bulkOf(10 + i * 8) });
+  const chute = s.interactables.find((i) => i.kind === 'infra' && i.sys === 'chute');
+  assert.ok(chute, 'the district has a cargo chute');
+  for (const e of s.enemies) { e.x = 60; e.y = 60; }
+  p.x = chute.x + 30; p.y = chute.y;
+  for (let i = 0; i < 120 && !chute.done; i++) update(sim, 1 / 60, { interactHeld: true });
+  assert.ok(chute.done, 'chute used');
+  const sentBulk = s.secured.reduce((a, l) => a + l.bulk, 0);
+  assert.ok(s.secured.length > 0 && sentBulk <= CARGO.chute, 'sent at most the chute load');
+  const sentValue = s.secured.reduce((a, l) => a + l.value, 0);
+  // now go down: the chute's finds are still paid
+  const cash = c.cash;
+  p.hp = 0;
+  run(sim, 3, {});
+  assert.equal(s.report.outcome, 'died');
+  const sum = R.resolveExpedition(c, s.report);
+  assert.ok(sum.ok);
+  assert.equal(c.cash - cash, sentValue, 'chute finds paid after going down');
+});
+
+test('cargo: extracting with too much leaves the worst value for the space behind', async () => {
+  const c = campaign();
+  const { sim } = ride(c, R.availableMissions(c)[0].id);
+  const s = sim.state;
+  for (let i = 0; i < 9; i++) s.carried.loot.push({ name: `Find ${i}`, value: i % 2 ? 50 : 12, bulk: i % 2 ? 3 : 1 });
+  const { cargoCap } = await import('../js/sim.js');
+  const exit = s.interactables.find((i) => i.kind === 'exit');
+  for (const e of s.enemies) { e.x = 60; e.y = 60; }
+  s.player.hp = s.player.maxHp = 1e6; s.player.x = exit.x; s.player.y = exit.y;
+  update(sim, 1 / 60, { interactPressed: true });
+  run(sim, 12, {});
+  assert.equal(s.report.outcome, 'extracted');
+  const C = s.report.cargo;
+  const taken = C.offer.filter((o) => o.take);
+  assert.ok(taken.reduce((a, o) => a + o.bulk, 0) <= cargoCap(s) - C.reserved, 'fits');
+  assert.ok(C.offer.some((o) => !o.take), 'something was left');
+  const lootInReport = s.report.carried.loot.filter((l) => !l.name.startsWith('Loose coin'));
+  assert.equal(lootInReport.length, taken.length);
+});
+
+test('tower systems: every district has some, and each one changes the floor', async () => {
+  const { SYSTEMS } = await import('../js/content.js');
+  const seen = new Set();
+  for (let seed = 1; seed <= 12; seed++) {
+    const c = campaign(seed);
+    const { sim } = ride(c, R.availableMissions(c)[0].id, seed);
+    for (const it of sim.state.interactables) if (it.kind === 'infra') seen.add(it.sys);
+  }
+  for (const k of Object.keys(SYSTEMS)) assert.ok(seen.has(k), `${k} turns up somewhere`);
+  // a relay: turrets dead, an emergency response sent
+  const c = campaign();
+  const { sim } = ride(c, R.availableMissions(c)[0].id);
+  const s = sim.state;
+  s.player.hp = s.player.maxHp = 1e6;
+  const before = s.enemies.length;
+  const relay = { id: 9999, kind: 'infra', sys: 'relay', x: s.player.x + 20, y: s.player.y, done: false, seen: true, known: true, duration: 0.1, r: 64 };
+  s.interactables.push(relay);
+  for (let i = 0; i < 20 && !relay.done; i++) update(sim, 1 / 60, { interactHeld: true });
+  assert.ok(relay.done && s.sys.relay === true && s.blackout, 'relay overloaded');
+  assert.ok(s.enemies.length > before, 'emergency protocol sent units');
+  assert.ok(s.report === null || s.report === undefined);
+  // the fabricator thins machines out of later waves
+  s.sys.fabricator = true;
+  const w = sim.level.waves.find((q) => q.units.some((u) => ENEMIES[u.kind].robot));
+  if (w) {
+    const robots = w.units.filter((u) => ENEMIES[u.kind].robot).length;
+    const i = sim.level.waves.indexOf(w);
+    s.waves[i] = false;
+    const n0 = s.enemies.length;
+    s.player.x = w.x; s.player.y = w.y; w.on = 'enter';
+    run(sim, 0.1, {});
+    assert.equal(s.enemies.length - n0, w.units.length - Math.ceil(robots / 2), 'half the machines stayed home');
+  }
+});
+
+test('Override: needs charge, takes control of a machine, which then fights for Rook', async () => {
+  const { OVERRIDE } = await import('../js/content.js');
+  const { sim, s } = armed([]);
+  const p = s.player;
+  const [robot, man] = lineUp(sim, ['guard', 'bandit']);
+  man.x = robot.x + 120; man.y = robot.y;
+  p.aim = 0;
+  p.hack = 0;
+  update(sim, 1 / 60, { hack: true });
+  assert.ok(!(robot.hackT > 0), 'no charge, no override');
+  p.hack = OVERRIDE.max;
+  update(sim, 1 / 60, { hack: true, ax: robot.x, ay: robot.y });
+  assert.ok(robot.hackT > 0, 'the machine is ours');
+  assert.ok(p.hack < OVERRIDE.max, 'charge spent');
+  const hp0 = man.hp;
+  run(sim, 3, {});
+  assert.ok(man.hp < hp0, 'the hacked machine shot its own side');
+  // a shield can be stripped
+  const [, shielded] = lineUp(sim, ['bandit', 'bandit']);
+  shielded.shield = shielded.shieldMax = 200; shielded.elite = 'shielded';
+  shielded.x = p.x + 100; shielded.y = p.y;
+  p.hack = OVERRIDE.max;
+  update(sim, 1 / 60, { hack: true });
+  assert.equal(shielded.shield, 0, 'shield stripped');
+});
+
+test('Overclock: only when charged, then a boost, then a crash that blocks Override', async () => {
+  const { OVERCLOCK } = await import('../js/content.js');
+  const { sim, s } = armed([]);
+  const p = s.player;
+  for (const e of s.enemies) { e.x = 60; e.y = 60; }
+  update(sim, 1 / 60, { overclock: true });
+  assert.equal(p.oc, 0, 'not charged');
+  p.heat = OVERCLOCK.max;
+  update(sim, 1 / 60, { overclock: true });
+  assert.ok(p.oc > 0, 'overclocked');
+  const x0 = p.x;
+  run(sim, 0.5, { mx: 1 });
+  const fast = p.x - x0;
+  run(sim, OVERCLOCK.time, {});
+  assert.ok(p.crash > 0, 'crashed');
+  p.hack = 100;
+  update(sim, 1 / 60, { hack: true });
+  assert.equal(p.hack, 100, 'no override while rebooting');
+  const x1 = p.x;
+  run(sim, 0.5, { mx: 1 });
+  assert.ok(p.x - x1 < fast, 'slower in the crash than overclocked');
+});

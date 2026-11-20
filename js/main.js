@@ -69,6 +69,7 @@ const ui = createUI(uiRoot, panelEl, {
   saveStatus: () => saves.status,
   newCampaign,
   crawlDone,
+  cargoDone,
   continueGame,
   enterTown,
   startRide,
@@ -236,7 +237,7 @@ function enterRide(sim) {
 function beginStage(sim, mode) {
   app.sim = sim;
   app.mode = mode;
-  app.acc = 0; app.last = 0; app.endT = 0; app.resolved = false; app.runSaveT = 0; app.pending = {};
+  app.acc = 0; app.last = 0; app.endT = 0; app.resolved = false; app.cargoChosen = false; app.runSaveT = 0; app.pending = {};
   ui.hide();
   if (ui.panel) ui.closePanel();
   panelEl.hidden = true;
@@ -266,6 +267,32 @@ function finishRide() {
       return;
     } catch (err) { console.error(err); /* fall through and settle what was earned */ }
   }
+  // more than the lift will take: choose what goes up before the run is settled
+  const rep = app.sim.state.report;
+  if (rep?.outcome === 'extracted' && rep.cargo?.offer?.some((o) => !o.take) && !app.cargoChosen) {
+    app.cargoChosen = true;
+    controls.setEnabled(false);
+    controls.releaseLock();
+    ui.show('cargo', { cargo: rep.cargo });
+    return;
+  }
+  settleRide();
+}
+
+/** The cargo screen's answer: which finds go up the lift. */
+function cargoDone(take) {
+  const rep = app.sim?.state.report;
+  if (!rep?.cargo) return { ok: false };
+  const room = rep.cargo.capacity - rep.cargo.reserved;
+  const used = rep.cargo.offer.reduce((a, o, i) => a + (take[i] ? o.bulk : 0), 0);
+  if (used > room) return { ok: false, reason: `That is ${used} of ${room}. Leave something.` };
+  rep.cargo.offer.forEach((o, i) => { o.take = Boolean(take[i]); });
+  rep.carried.loot = [...rep.cargo.offer.filter((o) => o.take).map((o) => ({ name: o.name, value: o.value, bulk: o.bulk })), ...(rep.cargo.coin || [])];
+  settleRide();
+  return { ok: true };
+}
+
+function settleRide() {
   const summary = R.resolveExpedition(app.campaign, app.sim.state.report);
   saves.clearRun();
   persist();
@@ -438,6 +465,14 @@ function dispatch(events) {
       case 'healed': audio.play('heal'); break;
       case 'player_died': audio.play('death'); vibrate(120); break;
       case 'ended': if (e.outcome === 'extracted') audio.play('extracted'); break;
+      case 'hacked': audio.play('echo'); audio.play('zap', 0.8); break;
+      case 'hack_fail': audio.play('dry'); break;
+      case 'hack_end': audio.play('zap', 0.4); break;
+      case 'surge': audio.play('explosion', 0.7); audio.play('zap'); break;
+      case 'overclock': audio.play('overcharge'); vibrate(40); break;
+      case 'overclock_end': audio.play('hurt'); break;
+      case 'system': audio.play(e.sys === 'chute' ? 'loot' : e.sys === 'fabricator' ? 'explosion' : 'clang'); break;
+      case 'warden': audio.play('alarm', 0.6); break;
       default: break;
     }
   }
@@ -452,7 +487,7 @@ function stepSim(sim, input) {
   }
 }
 
-const EDGES = ['fire', 'alt', 'dodge', 'reload', 'heal', 'throw', 'interactPressed', 'pulse', 'jump'];
+const EDGES = ['fire', 'alt', 'dodge', 'reload', 'heal', 'throw', 'interactPressed', 'pulse', 'jump', 'hack', 'overclock'];
 
 /** Look, aim through the crosshair, then step the sim with camera-relative movement. */
 function advance(sim, dt) {
@@ -526,7 +561,7 @@ function showProblem(err) {
 /** Controller button names for the on-screen prompts. */
 function padNames() {
   const n = controls.pad.name;
-  return { pulse: n('pulse'), jump: n('jump'), camera: n('camera'), use: n('interact'), reload: n('reload'), heal: n('heal'), map: n('map'), fire: n('fire'), alt: n('alt'), dodge: n('dodge'), throw: n('throw'), next: n('next'), journal: n('journal'), menu: n('pause'), sprint: n('sprint') };
+  return { hack: n('hack'), overclock: n('overclock'), pulse: n('pulse'), jump: n('jump'), camera: n('camera'), use: n('interact'), reload: n('reload'), heal: n('heal'), map: n('map'), fire: n('fire'), alt: n('alt'), dodge: n('dodge'), throw: n('throw'), next: n('next'), journal: n('journal'), menu: n('pause'), sprint: n('sprint') };
 }
 
 /** The controller's menu cursor: the left stick moves it, A clicks what is under it. */
