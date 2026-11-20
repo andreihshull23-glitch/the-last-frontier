@@ -91,6 +91,19 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
   const sky = new THREE.Mesh(skyGeo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false, depthWrite: false }));
   sky.renderOrder = -10;
   scene.add(sky);
+  const skyFlat = sky.material;
+  // panoramas rendered in Blender (tools/blender/skyline.py): the Spire's inside, and the Hollow
+  const panos = new Map();
+  const panoFor = (name) => {
+    if (!panos.has(name)) {
+      const tex = new THREE.TextureLoader().load(`assets/sky/${name}.jpg`, () => { tex.ready = true; }, undefined, () => { tex.failed = true; });
+      tex.encoding = THREE.sRGBEncoding;
+      tex.wrapS = THREE.RepeatWrapping; tex.repeat.x = -1;   // seen from inside the sphere
+      panos.set(name, { tex, mat: new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false, depthWrite: false }) });
+    }
+    const p = panos.get(name);
+    return p.tex.ready ? p.mat : null;
+  };
   const dotTex = (() => {
     const c = document.createElement('canvas'); c.width = c.height = 64;
     const g = c.getContext('2d');
@@ -1371,6 +1384,15 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
     sky.position.copy(camera.position);
     mesas.position.set(camera.position.x, 0, camera.position.z);
     mesas.visible = !mine;
+    const panoName = L.city || L.theme === 'deck' ? 'city' : L.theme === 'hollow' ? 'hollow' : null;
+    const pano = panoName ? panoFor(panoName) : null;
+    if (pano) {
+      sky.material = pano;
+      // dimmer from the deck, and the whole tower goes red at lockdown
+      const k = L.theme === 'deck' ? 0.7 : 1;
+      pano.color.setRGB(k * (1 - n * 0.15), k * (1 - n * 0.55), k * (1 - n * 0.5));
+      mesas.visible = false;
+    } else sky.material = skyFlat;
     mesaMat.color.copy(lin(mix(mix('#a8705a', '#6a3a48', a), '#0c0e18', b)));
     if (hollow) mesaMat.color.copy(col('#1c1430'));
     outerGround.material.color.copy(lin(mix(mix('#c99a6a', '#8a5a44', a), '#0a0c14', b)));

@@ -197,8 +197,34 @@ export function createAssets() {
   // sRGB vertex colours -> linear, in the shader.
   // a rim of light round characters, so they read against dark streets; one colour for the whole scene
   const rim = { color: { value: null }, power: { value: 2.6 } };
-  function patch(mat, withRim = false) {
+  // a tileable detail texture (assets/tex/detail.png) projected in world space onto walls and floors
+  const detail = { map: { value: null }, scale: { value: 0.25 }, amount: { value: 0.32 } };
+  function detailTexture() {
+    if (detail.map.value) return;
+    const THREE = T();
+    const grey = new THREE.DataTexture(new Uint8Array([160, 160, 160, 255]), 1, 1, THREE.RGBAFormat);
+    grey.needsUpdate = true;
+    detail.map.value = grey;
+    new THREE.TextureLoader().load('assets/tex/detail.png', (tex) => {
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.anisotropy = 4;
+      detail.map.value = tex;
+    }, undefined, () => {});
+  }
+  function patch(mat, withRim = false, withDetail = false) {
     mat.onBeforeCompile = (shader) => {
+      if (withDetail) {
+        detailTexture();
+        shader.uniforms.detailMap = detail.map; shader.uniforms.detailScale = detail.scale; shader.uniforms.detailAmount = detail.amount;
+        shader.vertexShader = 'varying vec3 vDetailPos;\nvarying vec3 vDetailN;\n' + shader.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n  vDetailPos = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;\n  vDetailN = normalize( mat3( modelMatrix ) * objectNormal );');
+        shader.fragmentShader = 'uniform sampler2D detailMap;\nuniform float detailScale;\nuniform float detailAmount;\nvarying vec3 vDetailPos;\nvarying vec3 vDetailN;\n' + shader.fragmentShader.replace('#include <color_fragment>', [
+          '#include <color_fragment>',
+          '  vec3 dW = pow( abs( normalize( vDetailN ) ), vec3( 4.0 ) ); dW /= ( dW.x + dW.y + dW.z );',
+          '  vec3 dP = vDetailPos * detailScale;',
+          '  float dTex = texture2D( detailMap, dP.zy ).r * dW.x + texture2D( detailMap, dP.xz ).r * dW.y + texture2D( detailMap, dP.xy ).r * dW.z;',
+          '  diffuseColor.rgb *= mix( 1.0, dTex * 1.6, detailAmount );',
+        ].join('\n'));
+      }
       if (withRim) {
         if (!rim.color.value) rim.color.value = new (T().Color)(0.25, 0.55, 0.7);
         shader.uniforms.rimColor = rim.color; shader.uniforms.rimPower = rim.power;
@@ -220,7 +246,7 @@ export function createAssets() {
     return mat;
   }
   function worldMaterial() {
-    if (!material) material = patch(new (T().MeshLambertMaterial)({ vertexColors: true }));
+    if (!material) material = patch(new (T().MeshLambertMaterial)({ vertexColors: true }), false, true);
     return material;
   }
   function skinnedMaterial() {

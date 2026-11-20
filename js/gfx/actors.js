@@ -22,7 +22,7 @@ const MODEL_CLIPS = {
 };
 const FAMILY = {
   // the Hollow's creatures: one idle clip each; walking, striking and dying are done by hand (see update)
-  alien: { idle: 'Alien_Idle', hand: null },
+  alien: { idle: 'Alien_Idle', walk: 'Walk', run: 'Walk', aim: ['Attack', 0.2], shoot: 'Attack', punch: 'Attack', death: 'Death', hand: null },
   cyber: MACHINE,
   man: HUMAN,
   woman: HUMAN,
@@ -609,12 +609,11 @@ export function createActors(assets) {
     let y = a.baseY + hover * s, k = 1, lean = 0;
     if (hover) y += Math.sin(a.ct * 2.2) * 0.08 * s;
     else if (a.speed > 0.4) y += Math.abs(Math.sin(a.ct * 7)) * 0.06 * s;   // a scuttle
-    lean = Math.min(0.35, a.speed * 0.06);
-    if (a.meleeT < 0.3) { lean += Math.sin((a.meleeT / 0.3) * Math.PI) * 0.5; k *= 1 + Math.sin((a.meleeT / 0.3) * Math.PI) * 0.15; }
-    if (a.shootT < 0.25) k *= 1 + Math.sin((a.shootT / 0.25) * Math.PI) * 0.12;   // swells as it fires
+    // walking, striking and dying are clips now (tools/creature-clips.mjs); this adds hover and a little lean
+    lean = Math.min(0.2, a.speed * 0.04);
     if (a.dead) {
-      const d = Math.min(1, a.deadT / 0.7);
-      k *= 1 - d * 0.8; y = a.baseY - d * 0.2 * s; lean = d * 1.2;
+      const d = Math.min(1, a.deadT / 1.1);
+      y = a.baseY - d * 0.12 * s; lean = 0;
     }
     // scale and lean about the feet, not about the model's own origin (which sits well off the ground)
     const lift = y - a.baseY;
