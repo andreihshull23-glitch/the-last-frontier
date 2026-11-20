@@ -41,6 +41,8 @@ if (want.has('deck')) {
   await wait(0.6); await shot('look-deck-1');
   await D(() => { const p = window.LF_DEBUG.state().player; p.x = 44 * 32; p.y = 30 * 32; window.LF_DEBUG.face(-2.4, 0.08); });
   await wait(0.6); await shot('look-deck-2');
+  await D(() => window.LF_DEBUG.face(-1.6, -0.55));
+  await wait(0.5); await shot('look-deck-up');
 }
 for (const [scene, id, chapter] of [['district', 'story:shipment', 0], ['hollow', 'story:hollow', 5], ['descent', 'descent:descent', 2]]) {
   if (!want.has(scene)) continue;
@@ -48,6 +50,9 @@ for (const [scene, id, chapter] of [['district', 'story:shipment', 0], ['hollow'
   await wait(1.2); await shot(`look-${scene}-1`);
   await D(() => window.LF_DEBUG.face(Math.PI * 0.6, 0.1));
   await wait(0.5); await shot(`look-${scene}-2`);
+  // and looking up: what hangs over the street
+  await D(() => window.LF_DEBUG.face(Math.PI * 0.25, -0.55));
+  await wait(0.5); await shot(`look-${scene}-up`);
 }
 console.log(problems.length ? problems.slice(0, 5).join('\n') : 'ok');
 await browser.close(); server.close();

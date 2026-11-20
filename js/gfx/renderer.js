@@ -205,7 +205,46 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
   motes.frustumCulled = false; motes.visible = false; motes.renderOrder = 6;
   scene.add(motes);
   const wrap = (v, c, half) => c - half + ((((v - (c - half)) % (2 * half)) + 2 * half) % (2 * half));
+  // ---- traffic: streams of flying cars in lanes above a district (white coming, red going) ----------
+  const CAR_N = 90;
+  const carMesh = new THREE.InstancedMesh(new THREE.BoxGeometry(2.6, 0.32, 1.0), new THREE.MeshBasicMaterial({ toneMapped: false, fog: true }), CAR_N);
+  carMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAR_N * 3), 3);
+  carMesh.frustumCulled = false; carMesh.count = 0; scene.add(carMesh);
+  let lanes = null, lanesFor = null;
+  const carM = new THREE.Matrix4(), carQ = new THREE.Quaternion(), carP = new THREE.Vector3(), carS = new THREE.Vector3(1, 1, 1), upY = new THREE.Vector3(0, 1, 0);
+  function updateTraffic(sim) {
+    const L = sim.level;
+    if (lanesFor !== L) {
+      lanesFor = L; lanes = [];
+      if (L.city && L.theme !== 'hollow') {
+        let s = ((L.seed || 1) * 2654435761) >>> 0;
+        const rnd = () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296);
+        const W = L.w * TS * U, D = L.h * TS * U;
+        for (let k = 0; k < 9; k++) {
+          const alongX = k % 2 === 0, y = 16 + rnd() * 22, across = (alongX ? D : W) * (0.1 + rnd() * 0.8);
+          const len = (alongX ? W : D) + 160, dir = rnd() < 0.5 ? 1 : -1, speed = 14 + rnd() * 14, n = 6 + Math.floor(rnd() * 5);
+          for (let c = 0; c < n; c++) lanes.push({ alongX, y: y + (rnd() - 0.5) * 1.5, across: across + (rnd() - 0.5) * 2, len, dir, speed, off: rnd() * len, col: dir > 0 ? [1, 0.96, 0.88] : [1, 0.22, 0.3] });
+        }
+        lanes = lanes.slice(0, CAR_N);
+      }
+    }
+    carMesh.count = lanes.length;
+    if (!lanes.length) return;
+    const t = r.time, cc = carMesh.instanceColor.array;
+    lanes.forEach((c, i) => {
+      const u = ((c.off + t * c.speed) % c.len) - 80;
+      const pos = c.dir > 0 ? u : c.len - 160 - u;
+      if (c.alongX) carP.set(pos, c.y, c.across); else carP.set(c.across, c.y, pos);
+      carQ.setFromAxisAngle(upY, c.alongX ? 0 : Math.PI / 2);
+      carM.compose(carP, carQ, carS);
+      carMesh.setMatrixAt(i, carM);
+      cc[i * 3] = c.col[0] * 1.6; cc[i * 3 + 1] = c.col[1] * 1.6; cc[i * 3 + 2] = c.col[2] * 1.6;
+    });
+    carMesh.instanceMatrix.needsUpdate = true;
+    carMesh.instanceColor.needsUpdate = true;
+  }
   function updateWeather(sim) {
+    updateTraffic(sim);
     const L = sim.level, raining = Boolean(L.city) && L.theme !== 'hollow' && QUALITY[r.quality].fx >= 0.5;
     const cx = camera.position.x, cz = camera.position.z, t = r.time;
     rain.visible = raining; motes.visible = !raining && QUALITY[r.quality].fx >= 0.5;
@@ -1576,7 +1615,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       // inside the Spire: house lights before lockdown, emergency red after
       sunCol = mix('#9aa8ff', '#ff5a6a', n); sunI = lerp(0.46, 0.2, n);
       hemiSky = mix('#7a84d0', '#6a3048', n); hemiGround = new THREE.Color('#2a2238'); hemiI = lerp(0.66, 0.42, n);
-      fogCol = mix('#131226', '#140709', n); fogNear = lerp(30, 3, n); fogFar = lerp(115, R * 1.8 + 6, n);
+      fogCol = mix('#1a1734', '#170a10', n); fogNear = lerp(16, 3, n); fogFar = lerp(88, R * 1.8 + 6, n);
       skyTop = new THREE.Color('#07060f'); skyHor = mix('#2a1f4a', '#3a1018', n);
       elev = 0.95;
     }

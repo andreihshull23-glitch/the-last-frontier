@@ -1,5 +1,6 @@
 // Turns a level into meshes: painted ground, rock caps, merged props per
 // 16 m sector, roofs that can be hidden, doors, signs and glass.
+import { buildCanopy } from './canopy.js';
 import { TILE, PX, MACRO, SOLID, ROCK, WATER, GROUND } from '../content.js';
 import { Merger } from './assets.js';
 
@@ -349,6 +350,12 @@ export function buildWorld(assets, L, opts = {}) {
     }
   }
 
+  // ---- the city overhead (towers, bridges, cables, the upper city; the deck's ceiling): drawn, never solid
+  if (opts.canopy !== false) {
+    const canopy = buildCanopy(THREE, assets, L, seed);
+    if (canopy) group.add(canopy);
+  }
+
   // ---- light shafts: a faint cone of lit haze under each overhead lamp ---------------------------
   // One merged, additive, unlit mesh. Colour fades from the lamp to nothing at the floor, so the haze
   // reads as light in the air rather than a solid shape.
@@ -371,7 +378,7 @@ export function buildWorld(assets, L, opts = {}) {
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       g.setAttribute('color', new THREE.Float32BufferAttribute(colr, 3));
       g.setIndex(idx);
-      const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: true }));
+      const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.FrontSide, fog: true }));   // front only: from inside a cone, nothing
       mesh.renderOrder = 2;
       mesh.userData.shafts = true;
       group.add(mesh);
