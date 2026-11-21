@@ -5,7 +5,7 @@
 import { createTitleScroll } from './titlescroll.js';
 import * as R from './rules.js';
 import { PAD_ACTIONS } from './gamepad.js';
-import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CRAWL, LOGS, CHAPTERS, AMMO, PROLOGUE, HERO } from './content.js';
+import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CRAWL, LOGS, CHAPTERS, AMMO, PROLOGUE, HERO, WARDEN, ELITES } from './content.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -285,6 +285,20 @@ export function createUI(root, panelEl, api) {
     </dl>${warn.map((w) => `<p class="warn">${esc(w)}</p>`).join('')}`;
   }
 
+  /** WARDEN's file on Rook: what it has learned across runs, and (at the customs hall) a way to wipe it. */
+  function wardenFile(camp, offer) {
+    const W = camp.warden;
+    if (!W || (!W.level && !W.focus)) return offer ? '<p class="muted">WARDEN has nothing on file for you. Keep it that way, or come back when it does.</p>' : '';
+    const P = WARDEN.patterns[W.focus];
+    const bars = '▮'.repeat(W.level) + '▯'.repeat(WARDEN.max - W.level);
+    const ok = R.canScrubWarden(camp);
+    return `<div class="warden-file"><h3 class="section">WARDEN's file on you</h3>
+      <p><span class="threat">${bars}</span> ${P ? `Pattern logged: <strong>${esc(P.line.toLowerCase())}</strong>. It sends <strong>${esc(P.reply)}</strong> (${esc(ELITES[P.counter]?.name ?? '')} elites) and starts every run ${W.level ? `already ${W.level} step${W.level === 1 ? '' : 's'} into its counter` : 'with the file open'}.` : 'It is watching.'}</p>
+      <p class="muted">It forgets a little each run. Fight differently and it rewrites the file.</p>
+      ${offer ? `<div class="row"><button class="btn" data-p="scrub" ${ok.ok ? '' : 'disabled'}>Have Winslow scrub the file<span class="btn-sub">¢${WARDEN.scrub}${ok.ok ? '' : ' · ' + esc(ok.reason)}</span></button></div>` : ''}
+    </div>`;
+  }
+
   const PANELS = {
     store() {
       const camp = c(), ch = camp.character;
@@ -356,6 +370,7 @@ export function createUI(root, panelEl, api) {
       return `${head('The Unlisted', 'Customs Hall')}
         <div class="status three"><div class="stat"><span class="k">The deck</span><span class="v">${esc(R.prosperityLabel(camp.prosperity))}</span><span class="have">Standing ${camp.prosperity}</span></div>${meter('meridian')}${meter('riders')}</div>
         ${perks.length ? `<div class="perks">${perks.map((p) => `<p class="${p.bad ? 'bad' : 'good'}"><strong>${esc(p.name)}.</strong> ${esc(p.desc)}</p>`).join('')}</div>` : ''}
+        ${wardenFile(camp, true)}
         <h3 class="section">Put creds into the deck</h3>
         <div class="items">${Object.entries(INVESTMENTS).map(([id, inv]) => (camp.investments.includes(id)
     ? `<div class="item built"><div><h3>${esc(inv.name)}</h3><p>${esc(inv.effect)}</p></div><span class="have">Done</span></div>`
@@ -439,7 +454,7 @@ export function createUI(root, panelEl, api) {
       const logs = (camp.logs || []).length
         ? `<h3 class="section">Intake records (${camp.logs.length} of ${LOGS.length})</h3><ol class="journal">${camp.logs.map((n) => LOGS[n]).filter(Boolean).map((l) => `<li><strong>${esc(l.title)}.</strong> ${esc(l.text)}</li>`).join('')}</ol>`
         : `<p class="muted">Intake records turn up once a run, on a terminal somewhere on the map. Carry one home and it goes here.</p>`;
-      return `<div class="bar"><div><p class="eyebrow">Journal</p><h2 id="panel-title">What is going on</h2></div></div>${next}${past}${logs}${ahead}${foot('Close')}`;
+      return `<div class="bar"><div><p class="eyebrow">Journal</p><h2 id="panel-title">What is going on</h2></div></div>${next}${wardenFile(camp, false)}${past}${logs}${ahead}${foot('Close')}`;
     },
     pause() {
       const ride = api.inRide();
@@ -529,6 +544,7 @@ export function createUI(root, panelEl, api) {
     else if (act === 'plugfit') done(R.fitPlugin(camp, id), 'ui');
     else if (act === 'invest') done(R.invest(camp, id));
     else if (act === 'treat') done(R.treat(camp), 'heal');
+    else if (act === 'scrub') done(R.scrubWarden(camp));
     else if (act === 'ask') { pdata.ask = +id; pdata.asked = [...new Set([...(pdata.asked || []), +id])]; renderPanel(); }
     else if (act === 'ledger') { const r = R.chooseLedger(camp, id); done(r, 'chapter'); if (r.ok) { panel = 'talk'; renderPanel(); } }
     else if (act === 'jobs') { panel = 'jobs'; pdata = {}; renderPanel(); }

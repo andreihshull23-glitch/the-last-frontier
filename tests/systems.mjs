@@ -21,7 +21,7 @@ await page.waitForFunction(() => window.LF_DEBUG.app.mode === 'ride', null, { ti
 await D(() => {
   const L = window.LF_DEBUG, s = L.state(), p = s.player;
   L.quality(1);
-  p.hp = p.maxHp = 99999; p.hack = 80; p.heat = 100;
+  p.hp = p.maxHp = 99999; p.hack = 85;
   s.warden.level = 2; s.warden.focus = 'close';
   for (let i = 0; i < 7; i++) s.carried.loot.push({ name: `Corporate find ${i}`, value: 10 + i * 9, bulk: i % 3 + 1 });
   // a machine and a generator in front of Rook

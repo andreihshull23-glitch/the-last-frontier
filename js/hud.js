@@ -651,16 +651,20 @@ export function drawHUD(r, ctx, sim, dt, ui = {}) {
       const meter = (row, name, key, f, col, note) => {
         const yy = sy + 9 + row * 17;
         ctx.font = `700 ${compact ? 9 : 10}px ${FONT_MONO}`; ctx.textAlign = 'left'; ctx.fillStyle = col;
-        ctx.fillText(`${name}${r.keyHints && !r.touch ? ` [${key}]` : ''}`, sx + 10, yy + 7);
+        ctx.fillText(`${name}${key && r.keyHints && !r.touch ? ` [${key}]` : ''}`, sx + 10, yy + 7);
         ctx.textAlign = 'right'; ctx.fillStyle = INK; ctx.fillText(note, sx + 10 + sw, yy + 7);
         ctx.fillStyle = 'rgba(255,255,255,0.08)'; ctx.fillRect(sx + 10, yy + 10, sw, 3);
         ctx.fillStyle = col; ctx.fillRect(sx + 10, yy + 10, sw * clamp(f, 0, 1), 3);
       };
       const crashed = p.crash > 0, ocOn = p.oc > 0;
       meter(0, 'OVERRIDE', r.pad ? r.pad.hack : 'T', (p.hack || 0) / OVERRIDE.max, crashed ? '#5a5f7a' : '#3fe0ff', crashed ? 'OFFLINE' : `${Math.floor(p.hack || 0)}`);
-      const ocCol = ocOn ? '#ff3fa4' : crashed ? '#ff5a4a' : (p.heat >= OVERCLOCK.max ? '#ff3fa4' : '#b06aff');
-      meter(1, 'OVERCLOCK', r.pad ? r.pad.overclock : 'Z', ocOn ? p.oc / OVERCLOCK.time : crashed ? p.crash / OVERCLOCK.crash : (p.heat || 0) / OVERCLOCK.max, ocCol,
-        ocOn ? `ACTIVE ${p.oc.toFixed(1)}` : crashed ? `CRASH ${p.crash.toFixed(1)}` : p.heat >= OVERCLOCK.max ? 'READY' : `${Math.floor(p.heat || 0)}%`);
+      // Overclock spends the same charge: a tick on the override bar marks its cost
+      const tickX = sx + 10 + sw * (OVERCLOCK.cost / OVERRIDE.max);
+      ctx.fillStyle = '#ff3fa4'; ctx.fillRect(tickX - 1, sy + 9 + 8, 2, 7);
+      const ready = (p.hack || 0) >= OVERCLOCK.cost && !crashed;
+      const ocCol = ocOn ? '#ff3fa4' : crashed ? '#ff5a4a' : ready ? '#ff3fa4' : '#7a5a8a';
+      meter(1, 'OVERCLOCK', r.pad ? r.pad.overclock : 'Z', ocOn ? p.oc / OVERCLOCK.time : crashed ? p.crash / OVERCLOCK.crash : 0, ocCol,
+        ocOn ? `ACTIVE ${p.oc.toFixed(1)}` : crashed ? `CRASH ${p.crash.toFixed(1)}` : ready ? `READY (${OVERCLOCK.cost})` : `NEEDS ${OVERCLOCK.cost}`);
       const load = cargoLoad(s), cap = cargoCap(s);
       meter(2, 'CARGO', '', load / cap, load > cap ? '#ff5a4a' : '#e8b84a', `${load}/${cap}${load > cap ? ' OVER' : ''}${s.secured?.length ? ` +${s.secured.length} sent` : ''}`);
     }

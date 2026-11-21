@@ -142,6 +142,9 @@ export const ELITES = {
  */
 export const WARDEN = {
   max: 4,
+  // between runs WARDEN keeps a file on Rook: it starts the next run `forget` levels lower, remembering the
+  // pattern and `keep` of the numbers behind it; the customs clerk can scrub the file for `scrub` creds
+  forget: 1, keep: 0.5, scrub: 150,
   eliteBonus: 0.035,     // extra elite chance per level, on the units it sends after adapting
   weight: 1.1,           // extra weight on the countermeasure, per level (other kinds weigh 1)
   patterns: {
@@ -184,7 +187,7 @@ export const SYSTEMS = {
  */
 export const OVERRIDE = {
   max: 100, start: 25,
-  gain: { hit: 0.5, kill: 9, elite: 20 },
+  gain: { hit: 0.5, kill: 9, elite: 20, hurt: 0.35 },   // hurt: per point of damage taken
   range: 360, cone: 0.32,           // sim units, radians either side of the aim
   cost: { turret: 55, robot: 35, shield: 25, machine: 40, terminal: 45, hatch: 30 },
   ally: { turret: 14, robot: 8 },    // seconds a hacked machine fights for you
@@ -193,11 +196,11 @@ export const OVERRIDE = {
 };
 
 /**
- * Overclock: run the implants past their limits for a few seconds, then pay for it (Z, or D-pad right).
- * Charge comes from damage dealt and damage taken.
+ * Overclock: Override turned on Rook's own implants (Z, or D-pad right). It spends `cost` of the same
+ * Override charge, runs them past their limits for a few seconds, then they crash.
  */
 export const OVERCLOCK = {
-  max: 100, perDamage: 0.11, perHurt: 0.6,
+  cost: 70,
   time: 6, crash: 4,
   boost: { rate: 1.35, speed: 1.18, dodge: 1.6, pellet: 1.25, pulse: 1.5, swap: 0.25, reload: 1.4 },
   crashMod: { speed: 0.75, hurt: 1.15 },

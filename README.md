@@ -21,7 +21,7 @@ Then open `http://localhost:8000/play.html`. The only dependency is three.js r12
 - 1 to 7 or the mouse wheel to change guns, G for dynamite, Q for a bandage.
 - J for the journal: the story so far and what to do next.
 - E to use or talk, M for the map, Esc for the menu.
-- T to override what is in your sights (machines, shields, terminals, plant), Z to overclock, B for a pulse, C to jump.
+- T to override what is in your sights (machines, shields, terminals, plant), Z to overclock (it spends override charge), B for a pulse, C to jump.
 
 ### Controller
 

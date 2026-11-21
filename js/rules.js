@@ -11,7 +11,7 @@
 
 import {
   CHAPTERS, JOBS, GEAR, SUPPLIES, INVESTMENTS, TRAITS, PERKS, CLINIC_PRICE, GUNS, UPGRADES, AMMO, CARRY, ITEMS, SHOPS, TELEGRAMS,
-  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER, HERO, LOGS, COMMS, SYSTEMS,
+  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER, HERO, LOGS, COMMS, SYSTEMS, WARDEN,
 } from './content.js';
 import { makeRng, mixSeed } from './rng.js';
 
@@ -477,11 +477,27 @@ export function beginExpedition(c, missionId, seed) {
     companion: c.investments.includes('deputy'),
     // elites grow more common as the story goes on
     eliteChance: Math.min(0.2, 0.05 + 0.018 * tierOf(c)),
+    // WARDEN's file on Rook, from earlier runs
+    warden: c.warden ? JSON.parse(JSON.stringify(c.warden)) : null,
     // what earlier runs did to the tower's systems and has not worn off yet
     consequences: Object.fromEntries((c.aftermath || []).map((a) => [a.id, true])),
   };
   if (kind === 'descent') return { ok: true, config: { ...floorConfig({ ...config, descent: true }, 1, seed, config.pool), intro: def.hint } };
   return { ok: true, config };
+}
+
+/** The customs clerk can scrub WARDEN's file on Rook: the next run starts with nothing on record. */
+export function canScrubWarden(c) {
+  if (!c.warden || (!c.warden.level && !c.warden.focus)) return fail('WARDEN has nothing on file.');
+  if (c.cash < WARDEN.scrub) return fail(`Costs ¢${WARDEN.scrub}.`);
+  return { ok: true };
+}
+export function scrubWarden(c) {
+  const ok = canScrubWarden(c);
+  if (!ok.ok) return ok;
+  c.cash -= WARDEN.scrub;
+  c.warden = null;
+  return { ok: true, message: 'Winslow feeds a bad sector into the registry where your file was. WARDEN has nothing on you. For now.' };
 }
 
 /** Undo beginExpedition when the ride could not start. */
@@ -535,6 +551,17 @@ export function resolveExpedition(c, report) {
     const v = secured.reduce((a, l) => a + (l.value | 0), 0);
     c.cash += v;
     summary.lines.push({ label: `Sent home by chute: ${secured.length} find${secured.length === 1 ? '' : 's'}`, value: `+¢${v}`, tone: 'good' });
+  }
+  // WARDEN files what it learned; it starts the next run a little behind where this one ended
+  if (report.warden && report.outcome !== 'missing') {
+    const w = report.warden, before = c.warden;
+    const level = Math.max(0, (w.level || 0) - WARDEN.forget);
+    const stats = Object.fromEntries(Object.entries(w.stats || {}).map(([k, v]) => [k, Math.round(v * WARDEN.keep)]));
+    c.warden = w.focus || level ? { level, focus: w.focus || null, stats, runs: (before?.runs || 0) + 1 } : before;
+    if (w.focus && WARDEN.patterns[w.focus]) {
+      const P = WARDEN.patterns[w.focus];
+      summary.lines.push({ label: "WARDEN's file on you", value: `${P.line.toLowerCase()}; ${P.reply} on standby (threat ${level}/${WARDEN.max})`, tone: level ? 'bad' : 'muted' });
+    }
   }
   // what this run did to the tower's systems lasts a few more runs; older effects wear off
   if (report.outcome !== 'missing') {

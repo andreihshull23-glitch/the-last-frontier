@@ -516,16 +516,17 @@ test('Override: needs charge, takes control of a machine, which then fights for 
   assert.equal(shielded.shield, 0, 'shield stripped');
 });
 
-test('Overclock: only when charged, then a boost, then a crash that blocks Override', async () => {
+test('Overclock spends Override charge, boosts, then crashes and blocks Override', async () => {
   const { OVERCLOCK } = await import('../js/content.js');
   const { sim, s } = armed([]);
   const p = s.player;
   for (const e of s.enemies) { e.x = 60; e.y = 60; }
   update(sim, 1 / 60, { overclock: true });
   assert.equal(p.oc, 0, 'not charged');
-  p.heat = OVERCLOCK.max;
+  p.hack = 100;
   update(sim, 1 / 60, { overclock: true });
   assert.ok(p.oc > 0, 'overclocked');
+  assert.equal(p.hack, 100 - OVERCLOCK.cost, 'paid from the one meter');
   const x0 = p.x;
   run(sim, 0.5, { mx: 1 });
   const fast = p.x - x0;
@@ -544,8 +545,35 @@ test('a run saved before the new systems still resumes', () => {
   const { sim } = ride(c, R.availableMissions(c)[0].id);
   const old = JSON.parse(snapshot(sim));
   for (const k of ['warden', 'sys', 'secured', 'hazards', 'jammed', 'jamT']) delete old[k];
-  for (const k of ['hack', 'heat', 'oc', 'crash']) delete old.player[k];
+  for (const k of ['hack', 'oc', 'crash']) delete old.player[k];
   const back = restoreSim(old, sim.level);
   run(back, 2, { mx: 1, fireHeld: true, fire: true, hack: true, overclock: true });
   assert.equal(back.state.phase !== undefined, true);
+});
+
+test('WARDEN keeps a file between runs, forgets a little, and can be scrubbed', async () => {
+  const { WARDEN } = await import('../js/content.js');
+  const c = campaign();
+  c.cash = 1000;
+  const { sim } = ride(c, R.availableMissions(c)[0].id);
+  const s = sim.state;
+  s.warden.level = 3; s.warden.focus = 'close'; s.warden.stats.close = 800;
+  abandon(sim);
+  R.resolveExpedition(c, s.report);
+  assert.equal(c.warden.focus, 'close');
+  assert.equal(c.warden.level, 3 - WARDEN.forget, 'forgets a little');
+  assert.equal(c.warden.stats.close, 400, 'keeps half the numbers');
+  // the next run starts with the file open
+  const next = ride(c, R.availableMissions(c)[0].id, 12);
+  assert.equal(next.sim.state.warden.level, 3 - WARDEN.forget);
+  assert.equal(next.sim.state.warden.focus, 'close');
+  assert.ok(next.sim.events.some((e) => e.type === 'toast' && /FILE ON RUNNER/.test(e.text)), 'it says so');
+  abandon(next.sim);
+  R.resolveExpedition(c, next.sim.state.report);
+  // the clerk wipes it
+  const cash = c.cash;
+  assert.ok(R.scrubWarden(c).ok);
+  assert.equal(c.warden, null);
+  assert.equal(cash - c.cash, WARDEN.scrub);
+  assert.equal(R.scrubWarden(c).ok, false, 'nothing left to scrub');
 });

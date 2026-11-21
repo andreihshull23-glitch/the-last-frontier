@@ -105,9 +105,9 @@ export function createSim(config, level) {
       dynamite: carry ? carry.dynamite : ch.dynamite ?? 0, bandages: carry ? carry.bandages : ch.bandages ?? 0,
       fireCd: 0, fireBuffer: 0, fanQueue: 0, fanT: 0, reloading: false, reloadT: 0, swapT: 0, throwCd: 0,
       healT: 0, hurtT: 0, lastHitBy: null, charmUsed: false, shotT: -9,
-      // Override and Overclock meters; `oc` counts down while overclocked, `crash` while paying for it
+      // the Override meter (Overclock spends it too); `oc` counts down while overclocked, `crash` while paying for it
       hack: carry ? carry.hack ?? OVERRIDE.start : ch.trait === 'backdoor' ? OVERRIDE.max : OVERRIDE.start,
-      heat: carry ? carry.heat ?? 0 : 0, oc: 0, crash: 0,
+      oc: 0, crash: 0,
     },
     enemies: [], npcs: [], bullets: [], bombs: [], pickups: [], interactables: [], lights: [], corpses: [], respawns: [],
     focusId: 0,
@@ -116,7 +116,8 @@ export function createSim(config, level) {
     carried: { loot: carry?.loot ? carry.loot.map((l) => ({ ...l })) : [], items: [], effects: null },
     secured: carry?.secured ? carry.secured.map((l) => ({ ...l })) : [],     // sent home by chute: safe whatever happens
     // WARDEN's read on how Rook fights, kept across Descent floors
-    warden: carry?.warden ? JSON.parse(JSON.stringify(carry.warden)) : { level: config.wardenStart || 0, focus: null, stats: { close: 0, mid: 0, long: 0, companion: 0, dodges: 0, pulses: 0, fightT: 0 } },
+    warden: carry?.warden ? JSON.parse(JSON.stringify(carry.warden))
+      : { level: config.warden?.level || 0, focus: config.warden?.focus || null, stats: { close: 0, mid: 0, long: 0, companion: 0, dodges: 0, pulses: 0, fightT: 0, ...(config.warden?.stats || {}) } },
     // what has been done to this floor's systems: true if done here, 'carried' if it carried over from before
     sys: Object.fromEntries(Object.keys({ ...(config.consequences || {}), ...(carry?.consequences || {}) }).map((k) => [k, 'carried'])),
     hazards: [],
@@ -182,6 +183,12 @@ export function createSim(config, level) {
     emit(sim, 'toast', { text: config.intro || 'Go.', tone: 'story', long: true });
     if (clockStart === 'night') emit(sim, 'toast', { text: 'The district is already in lockdown. They will be moving soon.', tone: 'warn' });
     if (level.dark) emit(sim, 'toast', { text: 'No power down here. Watch the edges of the lamp.', tone: 'warn' });
+    // WARDEN has a file on Rook from earlier runs, and says so
+    const W = state.warden;
+    if (!carry && W.focus && W.level > 0 && WARDEN.patterns[W.focus]) {
+      const P = WARDEN.patterns[W.focus];
+      emit(sim, 'toast', { text: `WARDEN // FILE ON RUNNER RETRIEVED: ${P.line}. ${P.reply.toUpperCase()} ON STANDBY.`, tone: 'warden', long: true });
+    }
   }
   markExplored(sim);
   return sim;
@@ -195,7 +202,7 @@ function wrap(state, level) {
   state.warden ||= { level: 0, focus: null, stats: { close: 0, mid: 0, long: 0, companion: 0, dodges: 0, pulses: 0, fightT: 0 } };
   state.sys ||= {}; state.secured ||= []; state.hazards ||= []; state.jammed ||= []; state.jamT ||= 0;
   const P = state.player;
-  P.hack ??= OVERRIDE.start; P.heat ??= 0; P.oc ??= 0; P.crash ??= 0;
+  P.hack ??= OVERRIDE.start; P.oc ??= 0; P.crash ??= 0;
   rebuildGuns(sim);
   if (state.rooms) for (const st of state.rooms) if (st.state === 'active') seal(sim, level.rooms[st.id], true);
   return sim;
@@ -1197,7 +1204,7 @@ function damagePlayer(sim, dmg, src, fromAngle = null) {
   }
   const md = sim.cache.mods;
   const amount = Math.max(1, Math.round(dmg * (hasGear(s, 'duster') ? 0.8 : 1) * md.armour * (s.dealHurt || 1) * (p.crash > 0 ? OVERCLOCK.crashMod.hurt : 1)));
-  if (p.oc <= 0) p.heat = Math.min(OVERCLOCK.max, p.heat + amount * OVERCLOCK.perHurt);
+  gainHack(sim, amount * OVERRIDE.gain.hurt);
   p.hp = Math.max(0, p.hp - amount);
   p.hurtT = 0.3;
   p.lastHitBy = src ? { kind: src.kind, name: src.name ?? null } : null;
@@ -2536,11 +2543,11 @@ function endExpedition(sim, outcome) {
     cargo: { ...cargo, coin },
     secured: s.secured.map((l) => ({ ...l })),
     aftermath: Object.keys(s.sys).filter((k) => s.sys[k] === true && SYSTEMS[k]?.persist),
-    warden: { level: s.warden.level, focus: s.warden.focus },
+    warden: { level: s.warden.level, focus: s.warden.focus, stats: { ...s.warden.stats } },
     floor: s.floor,
     logFound: Boolean(s.logFound), deals: s.deals || 0,
     carry: { hp: p.hp, mags: { ...p.mags }, gun: p.gun, relics: [...p.relics], pulses: p.pulses, ammo: { ...p.ammo }, bandages: p.bandages, dynamite: p.dynamite, coin: s.coin, kills: s.kills,
-      hack: p.hack, heat: p.heat, loot: s.carried.loot.map((l) => ({ ...l })), secured: s.secured.map((l) => ({ ...l })), warden: s.warden,
+      hack: p.hack, loot: s.carried.loot.map((l) => ({ ...l })), secured: s.secured.map((l) => ({ ...l })), warden: s.warden,
       consequences: Object.fromEntries(Object.keys(s.sys).filter((k) => s.sys[k] === true && SYSTEMS[k]?.persist).map((k) => [k, true])) },
     relics: [...p.relics], guns: Object.keys(p.mags),
     burned: s.burned,
@@ -2605,8 +2612,7 @@ function noteHit(sim, b, e, dmg) {
   else {
     const d = Math.hypot(e.x - p.x, e.y - p.y);
     st[d < 170 ? 'close' : d < 400 ? 'mid' : 'long'] += dmg;
-    gainHack(sim, OVERRIDE.gain.hit);
-    if (p.oc <= 0) p.heat = Math.min(OVERCLOCK.max, p.heat + dmg * OVERCLOCK.perDamage);
+    gainHack(sim, OVERRIDE.gain.hit + dmg * 0.04);
   }
 }
 
@@ -2907,8 +2913,8 @@ function updateOverclock(sim, dt, input) {
   }
   if (!input.overclock || s.mode === 'town') return;
   if (p.oc > 0 || p.crash > 0) return;
-  if (p.heat < OVERCLOCK.max) { emit(sim, 'toast', { text: `Overclock is not charged (${Math.floor(p.heat)}%). Deal damage, take damage.`, tone: 'muted' }); return; }
-  p.heat = 0;
+  if (p.hack < OVERCLOCK.cost) { emit(sim, 'toast', { text: `Overclocking takes ${OVERCLOCK.cost} override charge. You have ${Math.floor(p.hack)}.`, tone: 'muted' }); emit(sim, 'hack_fail', {}); return; }
+  p.hack -= OVERCLOCK.cost;
   p.oc = OVERCLOCK.time + (md.heat ? 2 : 0);
   p.stamina = PLAYER.stamina;
   emit(sim, 'overclock', { x: p.x, y: p.y });
