@@ -14,7 +14,7 @@ const SIZE = {
   trailhead: [3, 3], coach_stop: [3, 3], bandit_camp: [5, 4], homestead: [5, 4], rail_station: [6, 4], site9: [7, 6],
   outpost: [4, 4], ruins: [4, 3], wreck: [3, 3], depot: [8, 7], heart: [6, 6], camp_dead: [3, 3],
 };
-const FACTION_OF = { bandit: 'outlaw', gunman: 'outlaw', dynamiter: 'outlaw', brute: 'outlaw', bounty: 'outlaw', guard: 'meridian', enforcer: 'meridian', crusher: 'meridian', trooper: 'meridian', overseer: 'meridian', scout: 'any', walker: 'hollow', husk: 'hollow', mite: 'hollow', seer: 'hollow', gazer: 'hollow' };
+const FACTION_OF = { bandit: 'outlaw', gunman: 'outlaw', dynamiter: 'outlaw', brute: 'outlaw', bounty: 'outlaw', guard: 'meridian', enforcer: 'meridian', crusher: 'meridian', trooper: 'meridian', grunt: 'meridian', overseer: 'meridian', scout: 'any', walker: 'hollow', husk: 'hollow', mite: 'hollow', seer: 'hollow', gazer: 'hollow' };
 
 export function generateCanyon(spec) {
   const base = (spec.seed ?? 1) | 0;

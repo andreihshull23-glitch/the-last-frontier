@@ -365,6 +365,7 @@ export function createRenderer(glCanvas, hudCanvas, assets) {
       const inner = new THREE.Group();
       inner.add(body, lid);
       inner.scale.setScalar(1.15);
+      if (it.armory) { const ring = new THREE.Mesh(G.ring, basic('#ffb43f', { opacity: 0.8, side: THREE.DoubleSide })); ring.scale.setScalar(0.9); ring.position.y = 0.05; g.add(ring); const beam = new THREE.Mesh(G.box, basic('#ffb43f', { opacity: 0.25, blending: THREE.AdditiveBlending })); beam.scale.set(0.12, 6, 0.12); beam.position.y = 3; g.add(beam); }
       inner.rotation.y = it.a || 0;
       g.add(inner);
       o.lid = lid;

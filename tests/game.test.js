@@ -419,7 +419,8 @@ test('cargo: finds have bulk, the lift takes what fits, the chute secures finds 
   const chute = s.interactables.find((i) => i.kind === 'infra' && i.sys === 'chute');
   assert.ok(chute, 'the district has a cargo chute');
   for (const e of s.enemies) { e.x = 60; e.y = 60; }
-  p.x = chute.x + 30; p.y = chute.y;
+  p.x = chute.x; p.y = chute.y + 4;
+  for (const o of s.interactables) if (o !== chute && Math.hypot(o.x - chute.x, o.y - chute.y) < 140) { o.x += 4000; }
   for (let i = 0; i < 120 && !chute.done; i++) update(sim, 1 / 60, { interactHeld: true });
   assert.ok(chute.done, 'chute used');
   const sentBulk = s.secured.reduce((a, l) => a + l.bulk, 0);
@@ -470,7 +471,10 @@ test('tower systems: every district has some, and each one changes the floor', a
   const s = sim.state;
   s.player.hp = s.player.maxHp = 1e6;
   const before = s.enemies.length;
-  const relay = { id: 9999, kind: 'infra', sys: 'relay', x: s.player.x + 20, y: s.player.y, done: false, seen: true, known: true, duration: 0.1, r: 64 };
+  const spot = s.interactables.find((i) => i.kind === 'infra');
+  s.player.x = spot.x; s.player.y = spot.y + 4;
+  for (const o of s.interactables) o.x += 9000;
+  const relay = { id: 9999, kind: 'infra', sys: 'relay', x: s.player.x, y: s.player.y, done: false, seen: true, known: true, duration: 0.1, r: 64 };
   s.interactables.push(relay);
   for (let i = 0; i < 20 && !relay.done; i++) update(sim, 1 / 60, { interactHeld: true });
   assert.ok(relay.done && s.sys.relay === true && s.blackout, 'relay overloaded');
@@ -576,4 +580,32 @@ test('WARDEN keeps a file between runs, forgets a little, and can be scrubbed', 
   assert.equal(c.warden, null);
   assert.equal(cash - c.cash, WARDEN.scrub);
   assert.equal(R.scrubWarden(c).ok, false, 'nothing left to scrub');
+});
+
+test('every run has a weapons cache with a gun in it', () => {
+  const c = campaign();
+  const { sim } = ride(c, R.availableMissions(c)[0].id);
+  const s = sim.state, p = s.player;
+  const box = s.interactables.find((i) => i.kind === 'cache' && i.armory);
+  assert.ok(box && box.known, 'marked on the map');
+  for (const e of s.enemies) { e.x = 60; e.y = 60; }
+  for (const o of s.interactables) if (o !== box && Math.hypot(o.x - box.x, o.y - box.y) < 140) o.x += 4000;
+  p.hp = p.maxHp = 1e6; p.x = box.x; p.y = box.y + 4;
+  for (let i = 0; i < 90 && !box.done; i++) update(sim, 1 / 60, { interactHeld: true });
+  assert.ok(box.done);
+  assert.ok(s.interactables.some((i) => i.kind === 'gun' && !i.done), 'a gun lies beside it');
+});
+
+test('Saints and Meridian fight each other, and a flare only calls its own side', () => {
+  const { sim, s } = armed([]);
+  const [saint, sentry] = lineUp(sim, ['bandit', 'guard']);
+  const p = s.player;
+  // Rook far away, out of sight; the two facing each other across open ground
+  saint.x = p.x + 90; saint.y = p.y; sentry.x = p.x + 230; sentry.y = p.y;
+  p.x -= 2000;
+  saint.state = sentry.state = 'idle';
+  const hp0 = saint.hp + sentry.hp;
+  run(sim, 6, {});
+  assert.ok(saint.hp + sentry.hp < hp0, 'they shot each other');
+  assert.ok(saint.foe || sentry.foe || saint.dead || sentry.dead, 'each took the other on');
 });

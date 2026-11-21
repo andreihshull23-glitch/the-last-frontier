@@ -68,6 +68,7 @@ export const LOOKS = {
   husk: { fam: 'woman', model: 'Adventurer', tint: 'husk_dead', scale: 0.86 },
   // Mercy Deck
   deputy: { fam: 'robot', model: 'Stan', gun: 'gun/blaster-n', scale: 0.86, tint: 'deputy' },
+  grunt: { fam: 'robot', model: 'Stan', gun: 'gun/blaster-c', scale: 1.02, tint: 'grunt' },
   keeper_store: { fam: 'woman', model: 'Adventurer', tint: 'cloth_blue' },
   keeper_gunsmith: { fam: 'woman', model: 'SciFi', tint: 'cloth_rust' },
   keeper_outfitter: { fam: 'woman', model: 'SciFi', tint: 'cloth_violet' },
@@ -105,6 +106,7 @@ function registerCharacterTints(assets) {
   R('husk', remap([{ hue: [0.15, 0.5], h: 0.1, s: 0.14, lMul: 1.3 }, { sat: [0, 1], sMul: 0.4, lMul: 0.6 }]));
   R('iron', chain(remap([{ sat: [0.3, 1], h: 0.02, s: 0.7, lMul: 0.8 }]), multiply(0.62, 0.6, 0.62)));
   R('deputy', remap([{ sat: [0.3, 1], hue: [0.9, 0.1], h: 0.11, s: 0.75, lMul: 1.05 }]));
+  R('grunt', chain(remap([{ sat: [0.3, 1], h: 0.55, s: 0.45, lMul: 0.9 }]), multiply(0.78, 0.82, 0.9)));   // Meridian's grey-blue, TIN's frame
   R('brass', remap([{ sat: [0.15, 1], hue: [0.25, 0.55], h: 0.1, s: 0.55, lMul: 0.95 }]));
   // clothes only: greens and blues are cloth on these models, while skin, leather and hair sit in the oranges
   const cloth = (h, sat, lMul = 1) => remap([{ hue: [0.125, 0.78], sat: [0.12, 1], h, s: sat, lMul }]);

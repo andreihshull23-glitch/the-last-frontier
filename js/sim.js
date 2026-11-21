@@ -172,6 +172,14 @@ export function createSim(config, level) {
   }
   for (const l of level.lights) if (l.kind === 'fire') state.lights.push({ x: l.x * PX, y: l.z * PX, kind: 'fire', r: 150, t: -1 });
 
+  // one cache on every run is a weapons cache: far from the lift, on the map from the start, a gun inside
+  if (!town) {
+    const caches = state.interactables.filter((i) => i.kind === 'cache');
+    if (caches.length) {
+      const far = caches.reduce((a, b) => (Math.hypot(b.x - level.start.x, b.y - level.start.y) > Math.hypot(a.x - level.start.x, a.y - level.start.y) ? b : a));
+      far.armory = true; far.known = true; far.seen = true; far.tier = Math.max(far.tier, 1);
+    }
+  }
   for (const e of state.enemies) if (e.target) e.known = true;
   const intel = config.intel ?? {};
   if (intel.fullMap || town) state.explored.fill(1);
@@ -1337,7 +1345,11 @@ function completeInteract(sim, it) {
     // the better the cache, the better the odds of a gun or a relic beside it
     // finds are rare, and each one makes the next rarer on this level
     const scarce = 1 / (1 + 1.5 * (s.drops || 0));
-    if (it.tier >= 2 || sim.rng.chance((it.tier === 1 ? 0.14 : 0.03) * scarce)) {   // a gold cache always pays
+    if (it.armory) {
+      // the weapons cache: a gun for sure (a relic if there is no gun left to find)
+      const g = rollGun(sim, 2), d = g ? { gun: g } : rollDrop(sim, 2);
+      if (d) { const a = Math.atan2(p.y - it.y, p.x - it.x); dropItem(sim, it.x + Math.cos(a) * 30, it.y + Math.sin(a) * 30, d); bits.push(d.gun ? `a ${GUNS[d.gun].name.toLowerCase()}` : RELICS[d.relic].name.toLowerCase()); }
+    } else if (it.tier >= 2 || sim.rng.chance((it.tier === 1 ? 0.14 : 0.03) * scarce)) {   // a gold cache always pays
       const d = rollDrop(sim, sim.cache.mods.luck * (1 + it.tier * 0.5));
       if (d) { const a = Math.atan2(p.y - it.y, p.x - it.x); dropItem(sim, it.x + Math.cos(a) * 30, it.y + Math.sin(a) * 30, d); bits.push(d.gun ? `a ${GUNS[d.gun].name.toLowerCase()}` : RELICS[d.relic].name.toLowerCase()); }
     }
@@ -1552,7 +1564,7 @@ function alertEnemy(sim, e, x, y, shout = true) {
     for (const o of s.enemies) {
       if (o === e || o.dead || HOT[o.state] || o.state === 'dormant') continue;
       const oai = ENEMIES[o.kind].ai;
-      if (oai === 'swarm' || oai === 'none') continue;
+      if (oai === 'swarm' || oai === 'none' || ENEMIES[o.kind].faction !== def.faction) continue;
       if (Math.hypot(o.x - e.x, o.y - e.y) < 300) alertEnemy(sim, o, x, y, false);
     }
   }
@@ -1577,6 +1589,9 @@ function perceive(sim, e, def) {
   const range = def.sight * (1 - 0.4 * darkness(sim)) * (hot ? 1.3 : 1) * (p.sprinting ? 1.15 : 1);
   const sees = d < range && hasLOS(sim, e.x, e.y, p.x, p.y);
   e.seesPlayer = sees && hot;
+  if (e.seesPlayer) e.foe = 0;
+  if (!e.seesPlayer && !def.boss) seekFoe(sim, e, def);
+  if (e.foe) return;
   if (sees) {
     if (hot) { e.lastX = p.x; e.lastY = p.y; e.lastSeenT = s.t; return; }
     const calm = e.state === 'idle' || e.state === 'patrol' || e.state === 'return';
@@ -1599,13 +1614,42 @@ function perceive(sim, e, def) {
     }
   } else {
     if (e.state === 'idle' || e.state === 'patrol' || e.state === 'return') e.suspicion = Math.max(0, e.suspicion - 0.03);
-    if (e.state === 'engage' && s.t - e.lastSeenT > 1.4 && !def.boss) {
+    if (e.state === 'engage' && !e.foe && s.t - e.lastSeenT > (def.robot ? 6 : 2.5) && !def.boss) {
       e.state = 'search';
       e.stateT = 0;
       e.arrivedT = 0;
       e.path = null;
     }
   }
+}
+
+/**
+ * Factions fight. An enemy that is not fighting Rook looks, a couple of times a second, for the nearest
+ * enemy of another faction in sight and takes it on. Rook always comes first (see perceive).
+ */
+function seekFoe(sim, e, def) {
+  const s = sim.state;
+  if (e.foe) {
+    const f = s.enemies.find((o) => o.id === e.foe && !o.dead);
+    if (f && Math.hypot(f.x - e.x, f.y - e.y) < def.sight * 1.3 && hasLOS(sim, e.x, e.y, f.x, f.y)) { e.seesFoe = true; e.lastX = f.x; e.lastY = f.y; e.lastSeenT = s.t; return; }
+    e.seesFoe = false;
+    if (!f || s.t - e.lastSeenT > 3) { e.foe = 0; if (e.state === 'engage') { e.state = 'search'; e.stateT = 0; e.arrivedT = 0; e.path = null; } }
+    return;
+  }
+  e.foeScanT = (e.foeScanT ?? sim.rng.range(0, 0.5)) - 0.1;
+  if (e.foeScanT > 0) return;
+  e.foeScanT = 0.5;
+  let best = null, bd = def.sight;
+  for (const o of s.enemies) {
+    if (o.dead || o === e || o.spawnT > 0 || o.hackT > 0 || o.state === 'dormant') continue;
+    const of = ENEMIES[o.kind].faction;
+    if (of === def.faction || of === 'none' || def.faction === 'none') continue;
+    const d = Math.hypot(o.x - e.x, o.y - e.y);
+    if (d < bd && hasLOS(sim, e.x, e.y, o.x, o.y)) { bd = d; best = o; }
+  }
+  if (!best) return;
+  e.foe = best.id; e.seesFoe = true; e.lastX = best.x; e.lastY = best.y; e.lastSeenT = s.t;
+  if (!HOT[e.state]) { e.state = 'engage'; e.stateT = 0; emit(sim, 'alert', { id: e.id, x: e.x, y: e.y, infight: true }); }
 }
 
 function updateEnemies(sim, dt) {
@@ -1693,7 +1737,7 @@ function updateEnemy(sim, e, dt) {
         if (!e.arrivedT) e.arrivedT = s.t;
         e.lookT -= dt;
         if (e.lookT <= 0) { e.lookT = 0.7; e.facing += sim.rng.range(-1.6, 1.6); }
-        if (s.t - e.arrivedT > 2.6) { e.state = 'return'; e.stateT = 0; e.arrivedT = 0; e.path = null; }
+        if (s.t - e.arrivedT > (ENEMIES[e.kind].robot ? 9 : 3.5)) { e.state = 'return'; e.stateT = 0; e.arrivedT = 0; e.path = null; }
       } else {
         move = navigate(sim, e, tx, ty);
         speed = e.state === 'search' ? def.chase * 0.9 : def.speed;
@@ -1790,11 +1834,15 @@ function beginWindup(sim, e, w, angle, move = 0) {
 }
 
 function engage(sim, e, def, dt) {
-  const s = sim.state, p = s.player;
+  const s = sim.state;
+  // a fight with another faction: the same moves, aimed at that enemy instead of Rook
+  let foe = null;
+  if (e.foe) { foe = s.enemies.find((o) => o.id === e.foe && !o.dead && !(o.hackT > 0)) || null; if (!foe) e.foe = 0; }
+  const p = foe || s.player;
   const dx = p.x - e.x, dy = p.y - e.y;
   const d = Math.max(1, Math.hypot(dx, dy));
   const toP = Math.atan2(dy, dx);
-  const sees = e.seesPlayer;
+  const sees = foe ? e.seesFoe : e.seesPlayer;
   const atk = e.atk;
   let w = WEAPONS[def.weapon];
   if (def.boss && atk.w && atk.phase !== 'ready' && atk.phase !== 'cooldown') w = bossWeapon(atk.w);
@@ -1977,12 +2025,13 @@ function releaseAttack(sim, e, def, w) {
 }
 
 function fireEnemyBullet(sim, e, w, angle) {
+  const fac = ENEMIES[e.kind].faction;
   const B = sim.state.buddy;
   if (e.elite === 'hunter' && B && !(B.downT > 0) && Math.hypot(B.x - e.x, B.y - e.y) < (w.range || 400)) angle = Math.atan2(B.y - e.y, B.x - e.x) + (angle - Math.atan2(sim.state.player.y - e.y, sim.state.player.x - e.x));
   spawnBullet(sim, {
     x: e.x + Math.cos(angle) * (e.r + 3), y: e.y + Math.sin(angle) * (e.r + 3), angle,
     speed: w.speed, damage: w.damage, owner: 'enemy', life: w.life ?? w.range / w.speed, kind: w.kind, big: w.big, ground: w.kind === 'ring' && !w.hollow, hollow: Boolean(w.hollow),
-    src: { kind: e.kind, name: e.name },
+    src: { kind: e.kind, name: e.name, id: e.id, faction: fac },
   });
 }
 
@@ -1990,18 +2039,19 @@ function fireFlare(sim, e) {
   const s = sim.state, p = s.player;
   s.lights.push({ x: e.x, y: e.y, kind: 'flare', r: 320, t: 5 });
   emit(sim, 'flare', { x: e.x, y: e.y });
-  emit(sim, 'toast', { text: 'A flare! Every unit nearby knows where you are.', tone: 'bad' });
+  const fac = ENEMIES[e.kind].faction;
+  emit(sim, 'toast', { text: fac === 'meridian' ? 'A flare! Every Meridian unit nearby knows where you are.' : 'A flare! The Saints nearby know where you are.', tone: 'bad' });
   for (const o of s.enemies) {
     if (o === e || o.dead || o.state === 'dormant') continue;
     const ai = ENEMIES[o.kind].ai;
-    if (ai === 'swarm' || ai === 'none') continue;
+    if (ai === 'swarm' || ai === 'none' || ENEMIES[o.kind].faction !== fac) continue;
     if (Math.hypot(o.x - e.x, o.y - e.y) > 1300) continue;
     alertEnemy(sim, o, p.x, p.y, false);
   }
   for (let i = 0; i < 2; i++) {
     const spot = findSpawn(sim, 330, 620);
     if (!spot) continue;
-    const r = addEnemy(sim, 'bandit', spot.x, spot.y);
+    const r = addEnemy(sim, fac === 'meridian' ? (i ? 'grunt' : 'guard') : 'bandit', spot.x, spot.y);
     alertEnemy(sim, r, p.x, p.y, false);
   }
 }
@@ -2023,7 +2073,7 @@ function rechargeShield(sim, e, dt) {
   if (was <= 0) emit(sim, 'shield_up', { x: e.x, y: e.y, id: e.id });
 }
 
-function damageEnemy(sim, e, dmg, ang, stagger = false) {
+function damageEnemy(sim, e, dmg, ang, stagger = false, byId = 0) {
   const s = sim.state, p = s.player;
   const def = ENEMIES[e.kind];
   if (def.ai === 'none') {
@@ -2051,9 +2101,12 @@ function damageEnemy(sim, e, dmg, ang, stagger = false) {
     emit(sim, 'stagger', { x: e.x, y: e.y });
   }
   if (e.state === 'flare') e.atk.t += 0.25;
-  if (!HOT[e.state]) alertEnemy(sim, e, p.x, p.y);
-  else { e.lastX = p.x; e.lastY = p.y; e.lastSeenT = s.t; }
-  if (def.ai === 'ranged' && !e.retreated && e.hp < e.maxHp * 0.35) {
+  if (byId) {
+    const by = s.enemies.find((o) => o.id === byId && !o.dead);
+    if (by && !e.seesPlayer && !def.boss) { e.foe = by.id; e.seesFoe = true; e.lastX = by.x; e.lastY = by.y; e.lastSeenT = s.t; if (!HOT[e.state]) { e.state = 'engage'; e.stateT = 0; } }
+  } else if (!HOT[e.state]) alertEnemy(sim, e, p.x, p.y);
+  else { e.lastX = p.x; e.lastY = p.y; e.lastSeenT = s.t; e.foe = 0; }
+  if (def.ai === 'ranged' && !def.robot && !byId && !e.retreated && e.hp < e.maxHp * 0.35) {   // people fall back; machines do not
     e.retreated = true;
     e.state = 'retreat';
     e.stateT = 0;
@@ -2233,6 +2286,14 @@ function bulletHits(sim, b, x0, y0, x1, y1) {
         if (b.pierce > 0) { b.pierce -= 1; b.hit.push(e.id); b.damage *= 0.8; continue; }
         return true;
       }
+    }
+  }
+  if (b.owner === 'enemy' && b.src?.faction) {
+    for (const o of s.enemies) {
+      if (o.dead || o.spawnT > 0 || o.id === b.src.id || o.hackT > 0) continue;
+      const of = ENEMIES[o.kind].faction;
+      if (of === b.src.faction || of === 'none') continue;
+      if (segCircle(x0, y0, x1, y1, o.x, o.y, o.r + 2)) { damageEnemy(sim, o, b.damage * 1.6, Math.atan2(b.vy, b.vx), false, b.src.id); return true; }
     }
   }
   if (b.owner === 'enemy' && s.buddy && s.buddy.downT <= 0 && segCircle(x0, y0, x1, y1, s.buddy.x, s.buddy.y, s.buddy.r)) { hurtBuddy(sim, b.damage); return true; }
@@ -2934,7 +2995,7 @@ export function focusPrompt(sim) {
   const it = s.interactables.find((i) => i.id === s.focusId);
   if (!it) return null;
   let label;
-  if (it.kind === 'cache') label = 'Search the cache';
+  if (it.kind === 'cache') label = it.armory ? 'Open the weapons cache' : 'Search the cache';
   else if (it.kind === 'gun' || it.kind === 'relic') label = `Take: ${itemName(it)} (${itemBlurb(it)})`;
   else if (it.kind === 'ware') label = `Buy ${itemName(it)} for ${it.price} coin (${itemBlurb(it)})`;
   else if (it.kind === 'exit') label = EXIT_LABEL[it.variant] || 'Leave';

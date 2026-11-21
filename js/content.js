@@ -275,7 +275,14 @@ export const ENEMIES = {
   warden: { name: 'the Warden', hp: 1100, radius: 17, speed: 84, chase: 112, sight: 640, weapon: 'e_shotgun', ai: 'boss', look: 'warden', cash: [70, 100], boss: true, robot: true,
     title: 'THE WARDEN OF THE HEART', taunt: 'The Warden turns. Every light on the level turns with it.', down: 'The Warden is still. The Hollow has nothing left to send. Take the lift.' },
   target: { name: 'target', hp: 1, radius: 12, speed: 0, chase: 0, sight: 0, weapon: null, ai: 'none', look: 'target' },
+  // TIN's chassis, as Meridian builds it: the line unit that holds a street
+  grunt: { name: 'sentry grunt', hp: 120, radius: 12, speed: 88, chase: 116, sight: 400, weapon: 'e_smg', ai: 'skirmish', keep: 150, look: 'grunt', cash: [4, 10], robot: true },
 };
+/** Who answers to whom. Different factions fight each other; flares and shouts only reach one's own side. */
+const FACTION_OF = { bandit: 'saints', gunman: 'saints', dynamiter: 'saints', brute: 'saints', bounty: 'saints',
+  guard: 'meridian', scout: 'meridian', enforcer: 'meridian', crusher: 'meridian', trooper: 'meridian', turret: 'meridian', grunt: 'meridian', overseer: 'meridian', foreman: 'meridian',
+  walker: 'hollow', husk: 'hollow', mite: 'hollow', seer: 'hollow', gazer: 'hollow', warden: 'hollow', target: 'none' };
+for (const [k, e] of Object.entries(ENEMIES)) e.faction = FACTION_OF[k] || 'none';
 
 export const WEAPONS = {
   e_shotgun: { kind: 'shotgun', range: 170, windup: 0.5, cooldown: 1.4, pellets: 5, spread: 0.2, damage: 9, speed: 700, life: 0.3, noise: 420 },
@@ -349,7 +356,7 @@ export const CHAPTERS = [
     goal: "Take the Meridian freight case back from the Rust Saints.",
     brief: "The Rust Saints hijacked a Meridian freight hauler in the Slump and dragged one sealed case back to their camp. The machines will come looking for it, and they will not stop at the Saints. Marshal Quill wants it in our hands first. Go in, take the case from the gang camp, and carry it to an exit.",
     hint: "Follow the gold marker to the gang camp. The case is heavy: you cannot sprint while carrying it, so clear a path first.",
-    level: { gen: 'canyon', size: [24, 19], theme: 'red', pois: ['bandit_camp', 'homestead', 'wreck', 'ruins'], objective: { kind: 'item', item: 'strongbox', at: 'bandit_camp' }, threat: 0.85, mix: { bandit: 7, gunman: 2, scout: 1 } },
+    level: { gen: 'canyon', size: [24, 19], theme: 'red', pois: ['bandit_camp', 'homestead', 'wreck', 'ruins'], objective: { kind: 'item', item: 'strongbox', at: 'bandit_camp' }, threat: 0.85, mix: { bandit: 7, gunman: 3 } },
     reward: { cash: 90, rep: { meridian: 1 }, prosperity: 1 },
     event: 'SHIPMENT_DELIVERED',
     outro: "The seal broke on the way home. No cargo inside: a fist-sized core, warm, ticking, lit from within. The routing tag sends it to a place stamped in red: SITE 9. It is on no floor plan. A courier at the Low Tide says she has heard the name.",
@@ -383,7 +390,7 @@ export const CHAPTERS = [
     goal: "Overload three signal relays in the district.",
     brief: "The ledger explains the machines. They do not think. Every one of them takes its orders through signal relays WARDEN has planted across each district. Overload three and every machine out here goes deaf. Tess at the gun counter says she can do something with the wreckage, too.",
     hint: "Relays are the tall humming masts. Overloading one is loud: expect company. Enforcer units close in fast and fire in long bursts.",
-    level: { gen: 'canyon', size: [26, 21], theme: 'red', pois: ['outpost', 'outpost', 'ruins', 'homestead', 'wreck'], objective: { kind: 'burn', item: 'relay', count: 3 }, threat: 1.15, mix: { guard: 6, scout: 2, enforcer: 4, trooper: 3 } },
+    level: { gen: 'canyon', size: [26, 21], theme: 'red', pois: ['outpost', 'outpost', 'ruins', 'homestead', 'wreck'], objective: { kind: 'burn', item: 'relay', count: 3 }, threat: 1.15, mix: { guard: 5, scout: 2, enforcer: 3, trooper: 3, grunt: 3 } },
     reward: { cash: 135, prosperity: 1 },
     event: 'RELAYS_DOWN',
     outro: "Three masts burning, and machines standing dead in the walkways for a block around. Tess has already stripped one. She says the company guns run on the same light as the cores, and she can build you one.",
@@ -416,7 +423,7 @@ export const CHAPTERS = [
     goal: "Destroy the Overseer that runs the Site 9 foundry.",
     brief: "The foundry is building enforcers as fast as it can bolt them together, and one machine runs the whole line: Overseer Unit 01. It is the only thing down there that thinks for itself. Break it and the line stops. The Unlisted will hit the perimeter to draw the guards. You go for the Overseer.",
     hint: "Energy weapons hit machines much harder than slugs. The arc caster locks them up for a moment. The Overseer telegraphs every attack: step out of the line, then punish it.",
-    level: { gen: 'canyon', size: [26, 21], theme: 'red', pois: ['site9', 'outpost', 'outpost', 'wreck', 'ruins'], objective: { kind: 'kill', enemy: 'overseer', at: 'site9' }, threat: 1.3, mix: { guard: 6, enforcer: 5, crusher: 2, trooper: 3, scout: 2 } },
+    level: { gen: 'canyon', size: [26, 21], theme: 'red', pois: ['site9', 'outpost', 'outpost', 'wreck', 'ruins'], objective: { kind: 'kill', enemy: 'overseer', at: 'site9' }, threat: 1.3, mix: { guard: 5, enforcer: 4, crusher: 2, trooper: 3, scout: 2, grunt: 3 } },
     reward: { cash: 240, prosperity: 1 },
     event: 'OVERSEER_DEAD',
     outro: "The line is dead and Site 9 is burning. By morning the feed has a message from the top floors. Director Harlan Voss is coming down himself, with everything Meridian has left, to collect company property.",
@@ -427,7 +434,7 @@ export const CHAPTERS = [
     goal: "Kill Director Harlan Voss at the freight depot.",
     brief: "Harlan Voss signed the Handover. He signed the intake orders. He has spent twenty years replacing himself with machine parts, and there is not much man left to negotiate with. He has turned the freight depot into a fort and sent word that Mercy Deck gets decommissioned unless the shard is handed over. End it.",
     hint: "Voss is more machine than man, so energy weapons bite. He telegraphs every attack: step out of the line, then punish him while he reloads.",
-    level: { gen: 'canyon', size: [26, 20], theme: 'red', pois: ['depot', 'outpost', 'wreck', 'ruins', 'homestead'], objective: { kind: 'kill', enemy: 'foreman', at: 'depot' }, threat: 1.4, mix: { guard: 6, enforcer: 4, trooper: 3, dynamiter: 2, scout: 2, crusher: 1 } },
+    level: { gen: 'canyon', size: [26, 20], theme: 'red', pois: ['depot', 'outpost', 'wreck', 'ruins', 'homestead'], objective: { kind: 'kill', enemy: 'foreman', at: 'depot' }, threat: 1.4, mix: { guard: 5, enforcer: 4, trooper: 3, dynamiter: 2, scout: 2, crusher: 1, grunt: 2 } },
     reward: { cash: 375, prosperity: 2 },
     event: 'FOREMAN_DEAD',
     outro: "Voss is dead and the depot is burning. The Hollow is silent. WARDEN is still up there, still meeting its quotas, but tonight it has nothing to send. Mercy Deck is still here.",
@@ -443,7 +450,7 @@ export const DESCENT = {
     { name: 'The Lower Works', theme: 'works', size: [24, 24], rooms: 8, threat: 0.9, boss: 'brute', bossName: 'the Saint',
       mix: { bandit: 4, gunman: 3, dynamiter: 2, husk: 3 } },
     { name: 'The Foundry', theme: 'foundry', size: [26, 26], rooms: 9, threat: 1.1, boss: 'overseer',
-      mix: { guard: 3, enforcer: 3, trooper: 3, scout: 1, crusher: 1, turret: 2 } },
+      mix: { guard: 3, enforcer: 2, trooper: 3, scout: 1, crusher: 1, turret: 2, grunt: 2 } },
     { name: 'The Hull', theme: 'ship', size: [28, 28], rooms: 10, threat: 1.3, boss: 'warden',
       mix: { walker: 3, husk: 2, mite: 3, seer: 2, gazer: 1, enforcer: 2, crusher: 1, turret: 2 } },
   ],
@@ -455,7 +462,7 @@ export const JOBS = {
   payroll: {
     id: 'payroll', title: "Lifted Payroll", faction: 'meridian', after: 1,
     brief: "A Meridian payroll case was lifted and stashed in an abandoned hab block. Nobody has been paid in seven years, but the creds on the chips are real. It is heavy. Haul it home.",
-    level: { gen: 'canyon', size: [21, 17], theme: 'red', pois: ['homestead', 'bandit_camp', 'ruins'], objective: { kind: 'item', item: 'payroll', at: 'homestead' }, threat: 1, mix: { bandit: 6, gunman: 3, scout: 1 } },
+    level: { gen: 'canyon', size: [21, 17], theme: 'red', pois: ['homestead', 'bandit_camp', 'ruins'], objective: { kind: 'item', item: 'payroll', at: 'homestead' }, threat: 1, mix: { bandit: 6, gunman: 4 } },
     reward: { cash: 80, rep: { meridian: 1 } }, requires: { repAbove: { meridian: -2 } },
   },
   stakes: {
@@ -467,19 +474,19 @@ export const JOBS = {
   medicine: {
     id: 'medicine', title: "Medicine for the Deck", faction: null, after: 1,
     brief: "The clinic is out of clean dressings and the good painkillers. A supply hauler went over in the Slump. Find three crates before the Saints sell them back to us.",
-    level: { gen: 'canyon', size: [21, 17], theme: 'red', pois: ['wreck', 'bandit_camp', 'homestead'], objective: { kind: 'collect', item: 'medicine', count: 3 }, threat: 0.95, mix: { bandit: 6, gunman: 2, scout: 1 } },
+    level: { gen: 'canyon', size: [21, 17], theme: 'red', pois: ['wreck', 'bandit_camp', 'homestead'], objective: { kind: 'collect', item: 'medicine', count: 3 }, threat: 0.95, mix: { bandit: 6, gunman: 3 } },
     reward: { cash: 50, prosperity: 1 },
   },
   rustlers: {
     id: 'rustlers', title: "Clear the Saints Out", faction: null, after: 2,
     brief: "The Rust Saints have dug in at a camp in the Slump and are stripping everything that moves. Their boss is a big man who likes to run people down. Put him in the ground.",
-    level: { gen: 'canyon', size: [22, 18], theme: 'red', pois: ['bandit_camp', 'homestead', 'ruins', 'wreck'], objective: { kind: 'kill', enemy: 'brute', at: 'bandit_camp' }, threat: 1.15, mix: { bandit: 7, gunman: 3, dynamiter: 1, scout: 1 } },
+    level: { gen: 'canyon', size: [22, 18], theme: 'red', pois: ['bandit_camp', 'homestead', 'ruins', 'wreck'], objective: { kind: 'kill', enemy: 'brute', at: 'bandit_camp' }, threat: 1.15, mix: { bandit: 7, gunman: 3, dynamiter: 2 } },
     reward: { cash: 110, prosperity: 1 },
   },
   salvage: {
     id: 'salvage', title: "Scrap Run", faction: 'riders', after: 4,
     brief: "With the relays down, dead machines are lying all over the district with their cores still in them. Tess pays for cores. So does everyone else, so Meridian has sent troopers to collect them first. Bring back three.",
-    level: { gen: 'canyon', size: [22, 18], theme: 'red', pois: ['outpost', 'wreck', 'ruins', 'homestead'], objective: { kind: 'collect', item: 'core', count: 3 }, threat: 1.2, mix: { trooper: 4, enforcer: 3, guard: 4, scout: 2 } },
+    level: { gen: 'canyon', size: [22, 18], theme: 'red', pois: ['outpost', 'wreck', 'ruins', 'homestead'], objective: { kind: 'collect', item: 'core', count: 3 }, threat: 1.2, mix: { trooper: 4, enforcer: 3, guard: 3, scout: 2, grunt: 2 } },
     reward: { cash: 130, rep: { riders: 1 } },
   },
   deep_claim: {
@@ -498,7 +505,7 @@ export const JOBS = {
   tin_core: {
     id: 'tin_core', title: "TIN, Part One: A Live Core", faction: null, after: 2, once: true, line: 'TIN',
     brief: "Tess can rebuild a security unit, but not from scrap. She needs a core pulled out of a sentry that is still switched on, from a Meridian post that is still manned. They will not hand it over.",
-    level: { gen: 'canyon', size: [20, 17], theme: 'red', pois: ['outpost', 'outpost', 'ruins'], objective: { kind: 'item', item: 'tincore', at: 'outpost' }, threat: 1.45, mix: { guard: 6, enforcer: 4, trooper: 3, scout: 2, turret: 2 } },
+    level: { gen: 'canyon', size: [20, 17], theme: 'red', pois: ['outpost', 'outpost', 'ruins'], objective: { kind: 'item', item: 'tincore', at: 'outpost' }, threat: 1.45, mix: { guard: 5, enforcer: 3, trooper: 3, scout: 2, turret: 2, grunt: 2 } },
     reward: { cash: 45 },
   },
   tin_servos: {
@@ -516,7 +523,7 @@ export const JOBS = {
   bounty: {
     id: 'bounty', title: "Wanted", faction: null, after: 0, needsBounty: true,
     brief: "They put you on the floor and they are wearing what they took off you. Find them, finish it, and take your kit back.",
-    level: { gen: 'canyon', size: [21, 17], theme: 'red', pois: ['bandit_camp', 'ruins', 'homestead'], objective: { kind: 'kill', enemy: 'bounty', at: 'bandit_camp' }, threat: 1.05, mix: { bandit: 5, gunman: 3, scout: 1 } },
+    level: { gen: 'canyon', size: [21, 17], theme: 'red', pois: ['bandit_camp', 'ruins', 'homestead'], objective: { kind: 'kill', enemy: 'bounty', at: 'bandit_camp' }, threat: 1.05, mix: { bandit: 5, gunman: 4 } },
     reward: { cash: 0 },
   },
 };

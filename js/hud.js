@@ -117,6 +117,9 @@ function drawMapMarkers(ctx, sim, x, y, sc, big, ui) {
       const k = big ? 6 : 4;
       ctx.fillStyle = LAMP;
       ctx.beginPath(); ctx.moveTo(mx, my - k); ctx.lineTo(mx + k, my); ctx.lineTo(mx, my + k); ctx.lineTo(mx - k, my); ctx.closePath(); ctx.fill();
+    } else if (it.kind === 'cache' && it.armory) {
+      ctx.fillStyle = '#ffb43f'; ctx.fillRect(mx - 3.5, my - 3.5, 7, 7); ctx.strokeStyle = '#1a1206'; ctx.lineWidth = 1; ctx.strokeRect(mx - 3.5, my - 3.5, 7, 7);
+      if (big) label(ctx, 'WEAPONS', mx, my - 9, '#ffb43f', `700 10px ${FONT_MONO}`);
     } else if (it.kind === 'cache' && (it.seen || big)) {
       ctx.fillStyle = 'rgba(63,224,255,0.7)';
       ctx.fillRect(mx - 1.5, my - 1.5, 3, 3);
