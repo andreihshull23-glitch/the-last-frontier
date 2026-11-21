@@ -191,6 +191,7 @@ export function createSim(config, level) {
     emit(sim, 'toast', { text: config.intro || 'Go.', tone: 'story', long: true });
     if (clockStart === 'night') emit(sim, 'toast', { text: 'The district is already in lockdown. They will be moving soon.', tone: 'warn' });
     if (level.dark) emit(sim, 'toast', { text: 'No power down here. Watch the edges of the lamp.', tone: 'warn' });
+    if (config.relicGift && RELICS[config.relicGift]) emit(sim, 'toast', { text: `Taken from the elite floor: ${RELICS[config.relicGift].name}. ${RELICS[config.relicGift].desc}`, tone: 'good', long: true });
     // WARDEN has a file on Rook from earlier runs, and says so
     const W = state.warden;
     if (!carry && W.focus && W.level > 0 && WARDEN.patterns[W.focus]) {
@@ -1335,7 +1336,7 @@ function completeInteract(sim, it) {
     return;
   }
   if (it.kind === 'cache') {
-    const mult = (s.config.character.trait === 'scavenger' ? 1.3 : 1) * (s.lootMul || 1);
+    const mult = (s.config.character.trait === 'scavenger' ? 1.3 : 1) * (s.lootMul || 1) * (s.config.lootBonus || 1);
     const found = it.loot.map((l) => { const value = Math.round(l.value * mult); return { name: l.name, value, bulk: CARGO.bulkOf(value) }; });
     s.carried.loot.push(...found);
     const bits = found.map((l) => `${l.name} (¢${l.value})`);
@@ -2606,6 +2607,7 @@ function endExpedition(sim, outcome) {
     aftermath: Object.keys(s.sys).filter((k) => s.sys[k] === true && SYSTEMS[k]?.persist),
     warden: { level: s.warden.level, focus: s.warden.focus, stats: { ...s.warden.stats } },
     floor: s.floor,
+    route: s.config.route || null, floorKind: s.config.floorKind || null, storyChapter: s.config.storyChapter || null, jobId: s.config.jobId || null,
     logFound: Boolean(s.logFound), deals: s.deals || 0,
     carry: { hp: p.hp, mags: { ...p.mags }, gun: p.gun, relics: [...p.relics], pulses: p.pulses, ammo: { ...p.ammo }, bandages: p.bandages, dynamite: p.dynamite, coin: s.coin, kills: s.kills,
       hack: p.hack, loot: s.carried.loot.map((l) => ({ ...l })), secured: s.secured.map((l) => ({ ...l })), warden: s.warden,

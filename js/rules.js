@@ -11,7 +11,7 @@
 
 import {
   CHAPTERS, JOBS, GEAR, SUPPLIES, INVESTMENTS, TRAITS, PERKS, CLINIC_PRICE, GUNS, UPGRADES, AMMO, CARRY, ITEMS, SHOPS, TELEGRAMS,
-  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER, HERO, LOGS, COMMS, SYSTEMS, WARDEN,
+  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER, HERO, LOGS, COMMS, SYSTEMS, WARDEN, ROUTE, RELICS,
 } from './content.js';
 import { makeRng, mixSeed } from './rng.js';
 
@@ -232,6 +232,7 @@ function missionDef(id) {
   if (kind === 'story') return { kind, def: CHAPTERS.find((k) => k.id === key) };
   if (kind === 'job') return { kind, def: JOBS[key] };
   if (kind === 'descent') return { kind, def: DESCENT_DEF };
+  if (kind === 'route') return { kind, def: { id: 'route', title: ROUTE.strata[+key]?.name ?? 'The Descent', reward: {}, level: {} } };
   return { kind: null, def: null };
 }
 
@@ -445,16 +446,23 @@ export function beginExpedition(c, missionId, seed) {
   const { kind, def } = missionDef(missionId);
   const offer = availableMissions(c).find((m) => m.id === missionId);
   if (!def || !offer) return fail('That job is not on offer.');
-  const p = perks(c);
   const id = `x${c.expeditionCount + 1}-${(seed >>> 0).toString(36)}`;
   c.activeExpedition = { id, missionId, seed: seed >>> 0, startedAt: Date.now() };
-  const tier = offer.tier;
+  const config = runConfig(c, kind, def, offer.title, offer.tier, id, missionId, seed);
+  if (kind === 'descent') return { ok: true, config: { ...floorConfig({ ...config, descent: true }, 1, seed, config.pool), intro: def.hint } };
+  return { ok: true, config };
+}
+
+/** Everything a run needs to know about the campaign: the level, the runner, the deck's perks, WARDEN's file. */
+function runConfig(c, kind, def, title, tier, id, missionId, seed) {
+  const ch = c.character;
+  const p = perks(c);
   const open = def.level.gen === 'canyon' && def.level.theme !== 'hollow';
   const bounty = c.bounty ? { name: c.bounty.name, notoriety: c.bounty.notoriety, victims: [...c.bounty.victims] } : null;
   const objective = { ...def.level.objective };
   if (objective.kind === 'kill') objective.label = objective.enemy === 'foreman' ? 'Kill Director Voss' : objective.enemy === 'overseer' ? 'Destroy the Overseer' : objective.enemy === 'bounty' ? `Kill ${bounty?.name ?? 'the outlaw'}` : 'Kill the Saint';
   const config = {
-    mode: 'ride', expeditionId: id, missionId, seed: seed >>> 0, title: offer.title,
+    mode: 'ride', expeditionId: id, missionId, seed: seed >>> 0, title,
     intro: def.hint || def.brief,
     comms: COMMS[kind === 'story' ? def.id : kind === 'descent' ? 'descent' : 'job'] || null,
     level: {
@@ -482,8 +490,129 @@ export function beginExpedition(c, missionId, seed) {
     // what earlier runs did to the tower's systems and has not worn off yet
     consequences: Object.fromEntries((c.aftermath || []).map((a) => [a.id, true])),
   };
-  if (kind === 'descent') return { ok: true, config: { ...floorConfig({ ...config, descent: true }, 1, seed, config.pool), intro: def.hint } };
-  return { ok: true, config };
+  return config;
+}
+
+// ---------------------------------------------------------------- the route: one stratum per trip
+
+/** How deep Rook may start a trip: the strata whose way down has been opened by beating the one above. */
+export const strataOpen = (c) => Math.min(ROUTE.strata.length - 1, c.depth || 0);
+export const ROUTE_NAMES = ROUTE.strata.map((S) => S.name);
+export const stratumOf = (chapterId) => ROUTE.strata.findIndex((S) => S.chapters.includes(chapterId));
+
+/** The chapter that comes next, if it lives in stratum `st` and nothing is waiting on a decision. */
+export function routeChapter(c, st, storyDone = []) {
+  if (c.pendingChoice) return null;
+  if (storyDone.some((id) => CHAPTERS.find((k) => k.id === id)?.choice)) return null;
+  const ch = CHAPTERS[c.chapter + storyDone.length];
+  return ch && ROUTE.strata[st]?.chapters.includes(ch.id) ? ch : null;
+}
+
+function routeJobs(c, st, route) {
+  return ROUTE.strata[st].pool.map((id) => JOBS[id]).filter((job) => {
+    if (!job) return false;
+    if (job.needsBounty && !c.bounty) return false;
+    const once = [...(c.jobsOnce || []), ...(route.jobsDone || [])];
+    if (job.once && once.includes(job.id)) return false;
+    if (job.needsJob && !once.includes(job.needsJob)) return false;
+    return true;
+  });
+}
+
+/** The doors at a lift stop: the story floor if one is due, a fight, an elite floor or a safehouse; then the boss. */
+export function routeOptions(c, route) {
+  const S = ROUTE.strata[route.st];
+  const pay = ROUTE.pay;
+  if (route.f >= S.picks) {
+    const F = DESCENT.floors[S.boss - 1];
+    return [{ kind: 'boss', id: 'boss', tag: 'Boss', title: `${F.name}: ${F.bossName ? F.bossName : bossLabel(F.boss).replace(/^(Kill|Destroy) /, '')}`, brief: `The way down is held. Rooms seal behind you. Beat what holds it and the lift opens to ${route.st + 1 < ROUTE.strata.length ? ROUTE.strata[route.st + 1].name : 'the bottom'}.`, reward: `¢${pay.boss}, and the next stratum opens` }];
+  }
+  const rng = makeRng(mixSeed(route.seed, 1000 + route.f * 37));
+  const out = [];
+  const ch = routeChapter(c, route.st, route.storyDone);
+  if (ch) out.push({ kind: 'story', id: `story:${ch.id}`, tag: `Chapter ${c.chapter + route.storyDone.length + 1}`, title: ch.title, brief: ch.goal, reward: `the story moves on, ¢${ch.reward?.cash ?? 0}` });
+  const jobs = routeJobs(c, route.st, route);
+  const pick = () => jobs.splice(rng.int(0, jobs.length - 1), 1)[0];
+  if (jobs.length) { const j = pick(); out.push({ kind: 'fight', id: `job:${j.id}`, tag: j.once ? 'Side job' : 'Fight', title: j.title, brief: j.brief, reward: `¢${pay.floor + (j.reward?.cash ?? 0) / 2 | 0}` }); }
+  if (out.length < 3 && route.f > 0 && !route.restUsed) out.push({ kind: 'rest', id: 'rest', tag: 'Safehouse', title: 'An Unlisted safehouse', brief: 'No fight. Patch up, restock, catch your breath. Once per trip.', reward: `+${ROUTE.rest.heal} health, a dressing, ammunition, a pulse` });
+  if (out.length < 3 && jobs.length) { const j = pick(); out.push({ kind: 'elite', id: `job:${j.id}`, tag: 'Elite', title: `${j.title}, under guard`, brief: `Harder: more of them, more of them elite. ${j.brief}`, reward: `¢${Math.round((pay.floor + (j.reward?.cash ?? 0) / 2) * 1.6)}, and a relic` }); }
+  if (out.length < 2 && jobs.length) { const j = pick(); out.push({ kind: 'fight', id: `job:${j.id}`, tag: 'Fight', title: j.title, brief: j.brief, reward: `¢${pay.floor}` }); }
+  return out;
+}
+
+/** Start a trip down into stratum `st`. Returns the first lift stop's doors. */
+export function beginRoute(c, st, seed) {
+  if (c.activeExpedition) return fail('A run is already under way.');
+  if (!c.character?.alive) return fail('No runner.');
+  if (st > strataOpen(c) || st < 0) return fail('The lift does not go that deep yet.');
+  const id = `x${c.expeditionCount + 1}-${(seed >>> 0).toString(36)}`;
+  c.activeExpedition = { id, missionId: `route:${st}`, seed: seed >>> 0, startedAt: Date.now() };
+  const route = { st, f: 0, seed: seed >>> 0, storyDone: [], jobsDone: [], cleared: 0, boss: false, restUsed: false, elite: 0 };
+  return { ok: true, route, options: routeOptions(c, route) };
+}
+
+/** The run config for one floor of a trip, carrying down what Rook holds. */
+export function routeFloor(c, route, option, carry = null) {
+  const S = ROUTE.strata[route.st];
+  const seed = (mixSeed(route.seed, route.f * 977 + 13) >>> 0);
+  const id = c.activeExpedition?.id;
+  const n = route.f + 1, total = S.picks + 1;
+  const where = `${S.name} · floor ${n} of ${total}`;
+  let config;
+  if (option.kind === 'boss') {
+    const base = runConfig(c, 'descent', DESCENT_DEF, '', 0, id, c.activeExpedition.missionId, seed);
+    config = { ...floorConfig({ ...base, descent: true }, S.boss, seed, base.pool), intro: `${where}. The boss floor. Rooms seal behind you.` };
+    config.title = `${where}: ${config.title.split(': ').slice(-1)[0]}`;
+  } else {
+    const [kind, key] = option.id.split(':');
+    const def = kind === 'story' ? CHAPTERS.find((k) => k.id === key) : JOBS[key];
+    config = runConfig(c, kind === 'story' ? 'story' : 'job', def, `${where}: ${def.title}`, route.st + 1, id, c.activeExpedition.missionId, seed);
+    config.intro = `${where}. ${def.hint || def.brief}`;
+    if (option.kind === 'elite') {
+      config.level = { ...config.level, threat: +(config.level.threat * ROUTE.elite.threat).toFixed(3) };
+      config.eliteChance = Math.min(0.6, config.eliteChance + ROUTE.elite.eliteChance);
+      config.lootBonus = ROUTE.elite.loot;
+    }
+    config.storyChapter = kind === 'story' ? key : null;
+    config.jobId = kind === 'job' ? key : null;
+  }
+  config.route = JSON.parse(JSON.stringify(route));
+  config.floorKind = option.kind;
+  if (carry) {
+    config.carry = JSON.parse(JSON.stringify(carry));
+    // an elite floor's prize: a relic Rook does not have, carried down to this floor
+    if (route.relicDue) {
+      const have = new Set(config.carry.relics || []);
+      const pool = Object.keys(RELICS).filter((k) => !have.has(k));
+      if (pool.length) { const k = pool[makeRng(seed ^ 0x51ed).int(0, pool.length - 1)]; config.carry.relics = [...(config.carry.relics || []), k]; config.relicGift = k; }
+      config.route.relicDue = false;
+    }
+  }
+  return config;
+}
+
+/** After a floor: the route with that floor counted, or null if it was not finished (or Rook went down). */
+export function advanceRoute(c, config, report) {
+  if (!config?.route || report?.outcome !== 'extracted' || !report.done) return null;
+  const r = JSON.parse(JSON.stringify(config.route));
+  r.f += 1; r.cleared += 1;
+  if (config.storyChapter) r.storyDone.push(config.storyChapter);
+  if (config.jobId && JOBS[config.jobId]?.once) r.jobsDone.push(config.jobId);
+  if (config.floorKind === 'elite') { r.elite += 1; r.relicDue = true; }
+  if (config.floorKind === 'boss') r.boss = true;
+  return r;
+}
+
+/** A safehouse stop: patch up and restock, then on to the next door. */
+export function restRoute(route, carry, maxHpValue) {
+  const r = JSON.parse(JSON.stringify(route)), k = JSON.parse(JSON.stringify(carry || {}));
+  const R0 = ROUTE.rest;
+  r.restUsed = true; r.f += 1;
+  k.hp = Math.min(maxHpValue, (k.hp || 0) + R0.heal);
+  k.bandages = Math.min(CARRY.bandages, (k.bandages || 0) + R0.bandages);
+  if (k.ammo) { k.ammo.cartridges = (k.ammo.cartridges || 0) + R0.cartridges; k.ammo.shells = (k.ammo.shells || 0) + R0.shells; }
+  k.pulses = (k.pulses || 0) + R0.pulses;
+  return { route: r, carry: k };
 }
 
 /** The customs clerk can scrub WARDEN's file on Rook: the next run starts with nothing on record. */
@@ -593,6 +722,44 @@ export function resolveExpedition(c, report) {
     }
   }
 
+  if (kind === 'route' && report.route) {
+    // a trip down one stratum: count the floor Rook finished on, if they came up with it done
+    const cfg = { route: report.route, storyChapter: report.storyChapter, jobId: report.jobId, floorKind: report.floorKind };
+    const r = advanceRoute(c, cfg, report) || report.route;
+    const S = ROUTE.strata[r.st];
+    const up = report.outcome === 'extracted';
+    summary.route = { stratum: S.name, cleared: r.cleared, floors: S.picks + 1, boss: r.boss };
+    // chapters finished on the way count even if Rook went down after
+    for (const cid of r.storyDone) {
+      const def2 = CHAPTERS.find((k) => k.id === cid);
+      if (!def2 || CHAPTERS[c.chapter]?.id !== cid) continue;
+      c.chapter += 1;
+      record(c, def2.event, def2.event === 'FOREMAN_DEAD' ? { exposed: has(c, 'EVIDENCE_EXPOSED') } : {});
+      summary.outro = def2.outro || summary.outro;
+      if (def2.choice) { c.pendingChoice = def2.choice; summary.choice = def2.choice; }
+      if (def2.final) summary.ending = has(c, 'EVIDENCE_EXPOSED') ? 'exposed' : 'sold';
+      for (const [f, d] of Object.entries(def2.reward?.rep ?? {})) adjustRep(c, f, d);
+      c.prosperity += def2.reward?.prosperity ?? 0;
+      summary.lines.push({ label: `Chapter: ${def2.title}`, value: up ? `+¢${def2.reward?.cash ?? 0}` : 'Done, though you went down', tone: 'good' });
+      if (up) c.cash += def2.reward?.cash ?? 0;
+      summary.done = true;
+    }
+    for (const jid of r.jobsDone) { c.jobsOnce = [...new Set([...(c.jobsOnce || []), jid])]; record(c, 'JOB_DONE', { id: jid, title: JOBS[jid]?.title }); }
+    c.jobsDone += Math.max(0, r.cleared - r.storyDone.length - (r.boss ? 1 : 0));
+    if (up) {
+      const pay = r.cleared * ROUTE.pay.floor + r.elite * ROUTE.pay.floor + (r.boss ? ROUTE.pay.boss : 0) + (r.boss && r.st === ROUTE.strata.length - 1 ? ROUTE.pay.finish : 0);
+      if (pay) { c.cash += pay; summary.lines.push({ label: `${S.name}: ${r.cleared} floor${r.cleared === 1 ? '' : 's'} cleared${r.boss ? ', boss down' : ''}`, value: `+¢${pay}`, tone: 'good' }); }
+    }
+    if (r.boss) {
+      const was = c.depth || 0;
+      c.depth = Math.max(was, Math.min(ROUTE.strata.length, r.st + 1));
+      if (c.depth > was && r.st + 1 < ROUTE.strata.length) summary.lines.push({ label: 'The way down is open', value: ROUTE.strata[r.st + 1].name, tone: 'good' });
+      if (r.st === ROUTE.strata.length - 1) { summary.done = true; summary.outro = summary.outro || 'You rode the lift up from under the foundations. Nobody on the deck has done that before.'; record(c, 'DESCENT_DONE', {}); }
+      summary.done = true;
+    }
+    c.descentBest = Math.max(c.descentBest || 0, (c.depth || 0));
+  }
+
   if (report.outcome === 'extracted' || report.outcome === 'fled') {
     const kept = report.outcome === 'extracted';
     // an intake record found and carried home goes in the journal: the next one in the story
@@ -605,7 +772,7 @@ export function resolveExpedition(c, report) {
       c.cash += lootTotal;
       summary.lines.push({ label: `Sold ${loot.length} find${loot.length === 1 ? '' : 's'}`, value: `+¢${lootTotal}` });
     }
-    if (kept && def && report.done && kind !== 'descent') {
+    if (kept && def && report.done && kind !== 'descent' && kind !== 'route') {
       const bountyJob = def.id === 'bounty';
       const payout = bountyJob ? 0 : offer.cash;
       c.cash += payout;
@@ -624,7 +791,7 @@ export function resolveExpedition(c, report) {
         if (def.once) c.jobsOnce = [...new Set([...(c.jobsOnce || []), def.id])];
         record(c, 'JOB_DONE', { id: def.id, title: offer.title });
       }
-    } else if (def && kind !== 'descent') {
+    } else if (def && kind !== 'descent' && kind !== 'route') {
       summary.lines.push({ label: `${kind === 'story' ? 'Chapter' : 'Job'}: ${summary.title}`, value: kept ? 'Not finished' : 'Abandoned', tone: 'muted' });
     }
     if (kept && carried.effects && c.bounty) {

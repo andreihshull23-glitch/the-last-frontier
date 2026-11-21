@@ -5,7 +5,7 @@
 import { createTitleScroll } from './titlescroll.js';
 import * as R from './rules.js';
 import { PAD_ACTIONS } from './gamepad.js';
-import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CRAWL, LOGS, CHAPTERS, AMMO, PROLOGUE, HERO, WARDEN, ELITES } from './content.js';
+import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CRAWL, LOGS, CHAPTERS, AMMO, PROLOGUE, HERO, WARDEN, ELITES, ROUTE } from './content.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -157,6 +157,18 @@ export function createUI(root, panelEl, api) {
         ${first ? `<div class="prologue"><p class="eyebrow">The story so far</p>${PROLOGUE.map((p) => `<p><strong>${esc(p.title)}.</strong> ${esc(p.text)}</p>`).join('')}</div>` : ''}
       </section>`;
     },
+    // a lift stop on a trip: the doors to the next floor, and the way back up
+    route() {
+      const r = data.route, S = ROUTE.strata[r.st];
+      return `<section class="result route">
+        <p class="eyebrow">${esc(S.name)} · ${esc(S.depth)} · lift stop ${r.f + 1} of ${S.picks + 1}</p>
+        <h1 class="result-head">${r.f === 0 ? 'Going down' : 'Next floor'}</h1>
+        ${r.cleared ? `<p class="lede">${r.cleared} floor${r.cleared === 1 ? '' : 's'} cleared${r.storyDone.length ? `, ${r.storyDone.length} chapter${r.storyDone.length === 1 ? '' : 's'}` : ''}. What you carry is only yours if you get it back up.</p>` : `<p class="lede">${esc(S.blurb)}</p>`}
+        <div class="doors">${data.options.map((o, i) => `<button class="door door-${o.kind}" data-act="door" data-i="${i}">
+          <span class="tag">${esc(o.tag)}</span><strong>${esc(o.title)}</strong><span class="brief">${esc(o.brief)}</span><span class="reward">${esc(o.reward)}</span></button>`).join('')}</div>
+        ${data.canGoUp ? '<button class="btn ghost" data-act="goup">Ride back up to Mercy Deck<span class="btn-sub">Keep what you carry; the stratum stays as it was</span></button>' : ''}
+      </section>`;
+    },
     // more found than the lift will carry: pick what goes up (the best value for the space is pre-ticked)
     cargo() {
       const C = data.cargo, room = C.capacity - C.reserved;
@@ -220,6 +232,8 @@ export function createUI(root, panelEl, api) {
     else if (act === 'settings') openPanel('settings', { fromTitle: true });
     else if (act === 'back') show(data.back || 'title', data.backData || {});
     else if (act === 'hire') { const r = R.hireDrifter(c(), Number(btn.dataset.i)); if (r.ok) { api.persist(); api.enterTown('saloon'); } else flash(r.reason); }
+    else if (act === 'door') api.pickDoor(Number(btn.dataset.i));
+    else if (act === 'goup') api.goUp();
     else if (act === 'cargo-toggle') { const i = Number(btn.dataset.i); data.take[i] = !data.take[i]; render(); }
     else if (act === 'cargo-done') { const r = api.cargoDone(data.take); if (!r.ok) flash(r.reason); }
     else if (act === 'results-done') { if (R.needsSuccessor(c())) show('hire'); else api.enterTown('trail'); }
@@ -387,6 +401,23 @@ export function createUI(root, panelEl, api) {
         <div class="row"><button class="btn" data-p="jobs">See the job board</button></div>${foot()}`;
     },
     stable() { return PANELS.jobs(); },
+    // the freight lift: which stratum to go down into
+    descent() {
+      const camp = c(), open = R.strataOpen(camp);
+      const ch = R.currentChapter(camp), chSt = ch ? R.stratumOf(ch.id) : -1;
+      return `${head('Freight lift', 'Going down')}
+        <p class="muted">One trip is one stratum: pick a door at every lift stop, beat the boss at the bottom, ride back up with what you carry. Going down on the way loses the trip, your kit and the creds on you.</p>
+        <div class="strata">${ROUTE.strata.map((S, i) => {
+          const locked = i > open, cleared = i < (camp.depth || 0);
+          return `<article class="stratum ${locked ? 'locked' : ''}">
+            <p class="eyebrow">${esc(S.depth)}${cleared ? ' · cleared' : ''}</p><h3>${esc(S.name)}</h3><p>${esc(S.blurb)}</p>
+            ${i === chSt && !camp.pendingChoice ? `<p class="good">Next chapter is down here: <strong>${esc(ch.title)}</strong>.</p>` : ''}
+            <button class="btn ${locked ? 'ghost' : ''}" data-p="route" data-id="${i}" ${locked ? 'disabled' : ''}>${locked ? 'Shut: beat the stratum above' : 'Go down'}<span class="btn-sub">${S.picks + 1} floors</span></button>
+          </article>`;
+        }).join('')}</div>
+        ${camp.pendingChoice ? '<p class="warn">The marshal is waiting on your decision about the ledger. The story waits until you make it.</p>' : ''}
+        ${loadout()}${foot()}`;
+    },
     jobs() {
       const camp = c();
       const list = R.availableMissions(camp);
@@ -420,7 +451,8 @@ export function createUI(root, panelEl, api) {
           </div></div>`;
       } else if (giver) {
         const m = R.availableMissions(camp).find((x) => x.kind === 'story');
-        body += m ? `${missionCard(m, true)}<div class="row"><button class="btn" data-p="pick" data-id="${esc(m.id)}">Take the job</button></div>` : '';
+        const st = m ? R.stratumOf(m.key) : -1;
+        body += m ? `${missionCard(m, true)}<p class="lede">It is down in <strong>${esc(ROUTE.strata[st]?.name ?? 'the tower')}</strong>. Take the freight lift at the west end of the concourse, go down into that stratum, and pick it at a lift stop.</p>${st > R.strataOpen(camp) ? `<p class="warn">The lift does not go that deep yet: beat the boss of ${esc(ROUTE.strata[R.strataOpen(camp)].name)} first.</p>` : ''}` : '';
       } else if (role === 'undertaker') {
         body += camp.fallen.length
           ? `<div class="graves">${camp.fallen.slice(-6).reverse().map((f) => `<div class="grave"><h3>${esc(f.name)}</h3><p class="epitaph">Killed by ${esc(f.killedBy)}.</p><p class="have">${plural(f.expeditions, 'run')} · ${plural(f.kills ?? 0, 'kill')}</p></div>`).join('')}</div>`
@@ -549,6 +581,7 @@ export function createUI(root, panelEl, api) {
     else if (act === 'ledger') { const r = R.chooseLedger(camp, id); done(r, 'chapter'); if (r.ok) { panel = 'talk'; renderPanel(); } }
     else if (act === 'jobs') { panel = 'jobs'; pdata = {}; renderPanel(); }
     else if (act === 'pick') { panel = 'jobs'; pdata = { pick: id }; renderPanel(); }
+    else if (act === 'route') { closePanel(); api.startRoute(+id); }
     else if (act === 'unpick') { pdata = {}; renderPanel(); }
     else if (act === 'ride') { const was = panel; panel = null; panelEl.hidden = true; panelEl.innerHTML = ''; if (!api.startRide(id)) { panel = was; panelEl.hidden = false; renderPanel(); } }
     else if (act === 'open') { if (id === 'close') closePanel(); else { const keep = pdata.fromTitle; panel = id; pdata = { fromTitle: keep }; renderPanel(); } }

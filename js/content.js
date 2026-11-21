@@ -457,6 +457,27 @@ export const DESCENT = {
   reward: { cashPerFloor: 65, cashFinish: 300 },
 };
 
+/**
+ * THE ROUTE: the game's core. A run is one trip down the Spire, from Mercy Deck to the Hollow, stratum by
+ * stratum. Each stratum has `picks` floors chosen at the lift (story, fight, elite, safehouse), then its boss
+ * floor (a Descent floor). The story's chapters are floors you reach: each lives in one stratum, and comes up
+ * when it is next. `pool` lists the job templates its fight and elite floors are drawn from.
+ * Coming back up with the job done banks what you carry; going down loses the run, the kit and the creds on you.
+ */
+export const ROUTE = {
+  strata: [
+    { id: 'stacks', name: 'The Stacks', depth: 'Levels 11 to 9', picks: 2, boss: 1, chapters: ['shipment', 'courier'],
+      pool: ['payroll', 'medicine', 'rustlers', 'bounty'], blurb: 'Hab blocks the Saints strip for parts. Gangs, scrap, stolen freight.' },
+    { id: 'site9', name: 'Site 9 and the Works', depth: 'Levels 8 to 3', picks: 3, boss: 2, chapters: ['site9', 'relays', 'foundry'],
+      pool: ['stakes', 'salvage', 'tin_core', 'tin_servos'], blurb: 'Meridian ground. Labs on no floor plan, relays, the foundry line.' },
+    { id: 'hollow', name: 'The Hollow', depth: 'Below the foundations', picks: 3, boss: 3, chapters: ['mine', 'hollow', 'foreman'],
+      pool: ['deep_claim', 'hollow_return', 'tin_voice'], blurb: 'The sublevels, the old works, and what Meridian dug up.' },
+  ],
+  pay: { floor: 30, boss: 110, finish: 400 },      // creds per floor cleared, per boss floor, for reaching the bottom
+  elite: { threat: 1.35, eliteChance: 0.3, loot: 1.7 },
+  rest: { heal: 60, bandages: 1, cartridges: 30, shells: 8, pulses: 1 },
+};
+
 /** Repeatable side jobs. `after` is how many chapters must be done first. */
 export const JOBS = {
   payroll: {

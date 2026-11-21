@@ -287,6 +287,16 @@
   @keyframes lift-count { 0% { content: 'LEVEL 12'; } 20% { content: 'LEVEL 11'; } 40% { content: 'LEVEL 10'; } 60% { content: 'LEVEL 9'; } 80% { content: 'LEVEL 8'; } 100% { content: 'SUBLEVEL'; } }
   .lift-job { font-size: clamp(20px, 3vw, 30px); color: var(--ink, #e8ecff); }
   @media (max-width: 640px) { .lift-shaft { grid-template-columns: 1fr; } .shaft { height: 40vh; } }
+  .strata { display: grid; gap: 10px; margin: 12px 0; }
+  .stratum { border: 1px solid rgba(255,255,255,.14); padding: 12px 14px; background: rgba(20,20,36,.7); }
+  .stratum.locked { opacity: .5; } .stratum h3 { margin: 2px 0 4px; }
+  .result.route .result-head { color: #ffd23f; font-size: clamp(40px, 8vw, 84px); }
+  .doors { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 18px 0; max-width: 980px; }
+  .door { display: grid; gap: 8px; text-align: left; padding: 16px; background: rgba(18,18,34,.92); border: 2px solid rgba(255,255,255,.16); color: inherit; font: inherit; cursor: pointer; min-height: 170px; align-content: start; }
+  .door:hover, .door:focus { border-color: #ffd23f; outline: none; }
+  .door .tag { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #3fe0ff; }
+  .door-story .tag { color: #ff3fa4; } .door-elite .tag { color: #ff5a4a; } .door-rest .tag { color: #5dff9a; } .door-boss .tag { color: #ffd23f; }
+  .door strong { font-size: 18px; } .door .brief { color: #b8bcda; font-size: 13px; } .door .reward { color: #ffd23f; font-size: 13px; }
   .warden-file { border-left: 3px solid #ff2e4a; padding: 6px 0 6px 14px; margin: 12px 0; } .warden-file .threat { color: #ff2e4a; letter-spacing: 2px; margin-right: 6px; }
   .result.cargo .result-head { color: var(--amber, #ffb43f); font-size: clamp(40px, 8vw, 84px); }
   .cargo-total { font-weight: 700; margin: 10px 0; } .cargo-total.bad { color: #ff5a4a; } .cargo-total.good { color: #5dff9a; }

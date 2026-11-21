@@ -73,6 +73,9 @@ const ui = createUI(uiRoot, panelEl, {
   continueGame,
   enterTown,
   startRide,
+  startRoute,
+  pickDoor,
+  goUp,
   onPanelClose,
   onCampaignChange: () => { app.dirty = true; },
   settings: () => app.settings,
@@ -183,7 +186,8 @@ function townUI() {
   if (c.pendingChoice) { hint = 'The ledger is in your pack. Talk to the marshal outside the customs hall.'; giver = 'marshal'; }
   else if (ch) {
     const name = ch.giver === 'rider' ? 'Nell Dunmore, outside the Low Tide' : 'the marshal, outside the customs hall';
-    hint = `Chapter ${c.chapter + 1} of ${CHAPTERS.length}: ${ch.goal} Talk to ${name}. Press J for the story so far.`;
+    const st = R.stratumOf(ch.id), where = R.ROUTE_NAMES?.[st];
+    hint = `Chapter ${c.chapter + 1} of ${CHAPTERS.length}: ${ch.goal} It is down in ${where || 'the tower'}: take the freight lift. ${name ? `Ask ${name} about it.` : ''} J for the story.`;
     giver = ch.giver;
   } else hint = 'The story is finished. There is always work on the board.';
   return { cash: c.cash, who, hint, giver, flag, canRide: R.availableMissions(c).length > 0 };
@@ -250,6 +254,49 @@ function rideLift(fromSim, label, make, fail) {
   };
 }
 
+// ------------------------------------------------------------------ the route: one stratum per trip
+
+/** Start a trip down into stratum `st`: the doors of the first lift stop. */
+function startRoute(st) {
+  const c = app.campaign;
+  const b = R.beginRoute(c, st, (Math.random() * 4294967296) >>> 0);
+  if (!b.ok) { toast(renderer, b.reason, 'bad'); return; }
+  persist();
+  audio.unlock();
+  app.route = b.route; app.routeOptions = b.options; app.routeCarry = null;
+  controls.setEnabled(false); controls.releaseLock();
+  ui.show('route', { route: b.route, options: b.options, canGoUp: false });
+}
+
+/** A door at a lift stop: a safehouse patches Rook up there and then; any other is the next floor. */
+function pickDoor(i) {
+  const c = app.campaign, opt = app.routeOptions?.[i];
+  if (!opt || !app.route) return;
+  if (opt.kind === 'rest') {
+    const r = R.restRoute(app.route, app.routeCarry, R.maxHp(c.character));
+    app.route = r.route; app.routeCarry = r.carry; app.routeOptions = R.routeOptions(c, r.route);
+    audio.play('heal');
+    ui.show('route', { route: r.route, options: app.routeOptions, canGoUp: true });
+    return;
+  }
+  const config = R.routeFloor(c, app.route, opt, app.routeCarry);
+  app.routeOptions = null;
+  ui.hide();
+  audio.play('chapter');
+  const from = app.sim;
+  rideLift(from, config.title, () => createSim(config, generateLevel(config.level)), () => {
+    if (app.mode === 'town') { R.abortExpedition(c, config.expeditionId); persist(); enterTown('trail'); toast(renderer, 'The lift jammed. Try again.', 'bad'); }
+    else settleRide();
+  });
+}
+
+/** Leave the trip at a lift stop: ride up with what Rook carries. */
+function goUp() {
+  app.routeOptions = null;
+  ui.hide();
+  finishRide();
+}
+
 function startRide(missionId) {
   const c = app.campaign;
   const seed = (Math.random() * 4294967296) >>> 0;
@@ -275,7 +322,7 @@ function enterRide(sim) {
 function beginStage(sim, mode) {
   app.sim = sim;
   app.mode = mode;
-  app.acc = 0; app.last = 0; app.endT = 0; app.resolved = false; app.cargoChosen = false; app.liftedOut = false; app.runSaveT = 0; app.pending = {};
+  app.acc = 0; app.last = 0; app.endT = 0; app.resolved = false; app.cargoChosen = false; app.liftedOut = false; app.routeDecided = false; app.runSaveT = 0; app.pending = {};
   ui.hide();
   if (ui.panel) ui.closePanel();
   panelEl.hidden = true;
@@ -294,8 +341,21 @@ function saveRun() {
 }
 
 function finishRide() {
+  // a trip down a stratum: a floor done means a lift stop, with doors down and the way back up
+  const cfg = app.sim.state.config;
+  if (cfg.route && !app.routeDecided) {
+    app.routeDecided = true;
+    const rep = app.sim.state.report;
+    const adv = R.advanceRoute(app.campaign, cfg, rep);
+    if (adv && !adv.boss) {
+      app.route = adv; app.routeCarry = rep.carry; app.routeOptions = R.routeOptions(app.campaign, adv);
+      controls.setEnabled(false); controls.releaseLock();
+      ui.show('route', { route: adv, options: app.routeOptions, canGoUp: true });
+      return;
+    }
+  }
   // The Descent: the lift goes down to the next floor, carrying what the drifter holds.
-  const down = R.nextFloor(app.campaign, app.sim.state.config, app.sim.state.report);
+  const down = cfg.route ? null : R.nextFloor(app.campaign, cfg, app.sim.state.report);
   if (down) {
     audio.play('chapter');
     rideLift(app.sim, down.title, () => createSim(down, generateLevel(down.level)), () => settleRide());
@@ -439,7 +499,7 @@ function vibrate(ms) {
 
 function townInteract(e) {
   if (e.kind === 'shop') openPanel(e.shop === 'stable' ? 'jobs' : e.shop);
-  else if (e.kind === 'board' || e.kind === 'ride') openPanel('jobs');
+  else if (e.kind === 'board' || e.kind === 'ride') openPanel('descent');
   else if (e.kind === 'talk') openPanel('talk', { role: e.role, name: e.name });
   else if (e.kind === 'grave') toast(renderer, e.text || 'A wooden marker.', 'info', true);
 }
@@ -835,6 +895,9 @@ if (debug) {
     town: () => enterTown('trail'),
     ride: (id) => startRide(id),
     cutscenes: (on = true) => { app.cutscenes = on; },
+    route: (st) => startRoute(st),
+    door: (i) => pickDoor(i),
+    goUp: () => goUp(),
     open: (name, data) => openPanel(name, data),
   };
 }

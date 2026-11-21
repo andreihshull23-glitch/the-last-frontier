@@ -609,3 +609,76 @@ test('Saints and Meridian fight each other, and a flare only calls its own side'
   assert.ok(saint.hp + sentry.hp < hp0, 'they shot each other');
   assert.ok(saint.foe || sentry.foe || saint.dead || sentry.dead, 'each took the other on');
 });
+
+// ---------------------------------------------------------------- the route
+
+test('the route: a trip down one stratum, doors at each stop, chapters count even if Rook goes down', async () => {
+  const { ROUTE } = await import('../js/content.js');
+  const c = campaign();
+  assert.equal(R.strataOpen(c), 0, 'only the first stratum to start with');
+  assert.equal(R.beginRoute(c, 1, 5).ok, false, 'deeper strata are shut');
+  const b = R.beginRoute(c, 0, 5);
+  assert.ok(b.ok);
+  assert.ok(b.options.length >= 2, 'a choice of doors');
+  assert.ok(b.options.some((o) => o.kind === 'story'), 'the first chapter is on the way down');
+  // every kind of door builds a valid floor
+  for (const o of b.options) {
+    const cfg = R.routeFloor(c, b.route, o);
+    assert.deepEqual(validateLevel(generateLevel(cfg.level)), [], o.id);
+  }
+  // play the story floor: take the case, reach the lift
+  const story = b.options.find((o) => o.kind === 'story');
+  const cfg = R.routeFloor(c, b.route, story);
+  const sim = createSim(cfg, generateLevel(cfg.level));
+  const s = sim.state;
+  s.carried.items.push('strongbox');
+  const exit = s.interactables.find((i) => i.kind === 'exit');
+  for (const e of s.enemies) { e.x = 60; e.y = 60; }
+  s.player.hp = s.player.maxHp = 1e6; s.player.x = exit.x; s.player.y = exit.y;
+  update(sim, 1 / 60, { interactPressed: true });
+  run(sim, 12, {});
+  assert.equal(s.report.outcome, 'extracted');
+  const next = R.advanceRoute(c, cfg, s.report);
+  assert.deepEqual(next.storyDone, ['shipment']);
+  assert.equal(next.f, 1);
+  // the next stop offers a safehouse; resting heals and uses up a stop
+  const opts = R.routeOptions(c, next);
+  assert.ok(opts.some((o) => o.kind === 'rest'));
+  const rest = R.restRoute(next, { ...s.report.carry, hp: 10 }, 100);
+  assert.ok(rest.carry.hp > 10 && rest.route.f === 2);
+  // the stop after that is the boss
+  assert.equal(R.routeOptions(c, rest.route)[0].kind, 'boss');
+  const bossCfg = R.routeFloor(c, rest.route, R.routeOptions(c, rest.route)[0], rest.carry);
+  assert.deepEqual(validateLevel(generateLevel(bossCfg.level)), []);
+  // go down on the boss floor: the chapter still counts, the next stratum stays shut
+  const sim2 = createSim(bossCfg, generateLevel(bossCfg.level));
+  sim2.state.player.hp = 0;
+  run(sim2, 3, {});
+  assert.equal(sim2.state.report.outcome, 'died');
+  const sum = R.resolveExpedition(c, sim2.state.report);
+  assert.ok(sum.ok);
+  assert.equal(c.chapter, 1, 'chapter one counted');
+  assert.equal(R.strataOpen(c), 0);
+  assert.equal(R.resolveExpedition(c, sim2.state.report).ok, false, 'settled once');
+  void ROUTE;
+});
+
+test('the route: beating a stratum boss opens the next stratum and pays', () => {
+  const c = campaign();
+  const b = R.beginRoute(c, 0, 9);
+  const route = { ...b.route, f: 2 };
+  const cfg = R.routeFloor(c, route, R.routeOptions(c, route)[0]);
+  const sim = createSim(cfg, generateLevel(cfg.level));
+  const s = sim.state;
+  s.targetKilled = true;
+  const exit = s.interactables.find((i) => i.kind === 'exit');
+  for (const e of s.enemies) { e.x = 60; e.y = 60; e.dead = true; }
+  s.player.hp = s.player.maxHp = 1e6; s.player.x = exit.x; s.player.y = exit.y;
+  update(sim, 1 / 60, { interactPressed: true });
+  run(sim, 12, {});
+  assert.equal(s.report.outcome, 'extracted');
+  const cash = c.cash;
+  R.resolveExpedition(c, s.report);
+  assert.equal(R.strataOpen(c), 1, 'the next stratum is open');
+  assert.ok(c.cash > cash, 'paid');
+});
