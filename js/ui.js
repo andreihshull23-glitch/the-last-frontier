@@ -5,7 +5,7 @@
 import { createTitleScroll } from './titlescroll.js';
 import * as R from './rules.js';
 import { PAD_ACTIONS } from './gamepad.js';
-import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CRAWL, LOGS, CHAPTERS, AMMO, PROLOGUE, HERO, WARDEN, ELITES, ROUTE } from './content.js';
+import { GEAR, SUPPLIES, INVESTMENTS, TRAITS, FACTIONS, GUNS, GUN_ORDER, UPGRADES, gunStats, SHOPS, TALK, ASK, CRAWL, LOGS, CHAPTERS, AMMO, PROLOGUE, HERO, WARDEN, ELITES, ROUTE, ATM } from './content.js';
 
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -98,7 +98,7 @@ export function createUI(root, panelEl, api) {
       return `<section class="title-copy">
         <p class="eyebrow">A cyberpunk roguelike</p>
         <h1 class="title">The Last<br>Frontier</h1>
-        <p class="lede">A sealed tower. A corporation that lost control of its own machines. Something older waking under the foundations. Take the job, get out before lockdown, and spend what you earn on the deck.</p>
+        <p class="lede">A sealed tower that feeds its own people to something under the foundations. One freight lift going down. Take it a stratum deeper every trip, come back up with what you can carry, and break what is at the bottom.</p>
         <div class="actions">
           ${cont}
           <button class="btn ${camp ? 'ghost' : ''}" data-act="new">${camp ? 'New campaign' : 'Jack in'}${camp ? '' : '<span class="btn-sub">Start a new campaign</span>'}</button>
@@ -114,12 +114,13 @@ export function createUI(root, panelEl, api) {
     howto() {
       return `<section class="result">
         <p class="eyebrow">How to play</p>
-        <h1 class="h-screen">Go out. Come back.</h1>
+        <h1 class="h-screen">Go down. Come back up.</h1>
         <div class="rules">
-          <div><h3>The loop</h3><p>Walk Mercy Deck. Buy supplies and kit, fit a plug-in, unlock guns. Take a job at the board or from the marshal, then take the freight lift at the west end of the concourse.</p></div>
-          <div><h3>The run</h3><p>Reach the objective, then reach an exit: the lift you came in by, or the tram stop. Hold still in the circle for six seconds. Everything you picked up is unsecured until you do.</p></div>
-          <div><h3>Lockdown</h3><p>The clock at the top counts down to lockdown. After it you see less, and Hollow walkers hunt in growing packs.</p></div>
-          <div><h3>Going down</h3><p>The clinic drags you back to the deck. You lose what the run turned up and the kit you wore. Banked creds, plug-ins, unlocked guns, the deck and the story are kept. If a person put you down, they take your kit and become a bounty you can hunt.</p></div>
+          <div><h3>The descent</h3><p>The Spire is three strata deep: the Stacks, Site 9 and the Works, the Hollow. Take the freight lift at the west end of Mercy Deck and pick a stratum. Each trip goes down one.</p></div>
+          <div><h3>Lift stops</h3><p>At every stop you pick a door: the story's next chapter (when it is in this stratum), a fight, an elite floor (harder, pays a relic), or a safehouse. The last floor is the stratum's boss. Beat it and the lift opens the next stratum down.</p></div>
+          <div><h3>A floor</h3><p>Do what the floor needs, then reach the lift and hold still in the circle. Then go deeper, or ride back up with what you carry. Finds only count once they are up on the deck.</p></div>
+          <div><h3>Going down</h3><p>If you drop, the recovery crews drag you back up. Lost: the trip's finds, the kit you wore, the creds on you. Kept: what is in the ATM, plug-ins, unlocked guns, the strata you have opened, and every chapter you finished on the way. If a person put you down, they keep your kit and your creds and become a bounty.</p></div>
+          <div><h3>WARDEN</h3><p>It watches how you fight, sends what counters it, and remembers between trips. The customs clerk can scrub its file. Override (T) turns its machines against it; Overclock (Z) burns the same charge on your own implants.</p></div>
           <div><h3>Fighting</h3><p>Every enemy shows where its attack will land before it lands: a cone, a line or a circle on the ground. Step out, or roll through with Space. An aimed shot staggers most enemies out of a wind-up.</p></div>
           <div><h3>Machines</h3><p>Meridian's robots take more punishment than people. Energy weapons hit them much harder, and the arc caster locks them up for a moment.</p></div>
           <div><h3>Quiet</h3><p>Enemies see in a cone and hear gunfire, sprinting and explosions. A ring over a head is suspicion filling. Scouts fire flares: kill them first.</p></div>
@@ -201,7 +202,7 @@ export function createUI(root, panelEl, api) {
         ${s.lines.length ? `<table class="ledger">${s.lines.map((l) => `<tr class="${l.tone || ''}"><th>${esc(l.label)}</th><td>${esc(l.value)}</td></tr>`).join('')}</table>` : ''}
         ${deltas.length ? `<div class="deltas">${deltas.join('')}</div>` : ''}
         ${s.lost?.length ? `<p class="lost">Lost: ${esc(s.lost.join(', '))}.</p>` : ''}
-        ${s.down ? `<div class="memory"><p><strong>You went down.</strong> Killed by ${esc(s.down.killedBy)}. The clinic's recovery team dragged you back to the deck${s.down.times > 1 ? `, for the ${s.down.times}${['th','st','nd','rd'][s.down.times % 10 > 3 || (s.down.times % 100 > 10 && s.down.times % 100 < 14) ? 0 : s.down.times % 10]} time` : ''}.</p><p class="muted">Gone: everything the run turned up${s.down.lostKit.length ? `, and the kit you wore (${esc(s.down.lostKit.join(', '))})` : ''}. Kept: banked creds, plug-ins, unlocked guns, the deck and the story.</p></div>` : ''}
+        ${s.down ? `<div class="memory"><p><strong>You went down.</strong> Killed by ${esc(s.down.killedBy)}. The clinic's recovery team dragged you back to the deck${s.down.times > 1 ? `, for the ${s.down.times}${['th','st','nd','rd'][s.down.times % 10 > 3 || (s.down.times % 100 > 10 && s.down.times % 100 < 14) ? 0 : s.down.times % 10]} time` : ''}.</p><p class="muted">Gone: everything the trip turned up${s.down.lostKit.length ? `, the kit you wore (${esc(s.down.lostKit.join(', '))})` : ''}${s.down.lostCash ? `, and the ¢${s.down.lostCash} you had on you` : ''}. Kept: what is in the QuikCred kiosk, plug-ins, unlocked guns, the strata you have opened, and every chapter you finished.</p>${s.bounty?.cash ? `<p class="wanted">${esc(s.bounty.name)} has your ¢${s.bounty.cash} as well. Get it back.</p>` : ''}</div>` : ''}
         ${s.obituary ? `<div class="memory"><p><strong>${esc(s.obituary.name)}</strong>, ${esc(TRAITS[s.obituary.trait]?.name.toLowerCase() ?? '')}. ${plural(s.obituary.expeditions, 'run')}, ${plural(s.obituary.kills, 'kill')}. Killed by ${esc(s.obituary.killedBy)}.</p>
           ${s.bounty ? `<p class="wanted"><strong>Wanted: ${esc(s.bounty.name)}.</strong> They took ${s.bounty.gear.length ? esc(s.bounty.gear.map((g) => GEAR[g]?.name.toLowerCase()).join(', ')) : 'what was carried'}. Kill them and bring the effects home.</p>` : ''}
           <p class="muted">Your creds and the deck are still here.</p></div>` : ''}
@@ -236,7 +237,7 @@ export function createUI(root, panelEl, api) {
     else if (act === 'goup') api.goUp();
     else if (act === 'cargo-toggle') { const i = Number(btn.dataset.i); data.take[i] = !data.take[i]; render(); }
     else if (act === 'cargo-done') { const r = api.cargoDone(data.take); if (!r.ok) flash(r.reason); }
-    else if (act === 'results-done') { if (R.needsSuccessor(c())) show('hire'); else api.enterTown('trail'); }
+    else if (act === 'results-done') { if (R.needsSuccessor(c())) show('hire'); else api.enterTown(data.summary?.down ? 'clinic' : 'trail'); }
   });
 
   // ---------------------------------------------------------------- panels
@@ -365,6 +366,18 @@ export function createUI(root, panelEl, api) {
         <div class="items">${Object.entries(GEAR).map(([id, g]) => (ch.gear.includes(id)
     ? `<div class="item built"><div><h3>${esc(g.name)}</h3><p>${esc(g.desc)}</p></div><span class="have">Worn</span></div>`
     : buyRow(g.name, g.desc, '', R.canBuy(camp, id), 'Buy', `data-p="buy" data-id="${id}"`))).join('')}</div>${foot()}`;
+    },
+    // the QuikCred kiosk: put creds where going down cannot reach them, for a fee and a wait
+    atm() {
+      const camp = c(), v = R.vaultInfo(camp), fee = (n) => R.depositFee(n);
+      const opt = (n, label) => `<button class="btn ${camp.cash > n ? '' : 'ghost'}" data-p="deposit" data-id="${n}" ${camp.cash > ATM.minFee && camp.cash >= Math.min(n, camp.cash) ? '' : 'disabled'}>${label}<span class="btn-sub">fee ¢${fee(Math.min(n, camp.cash))}</span></button>`;
+      return `${head('QuikCred', 'Deposits for the unregistered')}
+        <p class="muted">“YOUR FUNDS ARE SAFE WITH QUIKCRED.” The screen is cracked and the logo is three owners old. It takes ${Math.round(ATM.fee * 100)}% and holds every deposit for ${ATM.lock} trips while it “verifies” you. What is in here does not go down with you. What is in your pocket does.</p>
+        <dl class="kit"><div><dt>On you</dt><dd class="num">¢${camp.cash}</dd></div><div><dt>Ready to take out</dt><dd class="num">¢${v.ready}</dd></div>
+          ${v.locked.map((d) => `<div><dt>Locked</dt><dd class="num">¢${d.amount} · ${d.trips} trip${d.trips === 1 ? '' : 's'}</dd></div>`).join('')}</dl>
+        <div class="row">${opt(50, 'Deposit ¢50')}${opt(150, 'Deposit ¢150')}<button class="btn" data-p="deposit" data-id="all" ${camp.cash > ATM.minFee ? '' : 'disabled'}>Deposit everything<span class="btn-sub">¢${camp.cash}</span></button></div>
+        <div class="row"><button class="btn ghost" data-p="withdraw" ${v.ready ? '' : 'disabled'}>Take out ¢${v.ready}</button></div>
+        ${foot()}`;
     },
     clinic() {
       const camp = c(), ch = camp.character;
@@ -577,6 +590,8 @@ export function createUI(root, panelEl, api) {
     else if (act === 'invest') done(R.invest(camp, id));
     else if (act === 'treat') done(R.treat(camp), 'heal');
     else if (act === 'scrub') done(R.scrubWarden(camp));
+    else if (act === 'deposit') done(R.deposit(camp, id === 'all' ? camp.cash : Math.min(+id, camp.cash)), 'loot');
+    else if (act === 'withdraw') done(R.withdraw(camp), 'loot');
     else if (act === 'ask') { pdata.ask = +id; pdata.asked = [...new Set([...(pdata.asked || []), +id])]; renderPanel(); }
     else if (act === 'ledger') { const r = R.chooseLedger(camp, id); done(r, 'chapter'); if (r.ok) { panel = 'talk'; renderPanel(); } }
     else if (act === 'jobs') { panel = 'jobs'; pdata = {}; renderPanel(); }

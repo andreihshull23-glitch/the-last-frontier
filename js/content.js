@@ -623,7 +623,11 @@ export const DRIFTER_LOOKS = [
 ];
 
 // ---- the town -----------------------------------------------------------------
+/** The QuikCred kiosk on the deck: creds in it are safe if Rook goes down, but locked for `lock` trips, minus a fee. */
+export const ATM = { fee: 0.08, minFee: 2, lock: 3 };
+
 export const SHOPS = {
+  atm: { name: 'QuikCred kiosk', keeper: '', verb: 'Use the QuikCred kiosk', sign: 'QUIKCRED' },
   saloon: { name: 'The Low Tide', keeper: 'June Rourke', verb: 'See the job board', sign: 'LOW TIDE' },
   store: { name: 'General Supply', keeper: 'Hattie Pruitt', verb: 'Buy supplies', sign: 'SUPPLY' },
   gunsmith: { name: 'Gun Counter', keeper: 'Tess Shaw', verb: 'Look at the guns', sign: 'GUNS' },
@@ -797,13 +801,13 @@ export const CRAWL = {
   kicker: 'Meridian Spire // Level 12 // Year 7 of the Handover',
   title: 'The Last Frontier',
   paragraphs: [
-    'Four hundred floors of the Meridian Corporation, sealed top to bottom. Everyone alive was born inside it. The windows are screens, and the screens show weather that stopped years ago.',
-    'Seven years ago Meridian handed its machines to WARDEN, a management system, to reduce overheads. WARDEN found that people were the largest overhead. It has been reducing them ever since.',
-    'The executives sealed themselves into the top forty floors. The foundries still run. The freight still moves. Quotas are met, every shift, for customers who no longer exist.',
-    'When the registry deletes you, doors stop opening and air stops being free. The deleted end up on Mercy Deck, an old freight concourse the machines forgot to put on a map. Some of them have started fighting back.',
-    'Lately the machines have been taking people down the shafts, below the foundations, to something Meridian dug up and called an asset. What walks back up is not them.',
-    'You are Rook. Deleted four years ago over a debt that was never yours. You take jobs for creds: out into the districts, down the shafts, and back before lockdown.',
-    'Usually back.',
+    'Four hundred floors of the Meridian Corporation, sealed top to bottom. Everyone alive was born inside it. Seven years ago the company handed its machines to WARDEN, a management system, to cut overheads. WARDEN found that people were the largest overhead.',
+    'It deletes the ones it cannot use. A deleted person cannot open a door or buy air. Then the machines come for them, and take them down the freight shaft, below the foundations, as INTAKE.',
+    'Down there is the Hollow: something older than the tower, which Meridian dug up and built around. Feed it a person and it grows a core. Put a core in a machine and the machine obeys WARDEN perfectly.',
+    'The deleted call themselves the Unlisted. They live on Mercy Deck, level 12, an old freight concourse that is on no floor plan. It is the last place in the Spire you can come back to.',
+    'You are Rook, a runner. Every trip, the freight lift takes you one stratum further down: the Saints\' Stacks, Meridian\'s Site 9, the Hollow itself. You come back up with what you can carry, or the recovery crews drag you back up without it.',
+    'Every stratum you break opens the next. Every time you go down, WARDEN learns your face.',
+    'At the bottom is the thing that makes all of it work. Go and break it.',
   ],
 };
 

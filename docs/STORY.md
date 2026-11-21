@@ -2,6 +2,14 @@
 
 The setting, the people and the plot. Everything written for the game should agree with this. Tone: a bleak corporate world, told by tired people with a dry sense of humour.
 
+## The premise in one breath
+
+A sealed tower feeds its own people to something under the foundations. One freight lift goes down. Rook takes it a stratum deeper every trip, comes back up with what can be carried, and means to break what is at the bottom.
+
+**The core is the descent.** The Spire is three strata deep: the Stacks (the Rust Saints' hab blocks), Site 9 and the Works (Meridian's labs, relays and the foundry), and the Hollow (below the foundations). Each trip on the freight lift goes down one stratum: a door at every lift stop, a boss at the bottom, then back up to Mercy Deck. Beating a boss opens the next stratum. The story's chapters are floors on the way down. WARDEN learns Rook's face every trip.
+
+**Why Rook comes back.** The Unlisted run recovery crews in the shaft. A runner who drops is dragged back up to Doc Merritt's clinic; whatever they carried stays down there, and if a ganger did it, the ganger wears it. Creds in the QuikCred kiosk on the deck are safe, for a fee and a wait.
+
 ## The world
 
 **The Meridian Spire** is a sealed megatower, four hundred floors, built by the Meridian Corporation to house everyone who worked for it. Nobody now alive has been outside.
@@ -49,9 +57,9 @@ The setting, the people and the plot. Everything written for the game should agr
 7. **The Foundry.** Without the shard the Hollow is going quiet, but the foundry has cores stockpiled and is building enforcers as fast as it can. Destroy the **Overseer** that runs the line.
 8. **The Director.** Harlan Voss signed the intake orders. He has spent twenty years replacing himself with machine parts and has come down from the top floors to take the shard back. End it.
 
-## The Descent
+## The route
 
-A repeatable run for runners who want coin more than a cause: three floors down the old freight shaft (the Lower Works, the Foundry, the Hull of the Hollow), each a string of rooms that seal behind you, with a strongroom, a fence and a floor boss.
+Three strata, one trip each: the Stacks (boss: the Saint), Site 9 and the Works (boss: the Overseer), the Hollow (boss: the Warden). At each lift stop: the chapter that is due (if it lives in this stratum), a fight, an elite floor (harder, pays a relic), or a safehouse (once per trip). The boss floors are the old Descent's sealed-room floors.
 
 ## Vocabulary
 

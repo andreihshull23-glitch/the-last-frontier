@@ -11,7 +11,7 @@
 
 import {
   CHAPTERS, JOBS, GEAR, SUPPLIES, INVESTMENTS, TRAITS, PERKS, CLINIC_PRICE, GUNS, UPGRADES, AMMO, CARRY, ITEMS, SHOPS, TELEGRAMS,
-  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER, HERO, LOGS, COMMS, SYSTEMS, WARDEN, ROUTE, RELICS,
+  FIRST_NAMES, LAST_NAMES, BIOS, OUTLAW_FIRST, OUTLAW_NICK, OUTLAW_LAST, ENEMIES, DRIFTER_LOOKS, DESCENT, START_GUN, GUN_ORDER, HERO, LOGS, COMMS, SYSTEMS, WARDEN, ROUTE, RELICS, ATM,
 } from './content.js';
 import { makeRng, mixSeed } from './rng.js';
 
@@ -615,6 +615,31 @@ export function restRoute(route, carry, maxHpValue) {
   return { route: r, carry: k };
 }
 
+// ---------------------------------------------------------------- the QuikCred kiosk
+
+/** What is in the kiosk: ready to take out, and still locked (with the trip it frees up after). */
+export function vaultInfo(c) {
+  const now = c.expeditionCount || 0, v = c.vault || [];
+  return { ready: v.filter((d) => d.until <= now).reduce((a, d) => a + d.amount, 0), locked: v.filter((d) => d.until > now).map((d) => ({ amount: d.amount, trips: d.until - now })) };
+}
+export const depositFee = (amount) => (amount > 0 ? Math.max(ATM.minFee, Math.ceil(amount * ATM.fee)) : 0);
+export function deposit(c, amount) {
+  amount = Math.floor(Math.min(c.cash, amount));
+  if (amount <= ATM.minFee) return fail('Not enough to be worth the fee.');
+  const fee = depositFee(amount);
+  c.cash -= amount;
+  c.vault = [...(c.vault || []), { amount: amount - fee, until: (c.expeditionCount || 0) + ATM.lock }];
+  return { ok: true, message: `Deposited ¢${amount - fee} (¢${fee} fee). Locked for ${ATM.lock} trips.` };
+}
+export function withdraw(c) {
+  const { ready } = vaultInfo(c);
+  if (!ready) return fail('Nothing has cleared yet.');
+  const now = c.expeditionCount || 0;
+  c.vault = (c.vault || []).filter((d) => d.until > now);
+  c.cash += ready;
+  return { ok: true, message: `Withdrew ¢${ready}.` };
+}
+
 /** The customs clerk can scrub WARDEN's file on Rook: the next run starts with nothing on record. */
 export function canScrubWarden(c) {
   if (!c.warden || (!c.warden.level && !c.warden.focus)) return fail('WARDEN has nothing on file.');
@@ -802,7 +827,7 @@ export function resolveExpedition(c, report) {
         if (ch.gear.includes(g)) refund += Math.floor(GEAR[g].cost / 2);
         else { ch.gear.push(g); back.push(GEAR[g].name); }
       }
-      const reward = BOUNTY_REWARD * c.bounty.notoriety + refund;
+      const reward = BOUNTY_REWARD * c.bounty.notoriety + refund + (c.bounty.cash || 0);
       c.cash += reward;
       record(c, 'BOUNTY_CLAIMED', { outlaw: c.bounty.name, victims: c.bounty.victims.join(' AND ') });
       summary.lines.push({ label: `Bounty on ${c.bounty.name}`, value: `+¢${reward}`, tone: 'good' });
@@ -833,20 +858,24 @@ export function resolveExpedition(c, report) {
       c.bounty = null;
     }
     summary.lost = [...loot.map((l) => `${l.name} (¢${l.value})`), ...ch.gear.map((g) => GEAR[g]?.name ?? g)];
+    // the creds Rook took down stay down there; what is in the kiosk, and what this trip sent up, is safe
+    const carriedCash = Math.max(0, Math.min(c.cash, before.cash));
+    if (carriedCash > 0) { summary.lost.push(`¢${carriedCash} on you`); c.cash -= carriedCash; }
     // The runner does not die for good: the clinic's recovery team drags them back to the deck.
     // What the run turned up is gone, and so is the kit they wore.
     c.deaths = (c.deaths || 0) + 1;
-    summary.down = { killedBy: label, times: c.deaths, lostKit: ch.gear.map((g) => GEAR[g]?.name ?? g) };
+    summary.down = { killedBy: label, times: c.deaths, lostKit: ch.gear.map((g) => GEAR[g]?.name ?? g), lostCash: carriedCash };
     record(c, 'DRIFTER_DIED', { name: ch.name, killer: label });
     if (killer && HUMAN_KILLERS.has(killer.kind) && killer.kind !== 'foreman') {
       if (c.bounty) {
         c.bounty.gear = [...new Set([...c.bounty.gear, ...ch.gear])];
         c.bounty.victims.push(ch.name);
         c.bounty.notoriety += 1;
+        c.bounty.cash = (c.bounty.cash || 0) + carriedCash;
         record(c, 'BOUNTY_GREW', { outlaw: c.bounty.name, victim: ch.name });
       } else {
         const name = killer.kind === 'bounty' && killer.name ? killer.name : rollOutlawName(c);
-        c.bounty = { name, gear: [...ch.gear], victims: [ch.name], notoriety: 1 };
+        c.bounty = { name, gear: [...ch.gear], victims: [ch.name], notoriety: 1, cash: carriedCash };
         record(c, 'BOUNTY_POSTED', { outlaw: name, victim: ch.name });
       }
       summary.bounty = { ...c.bounty };
@@ -916,6 +945,14 @@ export function fromSavePayload(payload) {
   c.jobsDone = Math.max(0, Math.round(num(raw.jobsDone, 0)));
   c.logs = Array.isArray(raw.logs) ? raw.logs.filter((n) => Number.isInteger(n) && n >= 0 && n < LOGS.length) : [];
   c.jobsOnce = Array.isArray(raw.jobsOnce) ? raw.jobsOnce.filter((j) => JOBS[j]?.once) : [];
+  // the route, WARDEN's file, the tower's aftermath, the kiosk
+  c.depth = clamp(Math.round(num(raw.depth, 0)), 0, ROUTE.strata.length);
+  c.warden = raw.warden && typeof raw.warden === 'object' && WARDEN.patterns[raw.warden.focus]
+    ? { level: clamp(Math.round(num(raw.warden.level, 0)), 0, WARDEN.max), focus: raw.warden.focus, runs: Math.round(num(raw.warden.runs, 0)),
+      stats: Object.fromEntries(Object.entries(raw.warden.stats || {}).filter(([, v]) => Number.isFinite(v)).map(([k, v]) => [k, Math.max(0, v)])) }
+    : null;
+  c.aftermath = Array.isArray(raw.aftermath) ? raw.aftermath.filter((a) => SYSTEMS[a?.id]?.persist).map((a) => ({ id: a.id, runs: clamp(Math.round(num(a.runs, 1)), 1, 9) })) : [];
+  c.vault = Array.isArray(raw.vault) ? raw.vault.filter((v) => Number.isFinite(v?.amount) && v.amount > 0).map((v) => ({ amount: Math.round(v.amount), until: Math.round(num(v.until, 0)) })) : [];
   // a TIN rebuilt before the side jobs existed stays rebuilt
   if (c.investments.includes('deputy') && !c.jobsOnce.includes('tin_voice')) c.jobsOnce.push('tin_core', 'tin_servos', 'tin_voice');
   c.descentBest = Math.max(0, Math.round(num(raw.descentBest, 0)));
@@ -945,6 +982,7 @@ export function fromSavePayload(payload) {
       gear: Array.isArray(raw.bounty.gear) ? raw.bounty.gear.filter((g) => GEAR[g]) : [],
       victims: Array.isArray(raw.bounty.victims) ? raw.bounty.victims.map(String) : [],
       notoriety: clamp(Math.round(num(raw.bounty.notoriety, 1)), 1, 9),
+      cash: Math.max(0, Math.round(num(raw.bounty.cash, 0))),
     };
   }
   const ch = raw.character;

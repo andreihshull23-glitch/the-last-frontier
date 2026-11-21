@@ -2,7 +2,7 @@
 
 A cyberpunk extraction roguelike that runs in the browser, seen from behind the runner's shoulder. Vanilla ES modules with no build step. The only dependency is three.js r128, loaded from cdnjs as a classic script before the modules. It is published as a claude.ai Artifact: `index.html`, `js/**` and `assets/*.json`.
 
-The loop: walk Mercy Deck (stalls, job board, customs hall), take the freight lift out on a story chapter, a job or the Descent, come back or go down, spend, repeat. The setting and story are in `docs/STORY.md`; `docs/DESIGN.md` predates the cyberpunk rewrite. Many identifiers keep their older Western names (`town`, `canyon`, `saloon`, `horse`, `ride`): the name says what the code does, the text on screen says what it is now.
+The core is the route (`ROUTE` in `content.js`): the Spire is three strata deep, and each trip on the freight lift goes down one. At every lift stop Rook picks a door (the chapter that is due, a fight, an elite floor, a safehouse), the last floor is the stratum's boss, then it is back up to Mercy Deck. Beating a boss opens the next stratum (`c.depth`). Chapters finished on the way count even if Rook goes down. Going down loses the trip's finds, the kit worn and the creds carried (not what is in the QuikCred kiosk, `c.vault`). Rules: `beginRoute`, `routeOptions`, `routeFloor`, `advanceRoute`, `restRoute`, settled as kind `route` in `resolveExpedition`; `main.js` shows the doors (`ui` screen `route`) when a floor's lift is reached. The old single missions (`availableMissions`, `beginExpedition`) remain for tests and `LF_DEBUG.ride`. The setting and story are in `docs/STORY.md`; `docs/DESIGN.md` predates the cyberpunk rewrite. Many identifiers keep their older Western names (`town`, `canyon`, `saloon`, `horse`, `ride`): the name says what the code does, the text on screen says what it is now.
 
 ## Run and test
 
@@ -51,7 +51,7 @@ All art is baked to vertex colours, with no textures, into quantised JSON packs 
 ## Invariants (tested)
 
 - `resolveExpedition` settles an expedition exactly once.
-- Going down loses the run and the kit worn. Creds, plug-ins, unlocked guns, investments and story progress stay. There is one runner, Rook.
+- Going down loses the run, the kit worn and the creds carried. The kiosk's deposits, plug-ins, unlocked guns, investments, opened strata and story progress stay. There is one runner, Rook.
 - The same seed and inputs give the same sim state, including after a snapshot and restore.
 - Every generated level has a reachable objective, exits, spawns and items.
 
@@ -64,6 +64,8 @@ All art is baked to vertex colours, with no textures, into quantised JSON packs 
 - The fitted plug-in shows on Rook: add its parts to `PLUGIN_PARTS` in `actors.js` when adding a plug-in.
 - People on the deck answer questions from `ASK` in `content.js`, gated by chapters finished.
 - Mark Hollow enemies `hollow: true` in `ENEMIES`; code checks that flag, never a list of kinds.
+- Every enemy has a `faction` (saints, meridian, hollow). Enemies not fighting Rook take on the nearest enemy of another faction in sight (`seekFoe`, `e.foe`); shouts and flares only reach their own side. Machines hold a fight longer and never retreat.
+- New campaign fields must be copied (and checked) in `fromSavePayload`, or a reload drops them.
 - Run variety lives in `content.js` as data: `SYNERGIES` (two relics give a third effect), `ELITES` (modifiers some enemies spawn with; chance from `eliteChance` in the run config), `DEALS` (the black-market uplink on each level), `LOGS` (intake records, one findable per run, kept in the journal), `COMMS` (lines spoken in your ear at a run's beats: start, wave, objective, lockdown, extract).
 - District and underground levels hold part of their enemies back as `L.waves`: walking into a place, or taking the objective, brings a wave in (`updateWaves` in `sim.js`).
 - Music is synthesized in `js/music.js` (pieces: deck, run, hollow, boss); `main.js` picks the piece and intensity (`musicFor`). `node tests/music.mjs <three.min.js>` renders each offline.

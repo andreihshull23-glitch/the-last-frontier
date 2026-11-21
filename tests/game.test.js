@@ -59,7 +59,8 @@ test('an expedition settles exactly once; going down costs the kit, not the runn
   c.jobsOnce = ['tin_core', 'tin_servos', 'tin_voice'];
   const invested = R.invest(c, 'deputy');
   assert.ok(invested.ok !== false, invested.reason);
-  const cashBefore = c.cash;
+  assert.ok(R.deposit(c, 100).ok, 'some creds into the kiosk');
+  const vaulted = R.vaultInfo(c).locked.reduce((a, d) => a + d.amount, 0);
   const name = c.character.name, plugin = c.character.trait;
   const { sim } = ride(c, R.availableMissions(c)[0].id);
   assert.ok(sim.state.buddy, 'the rebuilt unit comes along');
@@ -68,7 +69,8 @@ test('an expedition settles exactly once; going down costs the kit, not the runn
   assert.equal(sim.state.report.outcome, 'died');
   const s1 = R.resolveExpedition(c, sim.state.report);
   assert.ok(s1.down, 'the summary says the runner went down');
-  assert.equal(c.cash, cashBefore, 'banked creds survive');
+  assert.equal(c.cash, 0, 'the creds on Rook are lost');
+  assert.equal(R.vaultInfo(c).locked.reduce((a, d) => a + d.amount, 0), vaulted, 'the kiosk keeps its creds');
   assert.ok(c.investments.includes('deputy'));
   assert.ok(c.character.alive, 'the same runner carries on');
   assert.equal(c.character.name, name);
@@ -308,7 +310,8 @@ test('the Descent: rooms seal, clear and pay, and floors chain', () => {
   const L2 = generateLevel(next.level);
   const sim2 = createSim(next, L2);
   assert.deepEqual(sim2.state.player.relics, ['hollow_point'], 'relics ride the lift down');
-  // dying on floor 2 still pays for floor 1
+  // dying on floor 2 still pays for floor 1 (the creds Rook took down are lost)
+  c.cash = 0;
   const cash = c.cash;
   sim2.state.player.hp = 0;
   for (let i = 0; i < 300 && sim2.state.phase !== 'ended'; i++) update(sim2, 1 / 60, {});
@@ -426,7 +429,8 @@ test('cargo: finds have bulk, the lift takes what fits, the chute secures finds 
   const sentBulk = s.secured.reduce((a, l) => a + l.bulk, 0);
   assert.ok(s.secured.length > 0 && sentBulk <= CARGO.chute, 'sent at most the chute load');
   const sentValue = s.secured.reduce((a, l) => a + l.value, 0);
-  // now go down: the chute's finds are still paid
+  // now go down: the chute's finds are still paid (with nothing carried, nothing else is lost)
+  c.cash = 0;
   const cash = c.cash;
   p.hp = 0;
   run(sim, 3, {});
@@ -681,4 +685,24 @@ test('the route: beating a stratum boss opens the next stratum and pays', () => 
   R.resolveExpedition(c, s.report);
   assert.equal(R.strataOpen(c), 1, 'the next stratum is open');
   assert.ok(c.cash > cash, 'paid');
+});
+
+test('the QuikCred kiosk: a fee, locked for a few trips, then it pays out', async () => {
+  const { ATM } = await import('../js/content.js');
+  const c = campaign();
+  c.cash = 200;
+  const r = R.deposit(c, 100);
+  assert.ok(r.ok);
+  assert.equal(c.cash, 100);
+  assert.equal(R.vaultInfo(c).locked[0].amount, 100 - R.depositFee(100));
+  assert.equal(R.withdraw(c).ok, false, 'locked');
+  c.expeditionCount += ATM.lock;
+  const w = R.withdraw(c);
+  assert.ok(w.ok);
+  assert.equal(c.cash, 100 + 100 - R.depositFee(100));
+  // the save keeps it, and everything else the route and WARDEN added
+  c.vault = [{ amount: 50, until: 99 }]; c.depth = 2; c.warden = { level: 2, focus: 'close', stats: { close: 10 }, runs: 1 }; c.aftermath = [{ id: 'relay', runs: 2 }];
+  const back = R.fromSavePayload(JSON.parse(JSON.stringify(R.toSavePayload ? R.toSavePayload(c) : { format: R.SAVE_FORMAT, version: R.SAVE_VERSION, campaign: c })));
+  const cc = back.campaign || back;
+  assert.equal(cc.depth, 2); assert.equal(cc.vault[0].amount, 50); assert.equal(cc.warden.focus, 'close'); assert.equal(cc.aftermath[0].id, 'relay');
 });

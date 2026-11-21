@@ -113,10 +113,18 @@ if (want('town')) {
   await page.waitForSelector('#panel .answer');
   check(await page.$eval('#panel .answer', (el) => el.textContent.includes('WARDEN')), 'the marshal answers a question');
   await shot(page, '10b-ask');
-  await page.click('[data-p="pick"]');
-  await page.waitForSelector('[data-p="ride"]');
-  await shot(page, '11-briefing');
-  await page.click('[data-p="ride"]');
+  check(await page.$eval('#panel', (el) => el.textContent.includes('The Stacks')), 'the marshal says where the chapter is');
+  await page.click('[data-p="close"]');
+  // runs start at the freight lift: the route board, then a door
+  await D(page, () => { window.LF_DEBUG.teleportTo('ride'); });
+  await waitSim(page, (await simT(page)) + 0.3);
+  await page.keyboard.press('KeyE');
+  await page.waitForSelector('.strata', { timeout: 20000 });
+  await shot(page, '11-route-board');
+  await page.click('[data-p="route"][data-id="0"]');
+  await page.waitForSelector('.door-story');
+  await shot(page, '11b-doors');
+  await page.click('.door-story');
   await waitMode(page, 'ride');
   await waitSim(page, 0.5);
   await shot(page, '12-ride-start');
@@ -187,8 +195,14 @@ if (want('town')) {
   await page.keyboard.press('KeyE');
   await waitSim(page, t6 + 2.5);
   await shot(page, '18-extracting');
-  await waitMode(page, 'menu', 240000);
-  await page.waitForSelector('[data-act="results-done"]');
+  // a floor done: the next lift stop. Ride back up instead of going deeper.
+  await page.waitForSelector('[data-act="goup"]', { timeout: 240000 });
+  await shot(page, '18b-lift-stop');
+  check(await D(page, () => document.querySelectorAll('.door').length >= 2), 'doors at the lift stop');
+  await page.click('[data-act="goup"]');
+  await page.waitForSelector('[data-act="results-done"], .cargo-list', { timeout: 240000 });
+  if (await page.$('.cargo-list')) await page.click('[data-act="cargo-done"]');
+  await page.waitForSelector('[data-act="results-done"]', { timeout: 240000 });
   await shot(page, '19-results');
   check(await D(page, () => window.LF_DEBUG.app.campaign.chapter === 1), 'chapter 1 settled');
   await page.click('[data-act="results-done"]');

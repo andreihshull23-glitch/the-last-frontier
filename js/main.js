@@ -210,6 +210,10 @@ function enterTown(arrive = 'trail', keep = null) {
   app.dirty = false;
   beginStage(sim, 'town');
   if (keep) { renderer.yaw = keep.yaw; renderer.pitch = keep.pitch; }
+  if (arrive === 'clinic') {
+    renderer.blood = 1;
+    toast(renderer, 'Doc Merritt: "Recovery crew found you three floors down and carried you up. You came in with nothing on you. Funny how that works."', 'story', true);
+  }
 }
 
 /**

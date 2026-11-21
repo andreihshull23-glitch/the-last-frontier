@@ -313,7 +313,11 @@ export function generateTown(spec = {}) {
     light(8, 3, lz, NEON.gold, 11);
     L.items.push({ kind: 'ride', x: P(lx), y: P(lz), r: 120 });
     prop('station/container-wide', 5.0, lz - 6.8, { s: 0.8 });
-    prop('station/container', 7.0, lz - 7.0, { s: 0.8, r: 0.3 });
+    // the QuikCred kiosk: a tired company terminal that still takes deposits from people who do not exist
+    prop('cyber/computer', 7.2, lz - 7.2, { r: Math.PI / 2 });
+    sign('QUIKCRED', 7.2, 2.5, lz - 6.6, 1.8, 0.45, 0, 1, NEON.green);
+    light(7.2, 2.2, lz - 6.2, NEON.green, 6);
+    shopSpot('atm', 7.2, lz - 5.9, 50);
     prop('station/container-flat', 5.4, lz + 6.8, { s: 0.8, r: Math.PI / 2 });
     if (invest.includes('watchtower')) {
       for (const dz of [-4.2, 4.2]) {
@@ -424,6 +428,9 @@ export function generateTown(spec = {}) {
   L.zones.push({ name: 'The concourse', x0: P(10), y0: P(zN), x1: P(EAST * M), y1: P(zS) });
   L.zones.push({ name: 'The freight lift', x0: P(4), y0: P(zN - M), x1: P(9), y1: P(zS + M), exit: true });
   const home = frames.saloon.T(frames.saloon.W / 2, -3);
-  L.start = spec.arrive === 'saloon' ? { x: P(home[0]), y: P(home[1]), a: 0 } : { x: P(12.5), y: P(zc), a: 0 };
+  const clinicDoor = frames.clinic.T(frames.clinic.W / 2, -1.6);
+  L.start = spec.arrive === 'saloon' ? { x: P(home[0]), y: P(home[1]), a: 0 }
+    : spec.arrive === 'clinic' ? { x: P(clinicDoor[0]), y: P(clinicDoor[1]), a: -Math.PI / 2 }   // dragged back up, out of the clinic's bay
+    : { x: P(12.5), y: P(zc), a: 0 };
   return L;
 }
